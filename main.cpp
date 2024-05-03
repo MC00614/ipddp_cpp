@@ -9,8 +9,8 @@
 Eigen::MatrixXd f(Eigen::VectorXd x0, Eigen::VectorXd u) {
     const double h = 0.05;
     Eigen::MatrixXd x1(x0.rows(),x0.cols());
-    x1(0,0) = x0(0,0) + h * x0(1,0);
-    x1(1,0) = x0(1,0) + h * std::sin(x0(1,0)) + h * u(0,0);
+    x1(0) = x0(0) + h * x0(1);
+    x1(1) = x0(1) + h * std::sin(x0(0)) + h * u(0);
     return x1;
 }
 
