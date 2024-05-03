@@ -32,11 +32,15 @@ int main() {
     Eigen::VectorXd u0(1);
     u0(0,0) = 0.0;
 
-    std::cout << calculateJacobian(f, x0, u0) << std::endl;
+    SOC_IPDDP soc_ipddp;
+    soc_ipddp.init(500);
+    soc_ipddp.setSystemF(f);
+    soc_ipddp.setStageCostQ(q);
+    soc_ipddp.setTerminalCostP(p);
+    soc_ipddp.solve();
+
+    Eigen::MatrixXd X = soc_ipddp.getX();
+    Eigen::MatrixXd U = soc_ipddp.getU();
+
     return 0;
 }
-
-// constexpr int dim_x = 3;
-// constexpr int dim_u = 1;
-// const Eigen::MatrixXd Q = Eigen::MatrixXd::Identity(dim_x, dim_x);
-// const Eigen::MatrixXd R = Eigen::MatrixXd::Identity(dim_u, dim_u);
