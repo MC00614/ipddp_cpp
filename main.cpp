@@ -15,32 +15,43 @@ Eigen::MatrixXd f(Eigen::VectorXd x0, Eigen::VectorXd u) {
 }
 
 // Stage Cost Function
-double q(Eigen::VectorXd x, Eigen::VectorXd u) {
-    return 0.025 * (x.squaredNorm() + u.squaredNorm());
+Eigen::MatrixXd q(Eigen::VectorXd x, Eigen::VectorXd u) {
+    Eigen::MatrixXd q(1,1);
+    q(0,0) =  0.025 * (x.squaredNorm() + u.squaredNorm());
+    return q;
 }
 
 // Terminal Cost Function
-double p(Eigen::VectorXd x, Eigen::VectorXd u) {
-	return 5 * x.squaredNorm();
+Eigen::VectorXd p(Eigen::VectorXd x) {
+    Eigen::MatrixXd p(1,1); 
+    p(0,0) = 5 * x.squaredNorm();
+	return p;
 }
 
 int main() {
-    Eigen::VectorXd x0(2);
-    x0(0,0) = -M_PI;
-    x0(1,0) = 0;
+    int N = 500;
 
-    Eigen::VectorXd u0(1);
-    u0(0,0) = 0.0;
+    int dim_x = 2;
+    int dim_u = 1;
 
+    Eigen::MatrixXd X(dim_x, N);
+    X(0,0) = -M_PI;
+    X(1,0) = 0.0;
+    X(0,N-1) = 0,0;
+    X(1,N-1) = 0.0;
+    Eigen::MatrixXd U(dim_u, N);
+    U(0,0) = 0.0;
+    
     SOC_IPDDP soc_ipddp;
-    soc_ipddp.init(500);
+    soc_ipddp.init(N, 1000, X, U);
     soc_ipddp.setSystemF(f);
     soc_ipddp.setStageCostQ(q);
     soc_ipddp.setTerminalCostP(p);
+
     soc_ipddp.solve();
 
-    Eigen::MatrixXd X = soc_ipddp.getX();
-    Eigen::MatrixXd U = soc_ipddp.getU();
+    // Eigen::MatrixXd X = soc_ipddp.getX();
+    // Eigen::MatrixXd U = soc_ipddp.getU();
 
     return 0;
 }
