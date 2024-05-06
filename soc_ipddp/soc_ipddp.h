@@ -1,6 +1,8 @@
 #include "helper_function.h"
 
-#include <eigen3/Eigen/Dense>
+#include <Eigen/Dense>
+#include <unsupported/Eigen/CXX11/Tensor>
+
 #include <functional>
 #include <cmath>
 
