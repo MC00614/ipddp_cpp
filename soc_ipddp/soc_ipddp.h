@@ -36,11 +36,11 @@ private:
     Eigen::MatrixXd U;
 
     // Discrete Time System
-    std::function<Eigen::MatrixXd(Eigen::VectorXd, Eigen::VectorXd)> f;
+    std::function<Eigen::VectorXd(Eigen::VectorXd, Eigen::VectorXd)> f;
     // Stage Cost Function
-    std::function<Eigen::MatrixXd(Eigen::VectorXd, Eigen::VectorXd)> q;
+    std::function<Eigen::VectorXd(Eigen::VectorXd, Eigen::VectorXd)> q;
     // Terminal Cost Function
-    std::function<Eigen::MatrixXd(Eigen::VectorXd)> p;
+    std::function<Eigen::VectorXd(Eigen::VectorXd)> p;
     void backwardPass();
     void forwardPass();
     void regulate();
@@ -92,30 +92,46 @@ void SOC_IPDDP::solve() {
 }
 
 void SOC_IPDDP::backwardPass() {    
-    Eigen::MatrixXd fd;
-    std::vector<Eigen::MatrixXd> fdd;
-    Eigen::MatrixXd qd;
-    std::vector<Eigen::MatrixXd> qdd;
+    Eigen::MatrixXd fx;
+    Eigen::MatrixXd fu;
+    Eigen::MatrixXd fxx;
+    Eigen::MatrixXd fuu;
+    Eigen::MatrixXd fxu;
+
+    Eigen::MatrixXd qx;
+    Eigen::MatrixXd qu;
+    Eigen::MatrixXd qxx;
+    Eigen::MatrixXd quu;
+    Eigen::MatrixXd qxu;
 
     Eigen::MatrixXd Qx;
     Eigen::MatrixXd Qu;
-    std::vector<Eigen::MatrixXd> Qxx;
-    std::vector<Eigen::MatrixXd> Quu;
-    std::vector<Eigen::MatrixXd> Qux;
+    Eigen::MatrixXd Qxx;
+    Eigen::MatrixXd Quu;
+    Eigen::MatrixXd Qxu;
     Eigen::MatrixXd Vx = calculateJacobian(p, X.col(N-1));
-    std::vector<Eigen::MatrixXd> Vxx = calculateHessian(p, X.col(N-1));
+    Eigen::MatrixXd Vxx = calculateHessianXX(p, X.col(N-1));
 
     for (int t = N-1; t >= 0; --t) {
-        fd = calculateJacobian(f, X.col(t), U.col(t));
-        fdd = calculateHessian(f, X.col(t), U.col(t));
-        qd = calculateJacobian(q, X.col(t), U.col(t));
-        qdd = calculateHessian(q, X.col(t), U.col(t));
+        fx = calculateJacobianX(f, X.col(t), U.col(t));
+        fu = calculateJacobianU(f, X.col(t), U.col(t));
+        fxx = calculateHessianXX(f, X.col(t), U.col(t));
+        // qx = calculateJacobianX(q, X.col(t), U.col(t));
+        // qu = calculateJacobianU(q, X.col(t), U.col(t));
+        // qdd = calculateHessian(q, X.col(t), U.col(t));
 
-
-        Qx = qd.block(0,0,1,1);
-        std::cout<<"qd : "<<qd<<std::endl;
-        std::cout<<"Qx : "<<Qx<<std::endl;
-        
+        // Qx = qx.transpose() + fx.transpose() * Vx.transpose();
+        // Qu = qu.transpose() + fu.transpose() * Vx.transpose();
+        // Qxx = qdd
+        std::cout << fxx << std::endl;
+        std::cout << Qu << std::endl;
+        std::cout << Vxx.size() << std::endl;
+        std::cout << Vxx << std::endl;
+        // std::cout << fd.transpose().rows() << fd.transpose().cols() << std::endl;
+        // std::cout << fd.middleCols(0,dim_x).transpose().rows() << fd.middleCols(0,dim_x).transpose().cols() << std::endl;
+        // std::cout << Vx.rows() << Vx.cols() << std::endl;
+        // std::cout << qd.middleCols(0,dim_x).rows() << qd.middleCols(0,dim_x).cols() << std::endl;
+        break;
     }
 
 }

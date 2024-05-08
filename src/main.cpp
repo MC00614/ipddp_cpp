@@ -6,24 +6,24 @@
 #include <cmath>
 
 // Discrete Time System
-Eigen::MatrixXd f(Eigen::VectorXd x0, Eigen::VectorXd u) {
+Eigen::VectorXd f(Eigen::VectorXd x0, Eigen::VectorXd u) {
     const double h = 0.05;
-    Eigen::MatrixXd x1(x0.rows(),x0.cols());
+    Eigen::VectorXd x1(x0.rows(),x0.cols());
     x1(0) = x0(0) + h * x0(1);
     x1(1) = x0(1) + h * std::sin(x0(0)) + h * u(0);
     return x1;
 }
 
 // Stage Cost Function
-Eigen::MatrixXd q(Eigen::VectorXd x, Eigen::VectorXd u) {
-    Eigen::MatrixXd q(1,1);
+Eigen::VectorXd q(Eigen::VectorXd x, Eigen::VectorXd u) {
+    Eigen::VectorXd q(1,1);
     q(0,0) =  0.025 * (x.squaredNorm() + u.squaredNorm());
     return q;
 }
 
 // Terminal Cost Function
 Eigen::VectorXd p(Eigen::VectorXd x) {
-    Eigen::MatrixXd p(1,1); 
+    Eigen::VectorXd p(1,1); 
     p(0,0) = 5 * x.squaredNorm();
 	return p;
 }
