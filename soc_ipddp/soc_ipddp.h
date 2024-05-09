@@ -110,7 +110,7 @@ void SOC_IPDDP::backwardPass() {
     Eigen::MatrixXd Quu;
     Eigen::MatrixXd Qxu;
     Eigen::MatrixXd Vx = calculateJacobian(p, X.col(N-1));
-    Eigen::MatrixXd Vxx = calculateHessianXX(p, X.col(N-1));
+    Eigen::MatrixXd Vxx = calculateHessian(p, X.col(N-1));
 
     for (int t = N-1; t >= 0; --t) {
         fx = calculateJacobianX(f, X.col(t), U.col(t));
@@ -124,9 +124,9 @@ void SOC_IPDDP::backwardPass() {
         // Qu = qu.transpose() + fu.transpose() * Vx.transpose();
         // Qxx = qdd
         std::cout << fxx << std::endl;
-        std::cout << Qu << std::endl;
-        std::cout << Vxx.size() << std::endl;
-        std::cout << Vxx << std::endl;
+        // std::cout << Qu << std::endl;
+        // std::cout << Vxx.size() << std::endl;
+        // std::cout << Vxx << std::endl;
         // std::cout << fd.transpose().rows() << fd.transpose().cols() << std::endl;
         // std::cout << fd.middleCols(0,dim_x).transpose().rows() << fd.middleCols(0,dim_x).transpose().cols() << std::endl;
         // std::cout << Vx.rows() << Vx.cols() << std::endl;
