@@ -15,16 +15,16 @@ Eigen::VectorXd f(Eigen::VectorXd x0, Eigen::VectorXd u) {
 }
 
 // Stage Cost Function
-Eigen::VectorXd q(Eigen::VectorXd x, Eigen::VectorXd u) {
-    Eigen::VectorXd q(1,1);
-    q(0,0) =  0.025 * (x.squaredNorm() + u.squaredNorm());
+double q(Eigen::VectorXd x, Eigen::VectorXd u) {
+    double q;
+    q =  0.025 * (x.squaredNorm() + u.squaredNorm());
     return q;
 }
 
 // Terminal Cost Function
-Eigen::VectorXd p(Eigen::VectorXd x) {
-    Eigen::VectorXd p(1,1); 
-    p(0,0) = 5 * x.squaredNorm();
+double p(Eigen::VectorXd x) {
+    double p;
+    p = 5 * x.squaredNorm();
 	return p;
 }
 
@@ -44,9 +44,9 @@ int main() {
     
     SOC_IPDDP soc_ipddp;
     soc_ipddp.init(N, 1000, X, U);
-    soc_ipddp.setSystemF(f);
-    soc_ipddp.setStageCostQ(q);
-    soc_ipddp.setTerminalCostP(p);
+    soc_ipddp.setSystemModel(f);
+    soc_ipddp.setStageCost(q);
+    soc_ipddp.setTerminalCost(p);
 
     soc_ipddp.solve();
 
