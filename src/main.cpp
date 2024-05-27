@@ -3,8 +3,8 @@
 
 #include <cmath>
 
-#include "soc_ipddp.h"
 #include "invpend.h"
+#include "soc_ipddp.h"
 #include "visualize.h"
 
 int main() {

@@ -1,21 +1,11 @@
+#include "model_base.h"
+
 #include <eigen3/Eigen/Dense>
 
-class InvPend {
+class InvPend : public ModelBase {
 public:
     InvPend();
     ~InvPend();
-
-    int N;
-    int dim_x;
-    int dim_u;
-    Eigen::MatrixXd X;
-    Eigen::MatrixXd U;
-    // Discrete Time System
-    std::function<Eigen::VectorXd(Eigen::VectorXd, Eigen::VectorXd)> f;
-    // Stage Cost Function
-    std::function<double(Eigen::VectorXd, Eigen::VectorXd)> q;
-    // Terminal Cost Function
-    std::function<double(Eigen::VectorXd)> p;
 };
 
 InvPend::InvPend() {
@@ -36,12 +26,12 @@ InvPend::InvPend() {
     U(0,0) = 0.0;
 
     // Discrete Time System
-    f = [this](const Eigen::VectorXd& x0, const Eigen::VectorXd& u) -> Eigen::VectorXd {
+    f = [this](const Eigen::VectorXd& x, const Eigen::VectorXd& u) -> Eigen::VectorXd {
         const double h = 0.05;
-        Eigen::VectorXd x1(x0.size());
-        x1(0) = x0(0) + h * x0(1);
-        x1(1) = x0(1) + h * std::sin(x0(0)) + h * u(0);
-        return x1;
+        Eigen::VectorXd x_n(x.size());
+        x_n(0) = x(0) + h * x(1);
+        x_n(1) = x(1) + h * std::sin(x(0)) + h * u(0);
+        return x_n;
     };
 
     // Stage Cost Function

@@ -1,3 +1,6 @@
+#pragma once
+
+#include "model_base.h"
 #include "helper_function.h"
 
 #include <Eigen/Dense>
@@ -52,15 +55,18 @@ private:
 };
 
 
-template<typename Model>
-SOC_IPDDP::SOC_IPDDP(Model model) {
+template<typename ModelClass>
+SOC_IPDDP::SOC_IPDDP(ModelClass model) {
+    if (!model.N || !model.dim_x || !model.dim_u) {throw std::invalid_argument("Model Parameter is null.");}
     this->N = model.N;
-    this->X = model.X;
-    this->U = model.U;
-
     this->dim_x = model.dim_x;
     this->dim_u = model.dim_u;
 
+    if (!model.X.size() || !model.U.size()) {throw std::invalid_argument("Model State is null.");}
+    this->X = model.X;
+    this->U = model.U;
+
+    if (!model.f || !model.q || !model.p) {throw std::invalid_argument("Model Function is null.");}
     this->f = model.f;
     this->q = model.q;
     this->p = model.p;
