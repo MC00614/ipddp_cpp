@@ -59,6 +59,7 @@ int main() {
     // Result
     Eigen::MatrixXd X_result = soc_ipddp.getX();
     Eigen::MatrixXd U_result = soc_ipddp.getU();
+    std::vector<double> all_cost = soc_ipddp.getAllCost();
 
 
     // // // // // // // // // // // // // // // // // // // // // // // // // 
@@ -83,7 +84,7 @@ int main() {
     }
 
     for (size_t i = 0; i < X_RES.size(); ++i) {
-        plt::subplot(dim_x + dim_u, 1, i + 1);
+        plt::subplot(dim_x + dim_u + 1, 1, i + 1);
         plt::plot(X_INIT[i], {{"label", "Init"}});
         plt::plot(X_RES[i], {{"label", "Result"}});
         plt::title("X_result Dimension " + std::to_string(i));
@@ -91,12 +92,17 @@ int main() {
     }
 
     for (size_t i = 0; i < U_RES.size(); ++i) {
-        plt::subplot(dim_x + dim_u, 1, dim_x + 1 + i);
+        plt::subplot(dim_x + dim_u + 1, 1, dim_x + 1 + i);
         plt::plot(U_INIT[i], {{"label", "Init"}});
         plt::plot(U_RES[i], {{"label", "Result"}});
         plt::title("U_result Dimension " + std::to_string(i));
         plt::legend();
     }
+
+    plt::subplot(dim_x + dim_u + 1, 1, dim_x + dim_u + 1);
+    plt::plot(all_cost, {{"label", "Cost"}});
+    plt::title("Cost");
+    plt::legend();
 
     plt::show();
     // // // // // // // // // // // // // // // // // // // // // // // // // 

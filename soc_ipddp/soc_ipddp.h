@@ -26,6 +26,7 @@ public:
 
     Eigen::MatrixXd getX();
     Eigen::MatrixXd getU();
+    std::vector<double> getAllCost();
 
 private:
     int N;
@@ -40,6 +41,7 @@ private:
     Eigen::MatrixXd k;
     Eigen::MatrixXd K;
 
+    std::vector<double> all_cost;
     double prev_total_cost;
     bool in_tolerance;
 
@@ -53,7 +55,7 @@ private:
     // Algorithm
     void backwardPass();
     void forwardPass();
-    double getTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U);
+    double calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U);
 };
 
 
@@ -96,7 +98,7 @@ void SOC_IPDDP::setTerminalCost(Func p) {
     this->p = p;
 }
 
-double SOC_IPDDP::getTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U) {
+double SOC_IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U) {
     double total_cost = 0.0;
     for (int t = 0; t < N; ++t) {
         total_cost += q(X.col(t), U.col(t));
@@ -188,7 +190,7 @@ void SOC_IPDDP::forwardPass() {
             U_new.col(t) = U.col(t) + a*k.col(t) + K.middleCols(t * this->dim_x, this->dim_x)*(X_new.col(t) - X.col(t));
             X_new.col(t+1) = f(X_new.col(t), U_new.col(t));
         }
-        total_cost = getTotalCost(X_new, U_new);
+        total_cost = calculateTotalCost(X_new, U_new);
         if (total_cost < prev_total_cost) {
             this->X = X_new;
             this->U = U_new;
@@ -198,6 +200,7 @@ void SOC_IPDDP::forwardPass() {
     }
 
     if (this->prev_total_cost - total_cost < this->cost_tolerance) {this->in_tolerance = true;}
+    this->all_cost.push_back(total_cost);
     this->prev_total_cost = total_cost;
     std::cout<<"total_cost : "<<total_cost<<std::endl;
 }
@@ -208,4 +211,8 @@ Eigen::MatrixXd SOC_IPDDP::getX() {
 
 Eigen::MatrixXd SOC_IPDDP::getU() {
     return U;
+}
+
+std::vector<double> SOC_IPDDP::getAllCost() {
+    return all_cost;
 }
