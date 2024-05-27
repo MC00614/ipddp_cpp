@@ -1,5 +1,22 @@
 # SOC-IPDDP
 
+### Feature
+- DDP Implemented
+- Quu Regulation for Backward Pass
+- Backtracking for Forward Pass
 
-### Dependency
-1. Eigen 3.3.9
+### Prerequisite
+- Eigen 3.3.9
+eigen.tuxfamily.org
+- matplotlib-cpp
+github.com/lava/matplotlib-cpp
+
+
+### Usage Example
+```
+mkdir build
+cd build
+cmake ..
+make
+./soc_ipddp
+```
