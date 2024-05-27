@@ -39,6 +39,7 @@ private:
 
     std::vector<double> all_cost;
     double prev_total_cost;
+    bool is_finished;
     bool in_tolerance;
 
     // Discrete Time System
@@ -78,6 +79,7 @@ SOC_IPDDP::~SOC_IPDDP() {
 void SOC_IPDDP::init(int max_iter, double cost_tolerance) {
     this->regulate = 0;
     this->prev_total_cost = std::numeric_limits<double>::max();
+    this->is_finished = false;
     this->in_tolerance = false;
 
     this->max_iter = max_iter;
@@ -105,10 +107,8 @@ void SOC_IPDDP::solve() {
         this->backwardPass();
         std::cout<< "Forward Pass" << std::endl;
         this->forwardPass();
-        if (this->in_tolerance) {
-            std::cout<< "In Tolerance" << std::endl;
-            break;
-        }
+        if (this->in_tolerance) {std::cout<< "In Tolerance" << std::endl; break;}
+        if (this->is_finished) {std::cout<< "Finished" << std::endl; break;}
     }
 }
 
@@ -168,12 +168,13 @@ void SOC_IPDDP::backwardPass() {
 
 void SOC_IPDDP::forwardPass() {
     double a = 1.0;
+    int max_backtracking_iter = 10;
     int back_tracking_iter = 0;
     double total_cost;
     Eigen::MatrixXd X_new = Eigen::MatrixXd::Zero(dim_x, N+1);
     Eigen::MatrixXd U_new = Eigen::MatrixXd::Zero(dim_u, N);
-    while (back_tracking_iter++ < 10) {
-    // while (back_tracking_iter++ < this->max_backtracking_iter) {
+    
+    while (back_tracking_iter++ < max_backtracking_iter) {
         X_new.col(0) = X.col(0);
         for (int t = 0; t < N; ++t) {
             U_new.col(t) = U.col(t) + a*k.col(t) + K.middleCols(t * this->dim_x, this->dim_x)*(X_new.col(t) - X.col(t));
@@ -185,7 +186,10 @@ void SOC_IPDDP::forwardPass() {
             this->U = U_new;
             break;
         }
-        a = 0.9*a;
+        else if (back_tracking_iter == max_backtracking_iter) {
+            this->is_finished = true;
+        }
+        a = 0.8*a;
     }
 
     if (this->prev_total_cost - total_cost < this->cost_tolerance) {this->in_tolerance = true;}
