@@ -36,7 +36,6 @@ private:
     int dim_u;
     int regulate;
 
-    
     Eigen::MatrixXd k;
     Eigen::MatrixXd K;
 
@@ -46,8 +45,13 @@ private:
     std::function<double(Eigen::VectorXd, Eigen::VectorXd)> q;
     // Terminal Cost Function
     std::function<double(Eigen::VectorXd)> p;
+    // Total Cost Function
+    std::function<double(Eigen::VectorXd)> j;
+
+    // Algorithm
     void backwardPass();
     void forwardPass();
+    double totalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U);
 };
 
 
@@ -88,6 +92,15 @@ void SOC_IPDDP::setTerminalCost(Func p) {
     this->p = p;
 }
 
+double SOC_IPDDP::totalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U) {
+    double total_cost = 0.0;
+    for (int t = 0; t < N; ++t) {
+        total_cost += q(X.col(t), U.col(t));
+    }
+    total_cost += p(X.col(N));
+    return total_cost;
+}
+
 void SOC_IPDDP::solve() {
     int iter = 0;
 
@@ -104,8 +117,8 @@ void SOC_IPDDP::backwardPass() {
     bool backward_failed = true;
 
     while (backward_failed) {
-        Eigen::VectorXd Vx = scalarJacobian(p, X.col(N-1));
-        Eigen::MatrixXd Vxx = scalarHessian(p, X.col(N-1));
+        Eigen::VectorXd Vx = scalarJacobian(p, X.col(N));
+        Eigen::MatrixXd Vxx = scalarHessian(p, X.col(N));
 
         for (int t = N-1; t >= 0; --t) {
             Eigen::MatrixXd fx = vectorJacobian(f, X.col(t), U.col(t), "x");
@@ -131,7 +144,7 @@ void SOC_IPDDP::backwardPass() {
             if (!Quu.isApprox(Quu.transpose()) || Quu_llt.info() == Eigen::NumericalIssue) {
                 regulate += 1;
                 break;
-            } 
+            }
             if (t == 0) {backward_failed = false;}
 
             this->k.col(t) = -Quu.inverse()*Qu;
@@ -161,6 +174,7 @@ void SOC_IPDDP::forwardPass() {
         X.col(t) = x;
         x = f(x, U.col(t));
     }
+    X.col(N) = x;
 }
 
 Eigen::MatrixXd SOC_IPDDP::getX() {

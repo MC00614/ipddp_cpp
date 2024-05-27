@@ -6,6 +6,7 @@
 #include <cmath>
 
 #include "matplotlibcpp.h"
+
 namespace plt = matplotlibcpp;
 
 // Discrete Time System
@@ -38,11 +39,12 @@ int main() {
     int dim_x = 2;
     int dim_u = 1;
 
-    Eigen::MatrixXd X = Eigen::MatrixXd::Zero(dim_x, N);
+    Eigen::MatrixXd X = Eigen::MatrixXd::Zero(dim_x, N+1);
+    std::cout<<X.cols()<<std::endl;
     X(0,0) = -M_PI;
     X(1,0) = 0.0;
-    X(0,N-1) = 0,0;
-    X(1,N-1) = 0.0;
+    X(0,N) = 0,0;
+    X(1,N) = 0.0;
     Eigen::MatrixXd U = Eigen::MatrixXd::Zero(dim_u, N);
     U(0,0) = 0.0;
     
