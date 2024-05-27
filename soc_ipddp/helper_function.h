@@ -7,9 +7,6 @@
 
 #include <iostream>
 
-// vector: F
-// scalar: P, Q
-
 template<typename Func>
 inline Eigen::MatrixXd vectorJacobian(Func f, const Eigen::VectorXd& x, const Eigen::VectorXd& u, const std::string& variable, double eps = 1e-5) {
     int rows = f(x, u).size();
