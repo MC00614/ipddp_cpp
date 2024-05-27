@@ -27,7 +27,7 @@ void visualize(Eigen::MatrixXd X_initial, Eigen::MatrixXd U_initial, Eigen::Matr
         plt::subplot(dim_x + dim_u + 1, 1, i + 1);
         plt::plot(X_INIT[i], {{"label", "Init"}});
         plt::plot(X_RES[i], {{"label", "Result"}});
-        plt::title("X_result Dimension " + std::to_string(i));
+        plt::title("X Dimension " + std::to_string(i), {{"fontsize", "20"}});
         plt::legend();
     }
 
@@ -35,13 +35,13 @@ void visualize(Eigen::MatrixXd X_initial, Eigen::MatrixXd U_initial, Eigen::Matr
         plt::subplot(dim_x + dim_u + 1, 1, dim_x + 1 + i);
         plt::plot(U_INIT[i], {{"label", "Init"}});
         plt::plot(U_RES[i], {{"label", "Result"}});
-        plt::title("U_result Dimension " + std::to_string(i));
+        plt::title("U Dimension " + std::to_string(i), {{"fontsize", "20"}});
         plt::legend();
     }
 
     plt::subplot(dim_x + dim_u + 1, 1, dim_x + dim_u + 1);
     plt::plot(all_cost, {{"label", "Cost"}});
-    plt::title("Cost");
+    plt::title("Cost", {{"fontsize", "20"}});
     plt::legend();
 
     plt::show();
