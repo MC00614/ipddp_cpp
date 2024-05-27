@@ -11,7 +11,7 @@
 // scalar: P, Q
 
 template<typename Func>
-Eigen::MatrixXd vectorJacobian(Func f, const Eigen::VectorXd& x, const Eigen::VectorXd& u, const std::string& variable, double eps = 1e-5) {
+inline Eigen::MatrixXd vectorJacobian(Func f, const Eigen::VectorXd& x, const Eigen::VectorXd& u, const std::string& variable, double eps = 1e-5) {
     int rows = f(x, u).size();
     int cols;
     Eigen::VectorXd m;
@@ -47,7 +47,7 @@ Eigen::MatrixXd vectorJacobian(Func f, const Eigen::VectorXd& x, const Eigen::Ve
 }
 
 template<typename Func>
-Eigen::VectorXd scalarJacobian(Func f, const Eigen::VectorXd& x, const Eigen::VectorXd& u, const std::string& variable, double eps = 1e-5) {
+inline Eigen::VectorXd scalarJacobian(Func f, const Eigen::VectorXd& x, const Eigen::VectorXd& u, const std::string& variable, double eps = 1e-5) {
     int rows;
     int cols = 1;
     Eigen::VectorXd m;
@@ -82,7 +82,7 @@ Eigen::VectorXd scalarJacobian(Func f, const Eigen::VectorXd& x, const Eigen::Ve
 }
 
 template<typename Func>
-Eigen::VectorXd scalarJacobian(Func f, const Eigen::VectorXd& x, double eps = 1e-5) {
+inline Eigen::VectorXd scalarJacobian(Func f, const Eigen::VectorXd& x, double eps = 1e-5) {
     int rows;
     int cols = 1;
     Eigen::VectorXd m;
@@ -102,7 +102,7 @@ Eigen::VectorXd scalarJacobian(Func f, const Eigen::VectorXd& x, double eps = 1e
 }
 
 template<typename Func>
-Eigen::Tensor<double, 3> vectorHessian(Func f, const Eigen::VectorXd& x, const Eigen::VectorXd& u, const std::string& variable, double eps = 1e-5) {
+inline Eigen::Tensor<double, 3> vectorHessian(Func f, const Eigen::VectorXd& x, const Eigen::VectorXd& u, const std::string& variable, double eps = 1e-5) {
     int rows = f(x, u).size();
     int cols1;
     int cols2;
@@ -191,7 +191,7 @@ Eigen::Tensor<double, 3> vectorHessian(Func f, const Eigen::VectorXd& x, const E
 }
 
 template<typename Func>
-Eigen::MatrixXd scalarHessian(Func f, const Eigen::VectorXd& x, const Eigen::VectorXd& u, const std::string& variable, double eps = 1e-5) {
+inline Eigen::MatrixXd scalarHessian(Func f, const Eigen::VectorXd& x, const Eigen::VectorXd& u, const std::string& variable, double eps = 1e-5) {
     int rows;
     int cols;
     Eigen::MatrixXd hessians;
@@ -271,7 +271,7 @@ Eigen::MatrixXd scalarHessian(Func f, const Eigen::VectorXd& x, const Eigen::Vec
 }
 
 template<typename Func>
-Eigen::MatrixXd scalarHessian(Func f, const Eigen::VectorXd& x, double eps = 1e-5) {
+inline Eigen::MatrixXd scalarHessian(Func f, const Eigen::VectorXd& x, double eps = 1e-5) {
     int rows;
     int cols;
     Eigen::MatrixXd hessians;
@@ -301,7 +301,7 @@ Eigen::MatrixXd scalarHessian(Func f, const Eigen::VectorXd& x, double eps = 1e-
 }
 
 // tensdot = @(a,b) permute(sum(bsxfun(@times,a,b),1), [2 3 1]);
-Eigen::MatrixXd tensdot(const Eigen::VectorXd& vector, const Eigen::Tensor<double, 3>& tensor) {
+inline Eigen::MatrixXd tensdot(const Eigen::VectorXd& vector, const Eigen::Tensor<double, 3>& tensor) {
     int dim1 = tensor.dimension(0);
     int dim2 = tensor.dimension(1);
     int dim3 = tensor.dimension(2);

@@ -10,18 +10,11 @@
 
 class SOC_IPDDP {
 public:
-    SOC_IPDDP();
+    template<typename ModelClass>
+    SOC_IPDDP(ModelClass model);
     ~SOC_IPDDP();
 
-    void init(int N, int max_iter, double cost_tolerance, Eigen::MatrixXd X, Eigen::MatrixXd U);
-
-    template<typename Func>
-    void setSystemModel(Func f);
-    template<typename Func>
-    void setStageCost(Func q);
-    template<typename Func>
-    void setTerminalCost(Func p);
-
+    void init(int max_iter, double cost_tolerance);
     void solve();
 
     Eigen::MatrixXd getX();
@@ -59,43 +52,33 @@ private:
 };
 
 
-SOC_IPDDP::SOC_IPDDP() {
-    this->regulate = 0;
-    this->prev_total_cost = std::numeric_limits<double>::max();
-    this->in_tolerance = false;
+template<typename Model>
+SOC_IPDDP::SOC_IPDDP(Model model) {
+    this->N = model.N;
+    this->X = model.X;
+    this->U = model.U;
+
+    this->dim_x = model.dim_x;
+    this->dim_u = model.dim_u;
+
+    this->f = model.f;
+    this->q = model.q;
+    this->p = model.p;
 }
 
 SOC_IPDDP::~SOC_IPDDP() {
 }
 
-void SOC_IPDDP::init(int N, int max_iter, double cost_tolerance, Eigen::MatrixXd X, Eigen::MatrixXd U) {
-    this->N = N;
+void SOC_IPDDP::init(int max_iter, double cost_tolerance) {
+    this->regulate = 0;
+    this->prev_total_cost = std::numeric_limits<double>::max();
+    this->in_tolerance = false;
+
     this->max_iter = max_iter;
     this->cost_tolerance = cost_tolerance; 
-    this->X = X;
-    this->U = U;
-
-    this->dim_x = X.rows();
-    this->dim_u = U.rows();
 
     this->k.resize(this->dim_u, this->N);
     this->K.resize(this->dim_u, this->dim_x * this->N);
-}
-
-
-template<typename Func>
-void SOC_IPDDP::setSystemModel(Func f) {
-    this->f = f;
-}
-
-template<typename Func>
-void SOC_IPDDP::setStageCost(Func q) {
-    this->q = q;
-}
-
-template<typename Func>
-void SOC_IPDDP::setTerminalCost(Func p) {
-    this->p = p;
 }
 
 double SOC_IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U) {

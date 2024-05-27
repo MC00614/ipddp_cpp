@@ -1,58 +1,22 @@
-#include "soc_ipddp.h"
-
 #include <eigen3/Eigen/Dense>
 #include <iostream>
 
 #include <cmath>
 
+#include "soc_ipddp.h"
+#include "model.h" 
 #include "matplotlibcpp.h"
 
 namespace plt = matplotlibcpp;
 
-// Discrete Time System
-Eigen::VectorXd f(const Eigen::VectorXd& x0, const Eigen::VectorXd& u) {
-    const double h = 0.05;
-    Eigen::VectorXd x1(x0.rows(),x0.cols());
-    x1(0) = x0(0) + h * x0(1);
-    x1(1) = x0(1) + h * std::sin(x0(0)) + h * u(0);
-    return x1;
-}
-
-// Stage Cost Function
-double q(const Eigen::VectorXd& x, const Eigen::VectorXd& u) {
-    double q;
-    q =  0.025 * (x.squaredNorm() + u.squaredNorm());
-    return q;
-}
-
-// Terminal Cost Function
-double p(const Eigen::VectorXd& x) {
-    double p;
-    p = 5 * x.squaredNorm();
-	return p;
-}
-
 int main() {
     // Intitial Setting
-    int N = 500;
-
-    int dim_x = 2;
-    int dim_u = 1;
-
-    Eigen::MatrixXd X = Eigen::MatrixXd::Zero(dim_x, N+1);
-    X(0,0) = -M_PI;
-    X(1,0) = 0.0;
-    X(0,N) = 0,0;
-    X(1,N) = 0.0;
-    Eigen::MatrixXd U = Eigen::MatrixXd::Zero(dim_u, N);
-    U(0,0) = 0.0;
+    auto model = InvPend();
     
     // Solver
-    SOC_IPDDP soc_ipddp;
-    soc_ipddp.setSystemModel(f);
-    soc_ipddp.setStageCost(q);
-    soc_ipddp.setTerminalCost(p);
-    soc_ipddp.init(N, 100, 1e-2, X, U);
+    SOC_IPDDP soc_ipddp(model);
+
+    soc_ipddp.init(100, 1e-2);
 
     soc_ipddp.solve();
 
@@ -62,14 +26,18 @@ int main() {
     std::vector<double> all_cost = soc_ipddp.getAllCost();
 
 
+
+
     // // // // // // // // // // // // // // // // // // // // // // // // // 
     //  VISUALIZATION  // VISUALIZATION  // VISUALIZATION  // VISUALIZATION // 
     // // // // // // // // // // // // // // // // // // // // // // // // // 
+    int dim_x = X_result.rows();
+    int dim_u = U_result.rows();
     std::vector<std::vector<double>> X_INIT(X_result.rows(), std::vector<double>(X_result.cols()));
     std::vector<std::vector<double>> X_RES(X_result.rows(), std::vector<double>(X_result.cols()));
     for (int i = 0; i < X_result.rows(); ++i) {
         for (int j = 0; j < X_result.cols(); ++j) {
-            X_INIT[i][j] = X(i,j);
+            X_INIT[i][j] = model.X(i,j);
             X_RES[i][j] = X_result(i, j);
         }
     }
@@ -78,7 +46,7 @@ int main() {
     std::vector<std::vector<double>> U_RES(U_result.rows(), std::vector<double>(U_result.cols()));
     for (int i = 0; i < U_result.rows(); ++i) {
         for (int j = 0; j < U_result.cols(); ++j) {
-            U_INIT[i][j] = U(i,j);
+            U_INIT[i][j] = model.U(i,j);
             U_RES[i][j] = U_result(i, j);
         }
     }

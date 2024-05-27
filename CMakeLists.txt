@@ -5,6 +5,7 @@ find_package(PythonLibs REQUIRED)
 
 include_directories(
     soc_ipddp/
+    model/
     eigen/
     matplotlibcpp/
     ${PYTHON_INCLUDE_DIRS}
