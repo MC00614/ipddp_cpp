@@ -40,7 +40,6 @@ int main() {
     int dim_u = 1;
 
     Eigen::MatrixXd X = Eigen::MatrixXd::Zero(dim_x, N+1);
-    std::cout<<X.cols()<<std::endl;
     X(0,0) = -M_PI;
     X(1,0) = 0.0;
     X(0,N) = 0,0;
@@ -50,10 +49,10 @@ int main() {
     
     // Solver
     SOC_IPDDP soc_ipddp;
-    soc_ipddp.init(N, 10, X, U);
     soc_ipddp.setSystemModel(f);
     soc_ipddp.setStageCost(q);
     soc_ipddp.setTerminalCost(p);
+    soc_ipddp.init(N, 100, 1e-2, X, U);
 
     soc_ipddp.solve();
 
@@ -65,8 +64,6 @@ int main() {
     // // // // // // // // // // // // // // // // // // // // // // // // // 
     //  VISUALIZATION  // VISUALIZATION  // VISUALIZATION  // VISUALIZATION // 
     // // // // // // // // // // // // // // // // // // // // // // // // // 
-
-    // Convert Eigen::MatrixXd to std::vector for X_result
     std::vector<std::vector<double>> X_INIT(X_result.rows(), std::vector<double>(X_result.cols()));
     std::vector<std::vector<double>> X_RES(X_result.rows(), std::vector<double>(X_result.cols()));
     for (int i = 0; i < X_result.rows(); ++i) {
@@ -76,7 +73,6 @@ int main() {
         }
     }
 
-    // Convert Eigen::MatrixXd to std::vector for U_result
     std::vector<std::vector<double>> U_INIT(U_result.rows(), std::vector<double>(U_result.cols()));
     std::vector<std::vector<double>> U_RES(U_result.rows(), std::vector<double>(U_result.cols()));
     for (int i = 0; i < U_result.rows(); ++i) {
@@ -86,7 +82,6 @@ int main() {
         }
     }
 
-    // Plot X_result
     for (size_t i = 0; i < X_RES.size(); ++i) {
         plt::subplot(dim_x + dim_u, 1, i + 1);
         plt::plot(X_INIT[i], {{"label", "Init"}});
@@ -95,7 +90,6 @@ int main() {
         plt::legend();
     }
 
-    // Plot U_result
     for (size_t i = 0; i < U_RES.size(); ++i) {
         plt::subplot(dim_x + dim_u, 1, dim_x + 1 + i);
         plt::plot(U_INIT[i], {{"label", "Init"}});
@@ -105,6 +99,9 @@ int main() {
     }
 
     plt::show();
+    // // // // // // // // // // // // // // // // // // // // // // // // // 
+    //  VISUALIZATION  // VISUALIZATION  // VISUALIZATION  // VISUALIZATION // 
+    // // // // // // // // // // // // // // // // // // // // // // // // // 
 
     return 0;
 }

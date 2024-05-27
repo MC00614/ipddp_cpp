@@ -13,7 +13,7 @@ public:
     SOC_IPDDP();
     ~SOC_IPDDP();
 
-    void init(int N, int max_iter, Eigen::MatrixXd X, Eigen::MatrixXd U);
+    void init(int N, int max_iter, double cost_tolerance, Eigen::MatrixXd X, Eigen::MatrixXd U);
 
     template<typename Func>
     void setSystemModel(Func f);
@@ -30,6 +30,7 @@ public:
 private:
     int N;
     int max_iter;
+    double cost_tolerance;
     Eigen::MatrixXd X;
     Eigen::MatrixXd U;
     int dim_x;
@@ -39,19 +40,20 @@ private:
     Eigen::MatrixXd k;
     Eigen::MatrixXd K;
 
+    double prev_total_cost;
+    bool in_tolerance;
+
     // Discrete Time System
     std::function<Eigen::VectorXd(Eigen::VectorXd, Eigen::VectorXd)> f;
     // Stage Cost Function
     std::function<double(Eigen::VectorXd, Eigen::VectorXd)> q;
     // Terminal Cost Function
     std::function<double(Eigen::VectorXd)> p;
-    // Total Cost Function
-    std::function<double(Eigen::VectorXd)> j;
 
     // Algorithm
     void backwardPass();
     void forwardPass();
-    double totalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U);
+    double getTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U);
 };
 
 
@@ -59,11 +61,13 @@ SOC_IPDDP::SOC_IPDDP() {
 }
 
 SOC_IPDDP::~SOC_IPDDP() {
+    this->regulate = 0;
 }
 
-void SOC_IPDDP::init(int N, int max_iter, Eigen::MatrixXd X, Eigen::MatrixXd U) {
+void SOC_IPDDP::init(int N, int max_iter, double cost_tolerance, Eigen::MatrixXd X, Eigen::MatrixXd U) {
     this->N = N;
     this->max_iter = max_iter;
+    this->cost_tolerance = cost_tolerance; 
     this->X = X;
     this->U = U;
 
@@ -73,7 +77,8 @@ void SOC_IPDDP::init(int N, int max_iter, Eigen::MatrixXd X, Eigen::MatrixXd U) 
     this->k.resize(this->dim_u, this->N);
     this->K.resize(this->dim_u, this->dim_x * this->N);
 
-    this->regulate = 0;
+    this->prev_total_cost = MAXFLOAT;
+    this->in_tolerance = false;
 }
 
 
@@ -92,7 +97,7 @@ void SOC_IPDDP::setTerminalCost(Func p) {
     this->p = p;
 }
 
-double SOC_IPDDP::totalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U) {
+double SOC_IPDDP::getTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U) {
     double total_cost = 0.0;
     for (int t = 0; t < N; ++t) {
         total_cost += q(X.col(t), U.col(t));
@@ -105,39 +110,54 @@ void SOC_IPDDP::solve() {
     int iter = 0;
 
     while (iter++ < this->max_iter) {
+        std::cout<< "\niter : " << iter << std::endl;
         std::cout<< "Backward Pass" << std::endl;
         this->backwardPass();
         std::cout<< "Forward Pass" << std::endl;
         this->forwardPass();
+        if (this->in_tolerance) {
+            std::cout<< "In Tolerance" << std::endl;
+            break;
+        }
     }
-    
 }
 
 void SOC_IPDDP::backwardPass() {
     bool backward_failed = true;
+    Eigen::VectorXd Vx;
+    Eigen::MatrixXd Vxx;
 
+    Eigen::MatrixXd fx, fu;
+    Eigen::Tensor<double, 3> fxx, fxu, fuu;
+
+    Eigen::VectorXd qx, qu;
+    Eigen::MatrixXd qxx, qxu, quu;
+
+    Eigen::VectorXd Qx, Qu;
+    Eigen::MatrixXd Qxx, Qxu, Quu;
+    
     while (backward_failed) {
-        Eigen::VectorXd Vx = scalarJacobian(p, X.col(N));
-        Eigen::MatrixXd Vxx = scalarHessian(p, X.col(N));
+        Vx = scalarJacobian(p, X.col(N));
+        Vxx = scalarHessian(p, X.col(N));
 
         for (int t = N-1; t >= 0; --t) {
-            Eigen::MatrixXd fx = vectorJacobian(f, X.col(t), U.col(t), "x");
-            Eigen::MatrixXd fu = vectorJacobian(f, X.col(t), U.col(t), "u");
-            Eigen::Tensor<double, 3> fxx = vectorHessian(f, X.col(t), U.col(t), "xx");
-            Eigen::Tensor<double, 3> fxu = vectorHessian(f, X.col(t), U.col(t), "xu");
-            Eigen::Tensor<double, 3> fuu = vectorHessian(f, X.col(t), U.col(t), "uu");
+            fx = vectorJacobian(f, X.col(t), U.col(t), "x");
+            fu = vectorJacobian(f, X.col(t), U.col(t), "u");
+            fxx = vectorHessian(f, X.col(t), U.col(t), "xx");
+            fxu = vectorHessian(f, X.col(t), U.col(t), "xu");
+            fuu = vectorHessian(f, X.col(t), U.col(t), "uu");
 
-            Eigen::VectorXd qx = scalarJacobian(q, X.col(t), U.col(t), "x");
-            Eigen::VectorXd qu = scalarJacobian(q, X.col(t), U.col(t), "u");
-            Eigen::MatrixXd qxx = scalarHessian(q, X.col(t), U.col(t), "xx");
-            Eigen::MatrixXd qxu = scalarHessian(q, X.col(t), U.col(t), "xu");
-            Eigen::MatrixXd quu = scalarHessian(q, X.col(t), U.col(t), "uu");
+            qx = scalarJacobian(q, X.col(t), U.col(t), "x");
+            qu = scalarJacobian(q, X.col(t), U.col(t), "u");
+            qxx = scalarHessian(q, X.col(t), U.col(t), "xx");
+            qxu = scalarHessian(q, X.col(t), U.col(t), "xu");
+            quu = scalarHessian(q, X.col(t), U.col(t), "uu");
 
-            Eigen::VectorXd Qx = qx + fx.transpose()*Vx;
-            Eigen::VectorXd Qu = qu + fu.transpose()*Vx;
-            Eigen::MatrixXd Qxx = qxx + fx.transpose()*Vxx*fx + tensdot(Vx,fxx);
-            Eigen::MatrixXd Qxu = qxu + fx.transpose()*Vxx*fu + tensdot(Vx,fxu);
-            Eigen::MatrixXd Quu = quu + fu.transpose()*Vxx*fu + tensdot(Vx,fuu);
+            Qx = qx + fx.transpose() * Vx;
+            Qu = qu + fu.transpose() * Vx;
+            Qxx = qxx + fx.transpose() * Vxx * fx + tensdot(Vx, fxx);
+            Qxu = qxu + fx.transpose() * Vxx * fu + tensdot(Vx, fxu);
+            Quu = quu + fu.transpose() * Vxx * fu + tensdot(Vx, fuu);
 
             if (regulate) {Quu += std::pow(1.5, regulate) * Eigen::MatrixXd::Identity(dim_u, dim_u);}
             Eigen::LLT<Eigen::MatrixXd> Quu_llt(Quu);
@@ -149,32 +169,38 @@ void SOC_IPDDP::backwardPass() {
 
             this->k.col(t) = -Quu.inverse()*Qu;
             this->K.middleCols(t * this->dim_x, this->dim_x) = -Quu.inverse()*Qxu.transpose();
-            // std::cout<<"Quu\n"<<Quu<<std::endl;
-            // std::cout<<"Qu\n"<<Qu<<std::endl;
-            // std::cout<<"k\n"<<k<<std::endl;
-            // std::cout<<"K\n"<<K<<std::endl;
 
             Vx = Qx - Qxu*Quu.inverse()*Qu;
             Vxx = Qxx - Qxu*Quu.inverse()*Qxu.transpose();
-            // std::cout<<"Vx\n"<<Vx<<std::endl;
-            // std::cout<<"Vxx\n"<<Vxx<<std::endl;
-            // std::cout<<"Quu\n"<<Quu<<std::endl;
-            // std::cout<<"Quu.inverse()\n"<<Quu.inverse()<<std::endl;
-
         }
     }
 }
 
 void SOC_IPDDP::forwardPass() {
-    // std::cout<<"k\n"<<k<<std::endl;
-    // std::cout<<"K\n"<<K<<std::endl;
-    Eigen::VectorXd x = X.col(0);
-    for (int t = 0; t < N; ++t) {
-        U.col(t) = U.col(t) + k.col(t) + K.middleCols(t * this->dim_x, this->dim_x)*(x - X.col(t));
-        X.col(t) = x;
-        x = f(x, U.col(t));
+    double a = 1.0;
+    int back_tracking_iter = 0;
+    double total_cost;
+    while (back_tracking_iter++ < 10) {
+    // while (back_tracking_iter++ < this->max_backtracking_iter) {
+        Eigen::MatrixXd X_new = Eigen::MatrixXd::Zero(dim_x, N+1);
+        Eigen::MatrixXd U_new = Eigen::MatrixXd::Zero(dim_u, N);
+        X_new.col(0) = X.col(0);
+        for (int t = 0; t < N; ++t) {
+            U_new.col(t) = U.col(t) + a*k.col(t) + K.middleCols(t * this->dim_x, this->dim_x)*(X_new.col(t) - X.col(t));
+            X_new.col(t+1) = f(X_new.col(t), U_new.col(t));
+        }
+        total_cost = getTotalCost(X_new, U_new);
+        if (total_cost < prev_total_cost) {
+            this->X = X_new;
+            this->U = U_new;
+            break;
+        }
+        a = 0.9*a;
     }
-    X.col(N) = x;
+
+    if (this->prev_total_cost - total_cost < this->cost_tolerance) {this->in_tolerance = true;}
+    this->prev_total_cost = total_cost;
+    std::cout<<"total_cost : "<<total_cost<<std::endl;
 }
 
 Eigen::MatrixXd SOC_IPDDP::getX() {
