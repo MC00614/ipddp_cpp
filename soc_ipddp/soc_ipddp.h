@@ -58,10 +58,12 @@ private:
 
 
 SOC_IPDDP::SOC_IPDDP() {
+    this->regulate = 0;
+    this->prev_total_cost = std::numeric_limits<double>::max();
+    this->in_tolerance = false;
 }
 
 SOC_IPDDP::~SOC_IPDDP() {
-    this->regulate = 0;
 }
 
 void SOC_IPDDP::init(int N, int max_iter, double cost_tolerance, Eigen::MatrixXd X, Eigen::MatrixXd U) {
@@ -76,9 +78,6 @@ void SOC_IPDDP::init(int N, int max_iter, double cost_tolerance, Eigen::MatrixXd
 
     this->k.resize(this->dim_u, this->N);
     this->K.resize(this->dim_u, this->dim_x * this->N);
-
-    this->prev_total_cost = MAXFLOAT;
-    this->in_tolerance = false;
 }
 
 
@@ -180,10 +179,10 @@ void SOC_IPDDP::forwardPass() {
     double a = 1.0;
     int back_tracking_iter = 0;
     double total_cost;
+    Eigen::MatrixXd X_new = Eigen::MatrixXd::Zero(dim_x, N+1);
+    Eigen::MatrixXd U_new = Eigen::MatrixXd::Zero(dim_u, N);
     while (back_tracking_iter++ < 10) {
     // while (back_tracking_iter++ < this->max_backtracking_iter) {
-        Eigen::MatrixXd X_new = Eigen::MatrixXd::Zero(dim_x, N+1);
-        Eigen::MatrixXd U_new = Eigen::MatrixXd::Zero(dim_u, N);
         X_new.col(0) = X.col(0);
         for (int t = 0; t < N; ++t) {
             U_new.col(t) = U.col(t) + a*k.col(t) + K.middleCols(t * this->dim_x, this->dim_x)*(X_new.col(t) - X.col(t));
