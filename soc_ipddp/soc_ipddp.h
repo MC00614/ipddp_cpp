@@ -188,6 +188,7 @@ void SOC_IPDDP::forwardPass() {
         }
         else if (back_tracking_iter == max_backtracking_iter) {
             this->is_finished = true;
+            return;
         }
         a = 0.8*a;
     }

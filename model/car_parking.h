@@ -18,8 +18,8 @@ CarParking::CarParking() {
 
     // Status Setting
     X = Eigen::MatrixXd::Zero(dim_x, N+1);
-    X(0,0) = 10.0;
-    X(1,0) = 10.0;
+    X(0,0) = 1.0;
+    X(1,0) = 1.0;
     X(2,0) = -M_PI_2;
     X(3,0) = 0.0;
     X(0,N) = 0,0;
