@@ -4,14 +4,16 @@
 #include <cmath>
 
 #include "invpend.h"
+#include "cart_pole.h"
 #include "car_parking.h"
 #include "soc_ipddp.h"
 #include "visualize.h"
 
 int main() {
     // Load Dynamic Model
-    // auto model = InvPend();
-    auto model = CarParking();
+    auto model = InvPend();
+    // auto model = CartPole();
+    // auto model = CarParking();
     
     // Solver Setting
     SOC_IPDDP soc_ipddp(model);
