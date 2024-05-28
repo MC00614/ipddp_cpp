@@ -20,7 +20,7 @@ CarParking::CarParking() {
     X = Eigen::MatrixXd::Zero(dim_x, N+1);
     X(0,0) = 1.0;
     X(1,0) = 1.0;
-    X(2,0) = -M_PI_2;
+    X(2,0) = 3*M_PI_2;
     X(3,0) = 0.0;
     X(0,N) = 0,0;
     X(1,N) = 0.0;
@@ -47,6 +47,7 @@ CarParking::CarParking() {
     // Stage Cost Function
     q = [this](const Eigen::VectorXd& x, const Eigen::VectorXd& u) -> double {
         // double u0 = std::atan2(std::sin(u(0)), std::cos(u(0)));
+        // return 0.01 * (u0*u0 + 0.01*u(1)*u(1)) +
         return 0.01 * (u(0)*u(0) + 0.01*u(1)*u(1)) +
             0.01 * (std::sqrt(x(0) * x(0) + 0.1 * 0.1) - 0.1) +
             0.01 * (std::sqrt(x(1) * x(1) + 0.1 * 0.1) - 0.1);

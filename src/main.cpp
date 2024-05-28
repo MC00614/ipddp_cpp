@@ -16,7 +16,7 @@ int main() {
     // Solver Setting
     SOC_IPDDP soc_ipddp(model);
 
-    soc_ipddp.init(1000, 1e-3);
+    soc_ipddp.init(100, 1e-3);
 
     soc_ipddp.solve();
 

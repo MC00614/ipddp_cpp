@@ -180,15 +180,16 @@ void SOC_IPDDP::forwardPass() {
             U_new.col(t) = U.col(t) + a*k.col(t) + K.middleCols(t * this->dim_x, this->dim_x)*(X_new.col(t) - X.col(t));
             X_new.col(t+1) = f(X_new.col(t), U_new.col(t));
         }
+        // X_new.col(N) = X.col(N);
         total_cost = calculateTotalCost(X_new, U_new);
         if (total_cost < prev_total_cost) {
             this->X = X_new;
             this->U = U_new;
             break;
         }
-        a = 0.9*a;
+        a = 0.6*a;
     }
-    if (back_tracking_iter == max_backtracking_iter) {this->is_finished = true; return;}
+    if (back_tracking_iter >= max_backtracking_iter) {this->is_finished = true; return;}
     if (this->prev_total_cost - total_cost < this->cost_tolerance) {this->in_tolerance = true;}
     this->all_cost.push_back(total_cost);
     this->prev_total_cost = total_cost;
