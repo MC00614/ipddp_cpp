@@ -39,25 +39,25 @@ CarParking::CarParking() {
         x_n(0) = x(0) + b*std::cos(x(2));
         x_n(1) = x(1) + b*std::sin(x(2));
         x_n(2) = x(2) + std::asin((h*x(3)/d)*std::sin(u(0)));
-        x_n(2) = std::atan2(std::sin(x_n(2)), std::cos(x_n(2)));
+        // x_n(2) = std::atan2(std::sin(x_n(2)), std::cos(x_n(2)));
         x_n(3) = x(3) + h*u(1);
         return x_n;
     };
 
     // Stage Cost Function
     q = [this](const Eigen::VectorXd& x, const Eigen::VectorXd& u) -> double {
-        double u0 = std::atan2(std::sin(u(0)), std::cos(u(0)));
-        return 1e-2 * u0*u0 + 1e-4*u(1)*u(1) +
-            1e-3 * (std::sqrt(x(0) * x(0) + 1e-3) - 1e-3) +
-            1e-3 * (std::sqrt(x(1) * x(1) + 1e-3) - 1e-3);
+        // double u0 = std::atan2(std::sin(u(0)), std::cos(u(0)));
+        return 0.01 * (u(0)*u(0) + 0.01*u(1)*u(1)) +
+            0.01 * (std::sqrt(x(0) * x(0) + 0.1 * 0.1) - 0.1) +
+            0.01 * (std::sqrt(x(1) * x(1) + 0.1 * 0.1) - 0.1);
     };
 
     // Terminal Cost Function
     p = [this](const Eigen::VectorXd& x) -> double {
-        return 0.1 * (std::sqrt(x(0) * x(0) + 0.01) - 0.01) +
-           0.1 * (std::sqrt(x(1) * x(1) + 0.01) - 0.01) +
-           1.0 * (std::sqrt(x(2) * x(2) + 0.01) - 0.01) +
-           0.3 * (std::sqrt(x(3) * x(3) + 1.0) - 1.0);
+        return std::sqrt(x(0) * x(0) + 0.1 * 0.1) - 0.1 +
+           std::sqrt(x(1) * x(1) + 0.1 * 0.1) - 0.1 +
+           std::sqrt(x(2) * x(2) + 0.01 * 0.01) - 0.01 +
+           std::sqrt(x(3) * x(3) + 1.0 * 1.0) - 1.0;
     };
 }
 

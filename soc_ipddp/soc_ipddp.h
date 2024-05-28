@@ -168,7 +168,7 @@ void SOC_IPDDP::backwardPass() {
 
 void SOC_IPDDP::forwardPass() {
     double a = 1.0;
-    int max_backtracking_iter = 10;
+    int max_backtracking_iter = 20;
     int back_tracking_iter = 0;
     double total_cost;
     Eigen::MatrixXd X_new = Eigen::MatrixXd::Zero(dim_x, N+1);
@@ -186,13 +186,9 @@ void SOC_IPDDP::forwardPass() {
             this->U = U_new;
             break;
         }
-        else if (back_tracking_iter == max_backtracking_iter) {
-            this->is_finished = true;
-            return;
-        }
-        a = 0.8*a;
+        a = 0.9*a;
     }
-
+    if (back_tracking_iter == max_backtracking_iter) {this->is_finished = true; return;}
     if (this->prev_total_cost - total_cost < this->cost_tolerance) {this->in_tolerance = true;}
     this->all_cost.push_back(total_cost);
     this->prev_total_cost = total_cost;
