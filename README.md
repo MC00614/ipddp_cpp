@@ -7,9 +7,12 @@
 
 ### Prerequisite
 - Eigen 3.3.9
-eigen.tuxfamily.org
+  
+  eigen.tuxfamily.org
+  
 - matplotlib-cpp
-github.com/lava/matplotlib-cpp
+  
+  github.com/lava/matplotlib-cpp
 
 
 ### Usage Example
