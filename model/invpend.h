@@ -15,15 +15,19 @@ InvPend::InvPend() {
     // Dimensions
     dim_x = 2;
     dim_u = 1;
+    dim_c = 2;
 
     // Status Setting
     X = Eigen::MatrixXd::Zero(dim_x, N+1);
     X(0,0) = -M_PI;
     X(1,0) = 0.0;
-    X(0,N) = 0,0;
-    X(1,N) = 0.0;
-    U = Eigen::MatrixXd::Zero(dim_u, N);
+
+    U = 0.02*Eigen::MatrixXd::Random(dim_u, N) - Eigen::MatrixXd::Constant(dim_u, N, 0.01);
     U(0,0) = 0.0;
+
+    Y = 0.01*Eigen::MatrixXd::Ones(dim_c, N);
+
+    S = 0.1*Eigen::MatrixXd::Ones(dim_c, N);
 
     // Discrete Time System
     f = [this](const Eigen::VectorXd& x, const Eigen::VectorXd& u) -> Eigen::VectorXd {
@@ -42,6 +46,14 @@ InvPend::InvPend() {
     // Terminal Cost Function
     p = [this](const Eigen::VectorXd& x) -> double {
         return 5.0 * x.squaredNorm();
+    };
+
+    // Constraint
+    c = [this](const Eigen::VectorXd& x, const Eigen::VectorXd& u) -> Eigen::VectorXd {
+        Eigen::VectorXd c_n(x.size());
+        c_n(0) = u(0) - 0.25;
+        c_n(1) = -u(0) - 0.25;
+        return c_n;
     };
 }
 

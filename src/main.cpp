@@ -6,6 +6,7 @@
 #include "invpend.h"
 #include "cart_pole.h"
 #include "car_parking.h"
+
 #include "soc_ipddp.h"
 #include "visualize.h"
 
@@ -15,10 +16,16 @@ int main() {
     // auto model = CartPole();
     // auto model = CarParking();
     
+    // Parameter Setting
+    Param param;
+    param.tolerance = 1e-7;
+    param.max_iter = 1000;
+    param.mu = 0;
+    param.infeasible = false;
+
     // Solver Setting
     SOC_IPDDP soc_ipddp(model);
-
-    soc_ipddp.init(100, 1e-3);
+    soc_ipddp.init(param);
 
     soc_ipddp.solve();
 
