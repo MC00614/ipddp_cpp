@@ -66,7 +66,6 @@ CartPole::CartPole() {
         x_n(2) = std::sin(next_theta);
         x_n(3) = std::cos(next_theta);
         x_n(4) = theta_dot + theta_dot_dot * dt;
-        std::cout<<"x_n(2) = "<<x_n(2)<<std::endl;
         return x_n;
     };
 
