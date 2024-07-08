@@ -11,7 +11,7 @@
 
 int main() {
     // Load Dynamic Model
-    // auto model = InvPend();
+    auto model = InvPend();
     // auto model = CartPole();
     // auto model = CarParking();
     

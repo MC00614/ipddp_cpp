@@ -58,6 +58,7 @@ private:
 
 template<typename ModelClass>
 SOC_IPDDP::SOC_IPDDP(ModelClass model) {
+    // Check Model
     if (!model.N || !model.dim_x || !model.dim_u) {throw std::invalid_argument("Model Parameter is null.");}
     this->N = model.N;
     this->dim_x = model.dim_x;
@@ -83,7 +84,7 @@ void SOC_IPDDP::init(int max_iter, double cost_tolerance) {
     this->in_tolerance = false;
 
     this->max_iter = max_iter;
-    this->cost_tolerance = cost_tolerance; 
+    this->cost_tolerance = cost_tolerance;
 
     this->k.resize(this->dim_u, this->N);
     this->K.resize(this->dim_u, this->dim_x * this->N);
@@ -157,8 +158,8 @@ void SOC_IPDDP::backwardPass() {
             }
             if (t == 0) {backward_failed = false;}
 
-            this->k.col(t) = -Quu.inverse()*Qu;
-            this->K.middleCols(t * this->dim_x, this->dim_x) = -Quu.inverse()*Qxu.transpose();
+            this->k.col(t) = -Quu.inverse()*Qu; // Feed Forward
+            this->K.middleCols(t * this->dim_x, this->dim_x) = -Quu.inverse()*Qxu.transpose(); // Feed Back
 
             Vx = Qx - Qxu*Quu.inverse()*Qu;
             Vxx = Qxx - Qxu*Quu.inverse()*Qxu.transpose();
