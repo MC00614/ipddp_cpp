@@ -15,6 +15,7 @@ CarParking::CarParking() {
     // Dimensions
     dim_x = 4;
     dim_u = 2;
+    dim_c = 4;
 
     // Status Setting
     X = Eigen::MatrixXd::Zero(dim_x, N+1);
@@ -22,13 +23,14 @@ CarParking::CarParking() {
     X(1,0) = 1.0;
     X(2,0) = 3*M_PI_2;
     X(3,0) = 0.0;
-    X(0,N) = 0,0;
-    X(1,N) = 0.0;
-    X(2,N) = 0.0;
-    X(3,N) = 0.0;
+
     U = Eigen::MatrixXd::Zero(dim_u, N);
     U(0,0) = 0.0;
     U(1,0) = 0.0;
+
+    Y = 0.01*Eigen::MatrixXd::Ones(dim_c, N);
+
+    S = 0.1*Eigen::MatrixXd::Ones(dim_c, N);
 
     // Discrete Time System
     f = [this](const Eigen::VectorXd& x, const Eigen::VectorXd& u) -> Eigen::VectorXd {
@@ -56,6 +58,16 @@ CarParking::CarParking() {
            std::sqrt(x(1) * x(1) + 0.1 * 0.1) - 0.1 +
            std::sqrt(x(2) * x(2) + 0.01 * 0.01) - 0.01 +
            std::sqrt(x(3) * x(3) + 1.0 * 1.0) - 1.0;
+    };
+
+    // Constraint
+    c = [this](const Eigen::VectorXd& x, const Eigen::VectorXd& u) -> Eigen::VectorXd {
+        Eigen::VectorXd c_n(x.size());
+        c_n(0) = u(0) - 0.5;
+        c_n(1) = -u(0) - 0.5;
+        c_n(2) = u(1) - 2.0;
+        c_n(3) = -u(1) - 2.0;
+        return c_n;
     };
 }
 

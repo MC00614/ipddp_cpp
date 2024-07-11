@@ -130,8 +130,8 @@ inline Eigen::Tensor<double, 3> vectorHessian(Func f, const Eigen::VectorXd& x, 
             }
         }
     }
-    else if (variable == "uu") {
-        cols1 = u.size();
+    else if (variable == "xu") {
+        cols1 = x.size();
         cols2 = u.size();
         hessians.resize(rows, cols1, cols2);
         for (int j = 0; j < cols1; ++j) {
@@ -156,8 +156,8 @@ inline Eigen::Tensor<double, 3> vectorHessian(Func f, const Eigen::VectorXd& x, 
             }
         }
     }
-    else if (variable == "xu") {
-        cols1 = x.size();
+    else if (variable == "uu") {
+        cols1 = u.size();
         cols2 = u.size();
         hessians.resize(rows, cols1, cols2);
         for (int j = 0; j < cols1; ++j) {
@@ -216,8 +216,8 @@ inline Eigen::MatrixXd scalarHessian(Func f, const Eigen::VectorXd& x, const Eig
             }
         }
     }
-    else if (variable == "uu") {
-        rows = u.size();
+    else if (variable == "xu") {
+        rows = x.size();
         cols = u.size();
         hessians.resize(rows, cols);
         for (int j = 0; j < rows; ++j) {
@@ -239,8 +239,8 @@ inline Eigen::MatrixXd scalarHessian(Func f, const Eigen::VectorXd& x, const Eig
             }
         }
     }
-    else if (variable == "xu") {
-        rows = x.size();
+    else if (variable == "uu") {
+        rows = u.size();
         cols = u.size();
         hessians.resize(rows, cols);
         for (int j = 0; j < rows; ++j) {

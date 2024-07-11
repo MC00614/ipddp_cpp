@@ -22,7 +22,8 @@ InvPend::InvPend() {
     X(0,0) = -M_PI;
     X(1,0) = 0.0;
 
-    U = 0.02*Eigen::MatrixXd::Random(dim_u, N) - Eigen::MatrixXd::Constant(dim_u, N, 0.01);
+    // U = 0.02*Eigen::MatrixXd::Random(dim_u, N) - Eigen::MatrixXd::Constant(dim_u, N, 0.01);
+    U = Eigen::MatrixXd::Zero(dim_u, N);
     U(0,0) = 0.0;
 
     Y = 0.01*Eigen::MatrixXd::Ones(dim_c, N);

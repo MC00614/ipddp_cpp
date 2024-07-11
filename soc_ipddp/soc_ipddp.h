@@ -44,14 +44,14 @@ private:
     // Constraint
     std::function<Eigen::VectorXd(Eigen::VectorXd, Eigen::VectorXd)> c;
 
-    double total_cost;
-    bool is_finished;
-    bool in_tolerance;
+    double cost;
     Param param;
     void initialRoll();
     void resetFilter();
     double logcost;
     double error;
+    
+    std::vector<double> step_list;
     int step;
     int forward_failed;
 
@@ -65,6 +65,9 @@ private:
     Eigen::MatrixXd Ku;
     Eigen::MatrixXd Ky;
     Eigen::MatrixXd Ks;
+
+    double opterror;
+    // Eigen::VectorXd dV;
 
     std::vector<double> all_cost;
 
@@ -96,21 +99,6 @@ SOC_IPDDP::SOC_IPDDP(ModelClass model) {
     this->q = model.q;
     this->p = model.p;
     this->c = model.c;
-}
-
-SOC_IPDDP::~SOC_IPDDP() {
-}
-
-void SOC_IPDDP::init(Param param) {
-    this->is_finished = false;
-    this->in_tolerance = false;
-
-    this->param = param;
-
-    this->initialRoll();
-    if (param.mu==0) {param.mu = total_cost / N / dim_c;} // Auto Select
-    this->resetFilter();
-    this->resetRegulation();
 
     this->ku.resize(this->dim_u, this->N);
     this->ky.resize(this->dim_c, this->N);
@@ -120,23 +108,39 @@ void SOC_IPDDP::init(Param param) {
     this->Ks.resize(this->dim_c, this->dim_x * this->N);
 }
 
+SOC_IPDDP::~SOC_IPDDP() {
+}
+
+void SOC_IPDDP::init(Param param) {
+    this->param = param;
+
+    this->initialRoll();
+    if (param.mu == 0) {param.mu = cost / N / dim_c;} // Auto Select
+    this->resetFilter();
+    this->resetRegulation();
+
+    for (double i = 1; i < 11; ++i) {
+        step_list.push_back(std::pow(2.0, -i));
+    }
+}
+
 void SOC_IPDDP::initialRoll() {
     this->C.resize(this->dim_c, this->N);
     for (int t = 0; t < this->N; ++t) {
         C.col(t) = c(X.col(t), U.col(t));
         X.col(t+1) = f(X.col(t), U.col(t));
     }
-    total_cost = calculateTotalCost(X, U);
+    cost = calculateTotalCost(X, U);
 }
 
 void SOC_IPDDP::resetFilter() {
     if (param.infeasible) {
-        logcost = total_cost - param.mu*Y.array().log().sum();
+        logcost = cost - (param.mu*Y.array().log().sum());
         error = (C + Y).lpNorm<1>();
         if (error < param.tolerance) {error = 0;}
     }
     else {
-        logcost = total_cost - param.mu*(-C).array().log().sum();
+        logcost = cost - (param.mu*(-C).array().log().sum());
         error = 0;
     }
     step = 0;
@@ -151,12 +155,12 @@ void SOC_IPDDP::resetRegulation() {
 
 
 double SOC_IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U) {
-    double total_cost = 0.0;
+    double cost = 0.0;
     for (int t = 0; t < N; ++t) {
-        total_cost += q(X.col(t), U.col(t));
+        cost += q(X.col(t), U.col(t));
     }
-    total_cost += p(X.col(N));
-    return total_cost;
+    cost += p(X.col(N));
+    return cost;
 }
 
 void SOC_IPDDP::solve() {
@@ -168,13 +172,27 @@ void SOC_IPDDP::solve() {
         this->backwardPass();
         std::cout<< "Forward Pass" << std::endl;
         this->forwardPass();
-        if (this->in_tolerance) {std::cout<< "In Tolerance" << std::endl; break;}
-        if (this->is_finished) {std::cout<< "Finished" << std::endl; break;}
+        std::cout<< "mu : " << param.mu << std::endl;
+        std::cout<< "Cost : " << cost << std::endl;
+        std::cout<< "Opt Error : " << opterror << std::endl;
+        std::cout<< "Regulate : " << regulate << std::endl;
+        std::cout<< "Step Size : " << step_list[step] << std::endl;
+        all_cost.push_back(cost);
+
+        if (std::max(opterror, param.mu) <= param.tolerance) {
+            std::cout << "Optimal Solution" << std::endl;
+            break;
+        }
+
+        if (opterror <= (0.2 * param.mu)) {
+            param.mu = std::max((param.tolerance / 10), std::min(0.2 * param.mu, std::pow(param.mu, 1.2)));
+            resetFilter();
+            resetRegulation();
+        }
     }
 }
 
 void SOC_IPDDP::backwardPass() {
-    Eigen::VectorXd dV;
     double c_err;
     double mu_err;
     double Qu_err;
@@ -196,8 +214,10 @@ void SOC_IPDDP::backwardPass() {
     Eigen::MatrixXd diag_s;
     Eigen::MatrixXd kK;
 
+    Eigen::VectorXd r;
+
     while (true) {
-        dV = Eigen::VectorXd::Zero(2);
+        // dV = Eigen::VectorXd::Zero(2);
         c_err = 0;
         mu_err = 0;
         Qu_err = 0;
@@ -211,6 +231,8 @@ void SOC_IPDDP::backwardPass() {
         backward_failed = 0;
 
         for (int t = N-1; t >= 0; --t) {
+            int t_dim_x = t * dim_x;
+
             fx = vectorJacobian(f, X.col(t), U.col(t), "x");
             fu = vectorJacobian(f, X.col(t), U.col(t), "u");
 
@@ -237,10 +259,10 @@ void SOC_IPDDP::backwardPass() {
 
             diag_s = S.col(t).asDiagonal();
 
-            Quu_reg = Quu + (quu*(std::pow(1.6, regulate) - 1));
+            Quu_reg = Quu + (quu * (std::pow(1.6, regulate) - 1));
 
             if (param.infeasible) {
-                Eigen::VectorXd r = S.col(t).array() * Y.col(t).array() - param.mu;
+                r = S.col(t).array() * Y.col(t).array() - param.mu;
                 Eigen::VectorXd r_hat = (S.col(t).array() * (C.col(t)+Y.col(t)).array()).matrix() - r;
                 Eigen::VectorXd y_inv = Y.col(t).array().inverse();
                 Eigen::MatrixXd diag_sy_inv = (S.col(t).array() * y_inv.array()).matrix().asDiagonal();
@@ -252,25 +274,25 @@ void SOC_IPDDP::backwardPass() {
                 }
                 Eigen::MatrixXd R = Quu_llt.matrixU();
 
-                Eigen::MatrixXd term1 = Qu + (Qsu.transpose() * (y_inv.array() * r_hat.array()).matrix());
-                Eigen::MatrixXd term2 = Qxu.transpose() + (Qsu.transpose() * diag_sy_inv * Qsx);
-                kK = -R.inverse() * (R.transpose().inverse() * (Eigen::MatrixXd(dim_u, 1 + dim_x) << term1, term2).finished());
-                ku = kK.leftCols(1);
-                Ku = kK.rightCols(dim_x);
-                ks = y_inv.array() * (r_hat + S.col(t) * Qsu * ku).array();
-                Ks = diag_sy_inv * (Qsx + Qsu * Ku);
-                ky = -(C.col(t) + Y.col(t)) - Qsu * ku;
-                Ky = -Qsx - Qsu * Ku;
+                Eigen::MatrixXd row1 = Qu + (Qsu.transpose() * (y_inv.array() * r_hat.array()).matrix());
+                Eigen::MatrixXd row2 = Qxu.transpose() + (Qsu.transpose() * diag_sy_inv * Qsx);
+                kK = -R.inverse() * (R.transpose().inverse() * (Eigen::MatrixXd(dim_u, 1 + dim_x) << row1, row2).finished());
+                ku.col(t) = kK.leftCols(1);
+                Ku.middleCols(t_dim_x, dim_x) = kK.rightCols(dim_x);
+                ks.col(t) = y_inv.array() * (r_hat + diag_s * Qsu * ku.col(t)).array();
+                Ks.middleCols(t_dim_x, dim_x) = diag_sy_inv * (Qsx + Qsu * Ku.middleCols(t_dim_x, dim_x));
+                ky.col(t) = -(C.col(t) + Y.col(t)) - Qsu * ku;
+                Ky.middleCols(t_dim_x, dim_x) = -Qsx - Qsu * Ku;
 
-                Quu += Qsu.inverse() * diag_sy_inv * Qsu;
-                Qxu += Qsx.inverse() * diag_sy_inv * Qsu;
-                Qxx += Qsx.inverse() * diag_sy_inv * Qsx;
+                Quu += Qsu.transpose() * diag_sy_inv * Qsu;
+                Qxu += Qsx.transpose() * diag_sy_inv * Qsu;
+                Qxx += Qsx.transpose() * diag_sy_inv * Qsx;
 
                 Qu += Qsu.transpose() * (y_inv.array() * r_hat.array()).matrix();
-                Qu += Qsx.transpose() * (y_inv.array() * r_hat.array()).matrix();
+                Qx += Qsx.transpose() * (y_inv.array() * r_hat.array()).matrix();
             }
             else {
-                Eigen::VectorXd r = S.col(t) * C.col(t) + param.mu;
+                r = (diag_s * C.col(t)).array() + param.mu;
                 Eigen::VectorXd c_inv = C.col(t).array().inverse();
                 Eigen::MatrixXd diag_sc_inv = (S.col(t).array() * c_inv.array()).matrix().asDiagonal();
 
@@ -281,71 +303,129 @@ void SOC_IPDDP::backwardPass() {
                 }
                 Eigen::MatrixXd R = Quu_llt.matrixU();
 
-                Eigen::MatrixXd term1 = Qu + (Qsu.transpose() * (c_inv.array() * r.array()).matrix());
-                Eigen::MatrixXd term2 = Qxu.transpose() - (Qsu.transpose() * diag_sc_inv * Qsx);
+                Eigen::MatrixXd row1 = Qu + (Qsu.transpose() * (c_inv.array() * r.array()).matrix());
+                Eigen::MatrixXd row2 = Qxu.transpose() - (Qsu.transpose() * diag_sc_inv * Qsx);
 
-                kK = -R.inverse() * (R.transpose().inverse() * (Eigen::MatrixXd(dim_u, 1 + dim_x) << term1, term2).finished());
-                ku = kK.leftCols(1);
-                Ku = kK.rightCols(dim_x);
-                ks = -y_inv.array() * (r + S.col(t) * Qsu * ku).array();
-                Ks = -diag_sc_inv * (Qsx + Qsu * Ku);
-                ky = Eigen::MatrixXd::Zero(dim_c, 1);
-                Ky = Eigen::MatrixXd::Zero(dim_c, dim_x);
+                kK = -R.inverse() * (R.transpose().inverse() * (Eigen::MatrixXd(dim_u, 1 + dim_x) << row1, row2).finished());
+                ku.col(t) = kK.leftCols(1);
+                Ku.middleCols(t_dim_x, dim_x) = kK.rightCols(dim_x);
+                ks.col(t) = -c_inv.array() * (r + diag_s * Qsu * ku.col(t)).array();
+                Ks.middleCols(t_dim_x, dim_x) = -diag_sc_inv * (Qsx + Qsu * Ku.middleCols(t_dim_x, dim_x));
+                ky.col(t) = Eigen::MatrixXd::Zero(dim_c, 1);
+                Ky.middleCols(t_dim_x, dim_x) = Eigen::MatrixXd::Zero(dim_c, dim_x);
 
-                Quu -= Qsu.inverse() * diag_sc_inv * Qsu;
-                Qxu -= Qsx.inverse() * diag_sc_inv * Qsu;
-                Qxx -= Qsx.inverse() * diag_sc_inv * Qsx;
+                Quu -= Qsu.transpose() * diag_sc_inv * Qsu;
+                Qxu -= Qsx.transpose() * diag_sc_inv * Qsu;
+                Qxx -= Qsx.transpose() * diag_sc_inv * Qsx;
 
                 Qu -= Qsu.transpose() * (c_inv.array() * r.array()).matrix();
-                Qu -= Qsx.transpose() * (c_inv.array() * r.array()).matrix();
+                Qx -= Qsx.transpose() * (c_inv.array() * r.array()).matrix();
             }
 
-            dV(0) += ku.transpose() * Qu;
-            dV(1) += 0.5 * ku.transpose() * Quu * ku;
-            Vx = Qx + (Ku.transpose() * Qu) + (Ku.transpose() * Quu * ku) + (Qxu * ku);
-            Vxx = Qxx + (Ku.transpose() * Qxu.transpose()) + (Qxu * Ku) + (Ku.transpose() * Quu * Ku);
+            // dV(0) = dV(0) + (ku.col(t).transpose() * Qu)(0);
+            // dV(1) = dV(1) + (0.5 * ku.col(t).transpose() * Quu * ku.col(t))(0);
+            Vx = Qx + (Ku.middleCols(t_dim_x, dim_x).transpose() * Qu) + (Ku.middleCols(t_dim_x, dim_x).transpose() * Quu * ku.col(t)) + (Qxu * ku.col(t));
+            Vxx = Qxx + (Ku.middleCols(t_dim_x, dim_x).transpose() * Qxu.transpose()) + (Qxu * Ku.middleCols(t_dim_x, dim_x)) + (Ku.middleCols(t_dim_x, dim_x).transpose() * Quu * Ku.middleCols(t_dim_x, dim_x));
+
+            Qu_err = std::max(Qu_err, Qu.lpNorm<Eigen::Infinity>());
+            mu_err = std::max(mu_err, r.lpNorm<Eigen::Infinity>());
+            if (param.infeasible) {c_err = std::max(c_err, (C.col(t) + Y.col(t)).lpNorm<Eigen::Infinity>());}
         }
-        if (!backward_failed) {break;}
+        opterror = std::max({Qu_err, mu_err, c_err});
+        break;
     }
 }
 
 void SOC_IPDDP::checkRegulate() {
     if (forward_failed || backward_failed) {++regulate;}
-    else if (step == 1) {--regulate;}
-    else if (5 < step) {++regulate;}
+    else if (step == 0) {--regulate;}
+    else if (step <= 3) {regulate = regulate;}
+    else {++regulate;}
 
     if (regulate < 0) {regulate = 0;}
     else if (24 < regulate) {regulate = 24;}
 }
 
 void SOC_IPDDP::forwardPass() {
-    double a = 1.0;
-    int max_backtracking_iter = 20;
-    int back_tracking_iter = 0;
-    double current_cost;
-    Eigen::MatrixXd X_new = Eigen::MatrixXd::Zero(dim_x, N+1);
-    Eigen::MatrixXd U_new = Eigen::MatrixXd::Zero(dim_u, N);
+    Eigen::MatrixXd X_new;
+    Eigen::MatrixXd U_new;
+    Eigen::MatrixXd Y_new;
+    Eigen::MatrixXd S_new;
+    Eigen::MatrixXd C_new;
+
+    double tau = std::max(0.99, 1.0 - param.mu);
     
-    while (back_tracking_iter++ < max_backtracking_iter) {
+    double cost_new = 0.0;
+    double logcost_new = 0.0;
+    double error_new = 0.0;
+
+    for (step = 0; step < step_list.size(); ++step) {
+        X_new = Eigen::MatrixXd::Zero(dim_x, N+1);
+        U_new = Eigen::MatrixXd::Zero(dim_u, N);
+        Y_new = Eigen::MatrixXd::Zero(dim_c, N);
+        S_new = Eigen::MatrixXd::Zero(dim_c, N);
+        C_new = Eigen::MatrixXd::Zero(dim_c, N);
+
+        forward_failed = false;
+        double step_size = step_list[step];
+
         X_new.col(0) = X.col(0);
-        for (int t = 0; t < N; ++t) {
-            U_new.col(t) = U.col(t) + a*k.col(t) + K.middleCols(t * this->dim_x, this->dim_x)*(X_new.col(t) - X.col(t));
-            X_new.col(t+1) = f(X_new.col(t), U_new.col(t));
+        if (param.infeasible) {
+            for (int t = 0; t < N; ++t) {
+                int t_dim_x = t * dim_x;
+                Y_new.col(t) = Y.col(t) + (step_size * ky.col(t)) + (Ky.middleCols(t_dim_x, dim_x) * (X_new.col(t) - X.col(t)));
+                S_new.col(t) = S.col(t) + (step_size * ks.col(t)) + (Ks.middleCols(t_dim_x, dim_x) * (X_new.col(t) - X.col(t)));
+                if ((Y_new.col(t).array() < (1 - tau) * Y.col(t).array()).any()) {forward_failed = true; break;}
+                if ((S_new.col(t).array() < (1 - tau) * S.col(t).array()).any()) {forward_failed = true; break;}
+                U_new.col(t) = U.col(t) + (step_size * ku.col(t)) + (Ku.middleCols(t_dim_x, dim_x) * (X_new.col(t) - X.col(t)));
+                X_new.col(t+1) = f(X_new.col(t), U_new.col(t));
+            }
         }
-        // X_new.col(N) = X.col(N);
-        current_cost = calculateTotalCost(X_new, U_new);
-        if (current_cost < total_cost) {
-            this->X = X_new;
-            this->U = U_new;
-            break;
+        else {
+            for (int t = 0; t < N; ++t) {
+                int t_dim_x = t * dim_x;
+                S_new.col(t) = S.col(t) + (step_size * ks.col(t)) + (Ks.middleCols(t_dim_x, dim_x) * (X_new.col(t) - X.col(t)));
+                U_new.col(t) = U.col(t) + (step_size * ku.col(t)) + (Ku.middleCols(t_dim_x, dim_x) * (X_new.col(t) - X.col(t)));
+                C_new.col(t) = c(X_new.col(t), U_new.col(t));
+                if ((C_new.col(t).array() > (1 - tau) * C.col(t).array()).any()) {forward_failed = true; break;}
+                if ((S_new.col(t).array() < (1 - tau) * S.col(t).array()).any()) {forward_failed = true; break;}
+                X_new.col(t+1) = f(X_new.col(t), U_new.col(t));
+            }
         }
-        a = 0.6*a;
+
+        if (forward_failed) {continue;}
+
+        cost_new = calculateTotalCost(X_new, U_new);
+
+        if (param.infeasible) {
+            logcost_new = cost_new - (param.mu * Y_new.array().log().sum());
+            // CHECK POSITION
+            for (int t = 0; t < N; ++t) {
+                C_new.col(t) = c(X_new.col(t), U_new.col(t));
+            }
+            error_new = std::max(param.tolerance, (C_new + Y_new).lpNorm<1>());
+        }
+        else {
+            logcost_new = cost_new - (param.mu * (-C_new).array().log().sum());
+            error_new = 0.0;
+
+        }
+        if (logcost >= logcost_new && error >= error_new) {break;}
+
+        forward_failed = true;
     }
-    if (back_tracking_iter >= max_backtracking_iter) {this->is_finished = true; return;}
-    if (this->total_cost - current_cost < this->param.tolerance) {this->in_tolerance = true;}
-    this->all_cost.push_back(current_cost);
-    this->total_cost = current_cost;
-    std::cout<<"current_cost : "<<current_cost<<std::endl;
+
+    if (!forward_failed) {
+        cost = cost_new;
+        logcost = logcost_new;
+        error = error_new;
+        X = X_new;
+        U = U_new;
+        Y = Y_new;
+        S = S_new;
+        C = C_new;
+    }
+    else {std::cout<<"Forward Failed"<<std::endl;}
 }
 
 Eigen::MatrixXd SOC_IPDDP::getX() {

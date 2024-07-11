@@ -19,7 +19,7 @@ int main() {
     // Parameter Setting
     Param param;
     param.tolerance = 1e-7;
-    param.max_iter = 1000;
+    param.max_iter = 3;
     param.mu = 0;
     param.infeasible = false;
 
