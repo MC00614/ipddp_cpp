@@ -24,7 +24,7 @@ CarParking::CarParking() {
     X(2,0) = 3*M_PI_2;
     X(3,0) = 0.0;
 
-    U = Eigen::MatrixXd::Zero(dim_u, N);
+    U = 0.02 * Eigen::MatrixXd::Random(dim_u, N) - 0.01 * Eigen::MatrixXd::Ones(dim_u, N);
     U(0,0) = 0.0;
     U(1,0) = 0.0;
 

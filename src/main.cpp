@@ -19,7 +19,7 @@ int main() {
     // Parameter Setting
     Param param;
     param.tolerance = 1e-7;
-    param.max_iter = 3;
+    param.max_iter = 100;
     param.mu = 0;
     param.infeasible = false;
 
@@ -30,12 +30,14 @@ int main() {
     soc_ipddp.solve();
 
     // Parse Result
-    Eigen::MatrixXd X_result = soc_ipddp.getX();
-    Eigen::MatrixXd U_result = soc_ipddp.getU();
+    Eigen::MatrixXd X_init = soc_ipddp.getInitX();
+    Eigen::MatrixXd U_init = soc_ipddp.getInitU();
+    Eigen::MatrixXd X_result = soc_ipddp.getResX();
+    Eigen::MatrixXd U_result = soc_ipddp.getResU();
     std::vector<double> all_cost = soc_ipddp.getAllCost();
 
     // Visualize
-    visualize(model.X, model.U, X_result, U_result, all_cost);
+    visualize(X_init, U_init, X_result, U_result, all_cost);
 
     return 0;
 }

@@ -135,7 +135,7 @@ inline Eigen::Tensor<double, 3> vectorHessian(Func f, const Eigen::VectorXd& x, 
         cols2 = u.size();
         hessians.resize(rows, cols1, cols2);
         for (int j = 0; j < cols1; ++j) {
-            for (int k = j; k < cols2; ++k) {
+            for (int k = 0; k < cols2; ++k) {
                 Eigen::VectorXd x_p = x;
                 Eigen::VectorXd x_m = x;
                 Eigen::VectorXd u_p = u;
@@ -149,9 +149,9 @@ inline Eigen::Tensor<double, 3> vectorHessian(Func f, const Eigen::VectorXd& x, 
 
                 for (int i = 0; i < rows; ++i) {
                     hessians(i, j, k) = second_derivative(i);
-                    if (j != k) {
-                        hessians(i, k, j) = second_derivative(i);
-                    }
+                    // if (j != k) {
+                    //     hessians(i, k, j) = second_derivative(i);
+                    // }
                 }
             }
         }
@@ -221,7 +221,7 @@ inline Eigen::MatrixXd scalarHessian(Func f, const Eigen::VectorXd& x, const Eig
         cols = u.size();
         hessians.resize(rows, cols);
         for (int j = 0; j < rows; ++j) {
-            for (int k = j; k < cols; ++k) {
+            for (int k = 0; k < cols; ++k) {
                 Eigen::VectorXd x_p = x;
                 Eigen::VectorXd x_m = x;
                 Eigen::VectorXd u_p = u;
@@ -233,9 +233,9 @@ inline Eigen::MatrixXd scalarHessian(Func f, const Eigen::VectorXd& x, const Eig
 
                 double second_derivative = (f(x_p, u_p) - f(x_p, u_m) - f(x_m, u_p) + f(x_m, u_m)) / (4 * eps * eps);
                 hessians(j, k) = second_derivative;
-                if (j != k) {
-                    hessians(k, j) = second_derivative;
-                }
+                // if (j != k) {
+                //     hessians(k, j) = second_derivative;
+                // }
             }
         }
     }

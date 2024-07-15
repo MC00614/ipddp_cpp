@@ -21,11 +21,16 @@ public:
     void init(Param param);
     void solve();
 
-    Eigen::MatrixXd getX();
-    Eigen::MatrixXd getU();
+    Eigen::MatrixXd getInitX();
+    Eigen::MatrixXd getInitU();
+    Eigen::MatrixXd getResX();
+    Eigen::MatrixXd getResU();
     std::vector<double> getAllCost();
 
 private:
+    Eigen::MatrixXd X_init;
+    Eigen::MatrixXd U_init;
+
     int N;
     int dim_x;
     int dim_u;
@@ -115,7 +120,7 @@ void SOC_IPDDP::init(Param param) {
     this->param = param;
 
     this->initialRoll();
-    if (param.mu == 0) {param.mu = cost / N / dim_c;} // Auto Select
+    if (this->param.mu == 0) {this->param.mu = cost / N / dim_c;} // Auto Select
     this->resetFilter();
     this->resetRegulation();
 
@@ -130,6 +135,8 @@ void SOC_IPDDP::initialRoll() {
         C.col(t) = c(X.col(t), U.col(t));
         X.col(t+1) = f(X.col(t), U.col(t));
     }
+    X_init = X;
+    U_init = U;
     cost = calculateTotalCost(X, U);
 }
 
@@ -230,7 +237,7 @@ void SOC_IPDDP::backwardPass() {
         // CHECK
         backward_failed = 0;
 
-        for (int t = N-1; t >= 0; --t) {
+        for (int t = N - 1; t >= 0; --t) {
             int t_dim_x = t * dim_x;
 
             fx = vectorJacobian(f, X.col(t), U.col(t), "x");
@@ -263,7 +270,7 @@ void SOC_IPDDP::backwardPass() {
 
             if (param.infeasible) {
                 r = S.col(t).array() * Y.col(t).array() - param.mu;
-                Eigen::VectorXd r_hat = (S.col(t).array() * (C.col(t)+Y.col(t)).array()).matrix() - r;
+                Eigen::VectorXd r_hat = (S.col(t).array() * (C.col(t) + Y.col(t)).array()).matrix() - r;
                 Eigen::VectorXd y_inv = Y.col(t).array().inverse();
                 Eigen::MatrixXd diag_sy_inv = (S.col(t).array() * y_inv.array()).matrix().asDiagonal();
 
@@ -303,7 +310,7 @@ void SOC_IPDDP::backwardPass() {
                 }
                 Eigen::MatrixXd R = Quu_llt.matrixU();
 
-                Eigen::MatrixXd row1 = Qu + (Qsu.transpose() * (c_inv.array() * r.array()).matrix());
+                Eigen::MatrixXd row1 = Qu - (Qsu.transpose() * (c_inv.array() * r.array()).matrix());
                 Eigen::MatrixXd row2 = Qxu.transpose() - (Qsu.transpose() * diag_sc_inv * Qsx);
 
                 kK = -R.inverse() * (R.transpose().inverse() * (Eigen::MatrixXd(dim_u, 1 + dim_x) << row1, row2).finished());
@@ -408,7 +415,6 @@ void SOC_IPDDP::forwardPass() {
         else {
             logcost_new = cost_new - (param.mu * (-C_new).array().log().sum());
             error_new = 0.0;
-
         }
         if (logcost >= logcost_new && error >= error_new) {break;}
 
@@ -428,11 +434,19 @@ void SOC_IPDDP::forwardPass() {
     else {std::cout<<"Forward Failed"<<std::endl;}
 }
 
-Eigen::MatrixXd SOC_IPDDP::getX() {
+Eigen::MatrixXd SOC_IPDDP::getInitX() {
+    return X_init;
+}
+
+Eigen::MatrixXd SOC_IPDDP::getInitU() {
+    return U_init;
+}
+
+Eigen::MatrixXd SOC_IPDDP::getResX() {
     return X;
 }
 
-Eigen::MatrixXd SOC_IPDDP::getU() {
+Eigen::MatrixXd SOC_IPDDP::getResU() {
     return U;
 }
 
