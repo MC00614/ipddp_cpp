@@ -130,12 +130,12 @@ inline Eigen::Tensor<double, 3> vectorHessian(Func f, const Eigen::VectorXd& x, 
             }
         }
     }
-    else if (variable == "uu") {
-        cols1 = u.size();
+    else if (variable == "xu") {
+        cols1 = x.size();
         cols2 = u.size();
         hessians.resize(rows, cols1, cols2);
         for (int j = 0; j < cols1; ++j) {
-            for (int k = j; k < cols2; ++k) {
+            for (int k = 0; k < cols2; ++k) {
                 Eigen::VectorXd x_p = x;
                 Eigen::VectorXd x_m = x;
                 Eigen::VectorXd u_p = u;
@@ -149,15 +149,15 @@ inline Eigen::Tensor<double, 3> vectorHessian(Func f, const Eigen::VectorXd& x, 
 
                 for (int i = 0; i < rows; ++i) {
                     hessians(i, j, k) = second_derivative(i);
-                    if (j != k) {
-                        hessians(i, k, j) = second_derivative(i);
-                    }
+                    // if (j != k) {
+                    //     hessians(i, k, j) = second_derivative(i);
+                    // }
                 }
             }
         }
     }
-    else if (variable == "xu") {
-        cols1 = x.size();
+    else if (variable == "uu") {
+        cols1 = u.size();
         cols2 = u.size();
         hessians.resize(rows, cols1, cols2);
         for (int j = 0; j < cols1; ++j) {
@@ -216,12 +216,12 @@ inline Eigen::MatrixXd scalarHessian(Func f, const Eigen::VectorXd& x, const Eig
             }
         }
     }
-    else if (variable == "uu") {
-        rows = u.size();
+    else if (variable == "xu") {
+        rows = x.size();
         cols = u.size();
         hessians.resize(rows, cols);
         for (int j = 0; j < rows; ++j) {
-            for (int k = j; k < cols; ++k) {
+            for (int k = 0; k < cols; ++k) {
                 Eigen::VectorXd x_p = x;
                 Eigen::VectorXd x_m = x;
                 Eigen::VectorXd u_p = u;
@@ -233,14 +233,14 @@ inline Eigen::MatrixXd scalarHessian(Func f, const Eigen::VectorXd& x, const Eig
 
                 double second_derivative = (f(x_p, u_p) - f(x_p, u_m) - f(x_m, u_p) + f(x_m, u_m)) / (4 * eps * eps);
                 hessians(j, k) = second_derivative;
-                if (j != k) {
-                    hessians(k, j) = second_derivative;
-                }
+                // if (j != k) {
+                //     hessians(k, j) = second_derivative;
+                // }
             }
         }
     }
-    else if (variable == "xu") {
-        rows = x.size();
+    else if (variable == "uu") {
+        rows = u.size();
         cols = u.size();
         hessians.resize(rows, cols);
         for (int j = 0; j < rows; ++j) {
