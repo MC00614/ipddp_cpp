@@ -1,9 +1,8 @@
 # SOC-IPDDP
 
 ### Feature
-- DDP Implemented
-- Quu Regulation for Backward Pass
-- Backtracking for Forward Pass
+- IPDDP Implemented
+- Feasible Tested
 
 ### Prerequisite
 - Eigen 3.3.9
