@@ -2,7 +2,6 @@
 
 ### Feature
 - IPDDP Implemented
-- Feasible Tested
 
 ### Prerequisite
 - Eigen 3.3.9

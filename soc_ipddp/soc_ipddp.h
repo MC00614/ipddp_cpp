@@ -288,8 +288,8 @@ void SOC_IPDDP::backwardPass() {
                 Ku.middleCols(t_dim_x, dim_x) = kK.rightCols(dim_x);
                 ks.col(t) = y_inv.array() * (r_hat + diag_s * Qsu * ku.col(t)).array();
                 Ks.middleCols(t_dim_x, dim_x) = diag_sy_inv * (Qsx + Qsu * Ku.middleCols(t_dim_x, dim_x));
-                ky.col(t) = -(C.col(t) + Y.col(t)) - Qsu * ku;
-                Ky.middleCols(t_dim_x, dim_x) = -Qsx - Qsu * Ku;
+                ky.col(t) = -(C.col(t) + Y.col(t)) - Qsu * ku.col(t);
+                Ky.middleCols(t_dim_x, dim_x) = -Qsx - Qsu * Ku.middleCols(t_dim_x, dim_x);
 
                 Quu += Qsu.transpose() * diag_sy_inv * Qsu;
                 Qxu += Qsx.transpose() * diag_sy_inv * Qsu;
