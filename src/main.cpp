@@ -21,7 +21,7 @@ int main() {
     param.tolerance = 1e-7;
     param.max_iter = 100;
     param.mu = 0;
-    param.infeasible = true;
+    param.infeasible = false;
 
     // Solver Setting
     SOC_IPDDP soc_ipddp(model);
