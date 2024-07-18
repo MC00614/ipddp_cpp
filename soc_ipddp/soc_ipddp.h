@@ -33,6 +33,8 @@ public:
     std::vector<double> getAllCost();
 
 private:
+    double duration_;
+
     Eigen::MatrixXd X_init;
     Eigen::MatrixXd U_init;
 
@@ -224,25 +226,25 @@ void SOC_IPDDP::solve() {
 void SOC_IPDDP::backwardPass() {
     VectorXdual2nd x(dim_x);
     VectorXdual2nd u(dim_u);
-    Eigen::VectorXd y;
-    Eigen::VectorXd s;
-    Eigen::VectorXd c_v;
+    Eigen::VectorXd y(dim_c);
+    Eigen::VectorXd s(dim_c);
+    Eigen::VectorXd c_v(dim_c);
 
-    Eigen::VectorXd Vx;
-    Eigen::MatrixXd Vxx;
+    Eigen::VectorXd Vx(dim_x);
+    Eigen::MatrixXd Vxx(dim_x,dim_x);
 
-    Eigen::MatrixXd fx, fu;
-    Eigen::MatrixXd Qsx, Qsu;
+    Eigen::MatrixXd fx(dim_x,dim_x), fu(dim_x,dim_u);
+    Eigen::MatrixXd Qsx(dim_c,dim_x), Qsu(dim_c,dim_u);
     Eigen::Tensor<double, 3> fxx(dim_x,dim_x,dim_x);
     Eigen::Tensor<double, 3> fxu(dim_x,dim_x,dim_u);
     Eigen::Tensor<double, 3> fuu(dim_x,dim_u,dim_u);
 
-    Eigen::VectorXd qx, qu;
+    Eigen::VectorXd qx(dim_x), qu(dim_u);
     Eigen::MatrixXd qxx(dim_x,dim_x), qxu(dim_x,dim_u), quu(dim_u,dim_u);
 
-    Eigen::VectorXd Qx, Qu;
-    Eigen::MatrixXd Qxx, Qxu, Quu;
-    Eigen::MatrixXd Quu_reg;
+    Eigen::VectorXd Qx(dim_x), Qu(dim_u);
+    Eigen::MatrixXd Qxx(dim_x,dim_x), Qxu(dim_x,dim_u), Quu(dim_u,dim_u);
+    Eigen::MatrixXd Quu_reg(dim_u,dim_u);
 
     Eigen::VectorXd r;
     Eigen::VectorXd r_hat;
@@ -258,14 +260,14 @@ void SOC_IPDDP::backwardPass() {
     Eigen::MatrixXd row2;
 
     Eigen::MatrixXd diag_s;
-    Eigen::MatrixXd kK;
+    Eigen::MatrixXd kK(dim_u, 1 + dim_x);
 
-    Eigen::VectorXd ku_;
-    Eigen::VectorXd ky_;
-    Eigen::VectorXd ks_;
-    Eigen::MatrixXd Ku_;
-    Eigen::MatrixXd Ky_;
-    Eigen::MatrixXd Ks_;
+    Eigen::VectorXd ku_(dim_u);
+    Eigen::VectorXd ky_(dim_c);
+    Eigen::VectorXd ks_(dim_c);
+    Eigen::MatrixXd Ku_(dim_u, dim_x);
+    Eigen::MatrixXd Ky_(dim_c, dim_x);
+    Eigen::MatrixXd Ks_(dim_c, dim_x);
 
     double c_err;
     double mu_err;
@@ -312,7 +314,6 @@ void SOC_IPDDP::backwardPass() {
             Qu = qu + (Qsu.transpose() * s) + (fu.transpose() * Vx);
 
             qxx = hessian(q, wrt(x), at(x,u));
-            // qxu = scalarHessian(q, x, u, "xu");
             scalarHessian(qxu, q, x, u, "xu");
             quu = hessian(q, wrt(u), at(x,u));
 
@@ -331,7 +332,7 @@ void SOC_IPDDP::backwardPass() {
                 diag_sy_inv = (s.array() * y_inv.array()).matrix().asDiagonal();
 
                 Quu_llt = Eigen::LLT<Eigen::MatrixXd>(Quu_reg + (Qsu.transpose() * diag_sy_inv * Qsu));
-                if (!Quu.isApprox(Quu.transpose()) || Quu_llt.info() == Eigen::NumericalIssue) {
+                if (!Quu_reg.isApprox(Quu_reg.transpose()) || Quu_llt.info() == Eigen::NumericalIssue) {
                     backward_failed = true;
                     break;
                 }
@@ -360,7 +361,7 @@ void SOC_IPDDP::backwardPass() {
                 diag_sc_inv = (s.array() * c_inv.array()).matrix().asDiagonal();
 
                 Quu_llt = Eigen::LLT<Eigen::MatrixXd>(Quu_reg - (Qsu.transpose() * diag_sc_inv * Qsu));
-                if (!Quu.isApprox(Quu.transpose()) || Quu_llt.info() == Eigen::NumericalIssue) {
+                if (!Quu_reg.isApprox(Quu_reg.transpose()) || Quu_llt.info() == Eigen::NumericalIssue) {
                     backward_failed = true;
                     break;
                 }
@@ -374,7 +375,7 @@ void SOC_IPDDP::backwardPass() {
                 Ku_ = kK.rightCols(dim_x);
                 ks_ = -c_inv.array() * (r + diag_s * Qsu * ku_).array();
                 Ks_ = -diag_sc_inv * (Qsx + Qsu * Ku_);
-                ky_ = Eigen::MatrixXd::Zero(dim_c, 1);
+                ky_ = Eigen::VectorXd::Zero(dim_c);
                 Ky_ = Eigen::MatrixXd::Zero(dim_c, dim_x);
 
                 Quu -= Qsu.transpose() * diag_sc_inv * Qsu;
