@@ -1,5 +1,9 @@
 #pragma once
 
+#include <autodiff/forward/dual.hpp>
+#include <autodiff/forward/dual/eigen.hpp>
+using namespace autodiff;
+
 #include <eigen3/Eigen/Dense>
 
 class ModelBase {
@@ -17,17 +21,27 @@ public:
     Eigen::MatrixXd S;
 
     // Discrete Time System
-    std::function<Eigen::VectorXd(Eigen::VectorXd, Eigen::VectorXd)> f;
+    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> f;
+    std::vector<std::function<dual2nd(VectorXdual2nd, VectorXdual2nd)>> fs;
     // Stage Cost Function
-    std::function<double(Eigen::VectorXd, Eigen::VectorXd)> q;
+    std::function<dual2nd(VectorXdual2nd, VectorXdual2nd)> q;
     // Terminal Cost Function
-    std::function<double(Eigen::VectorXd)> p;
+    std::function<dual2nd(VectorXdual2nd)> p;
     // Constraint
-    std::function<Eigen::VectorXd(Eigen::VectorXd, Eigen::VectorXd)> c;
+    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> c;
 };
 
 ModelBase::ModelBase() {
+    f = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
+        VectorXdual2nd x_n(dim_x);
+        for (int i = 0; i < dim_x; ++i) {
+            x_n(i) = fs[i](x,u);
+        }
+        return x_n;
+    };
 };
 
 ModelBase::~ModelBase() {
 };
+
+
