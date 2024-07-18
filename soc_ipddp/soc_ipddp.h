@@ -183,6 +183,7 @@ void SOC_IPDDP::solve() {
     clock_t start;
     clock_t finish;
     double duration;
+
     while (iter++ < this->param.max_iter) {
         std::cout<< "\niter : " << iter << std::endl;
 
@@ -232,10 +233,12 @@ void SOC_IPDDP::backwardPass() {
 
     Eigen::MatrixXd fx, fu;
     Eigen::MatrixXd Qsx, Qsu;
-    Eigen::Tensor<double, 3> fxx, fxu, fuu;
+    Eigen::Tensor<double, 3> fxx(dim_x,dim_x,dim_x);
+    Eigen::Tensor<double, 3> fxu(dim_x,dim_x,dim_u);
+    Eigen::Tensor<double, 3> fuu(dim_x,dim_u,dim_u);
 
     Eigen::VectorXd qx, qu;
-    Eigen::MatrixXd qxx, qxu, quu;
+    Eigen::MatrixXd qxx(dim_x,dim_x), qxu(dim_x,dim_u), quu(dim_u,dim_u);
 
     Eigen::VectorXd Qx, Qu;
     Eigen::MatrixXd Qxx, Qxu, Quu;
@@ -263,7 +266,6 @@ void SOC_IPDDP::backwardPass() {
     Eigen::MatrixXd Ku_;
     Eigen::MatrixXd Ky_;
     Eigen::MatrixXd Ks_;
-
 
     double c_err;
     double mu_err;
@@ -299,9 +301,9 @@ void SOC_IPDDP::backwardPass() {
             Qsx = jacobian(c, wrt(x), at(x,u));
             Qsu = jacobian(c, wrt(u), at(x,u));
 
-            fxx = vectorHessian(f, fs, x, u, "xx");
-            fxu = vectorHessian(f, fs, x, u, "xu");
-            fuu = vectorHessian(f, fs, x, u, "uu");
+            vectorHessian(fxx, f, fs, x, u, "xx");
+            vectorHessian(fxu, f, fs, x, u, "xu");
+            vectorHessian(fuu, f, fs, x, u, "uu");
 
             qx = gradient(q, wrt(x), at(x,u));
             qu = gradient(q, wrt(u), at(x,u));
@@ -310,7 +312,8 @@ void SOC_IPDDP::backwardPass() {
             Qu = qu + (Qsu.transpose() * s) + (fu.transpose() * Vx);
 
             qxx = hessian(q, wrt(x), at(x,u));
-            qxu = scalarHessian(q, x, u, "xu");
+            // qxu = scalarHessian(q, x, u, "xu");
+            scalarHessian(qxu, q, x, u, "xu");
             quu = hessian(q, wrt(u), at(x,u));
 
             Qxx = qxx + (fx.transpose() * Vxx * fx) + tensdot(Vx, fxx);

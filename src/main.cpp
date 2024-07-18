@@ -5,7 +5,7 @@
 
 #include "invpend.h"
 // #include "cart_pole.h"
-// #include "car_parking.h"
+#include "car_parking.h"
 
 #include "soc_ipddp.h"
 #include "visualize.h"

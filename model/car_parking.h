@@ -1,7 +1,5 @@
 #include "model_base.h"
 
-#include <eigen3/Eigen/Dense>
-
 class CarParking : public ModelBase {
 public:
     CarParking();
@@ -33,36 +31,51 @@ CarParking::CarParking() {
     S = 0.1*Eigen::MatrixXd::Ones(dim_c, N);
 
     // Discrete Time System
-    f = [this](const Eigen::VectorXd& x, const Eigen::VectorXd& u) -> Eigen::VectorXd {
+    auto f0 = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
         const double h = 0.03;
         const double d = 2.0;
-        Eigen::VectorXd x_n(x.size());
-        double b = d + h*x(3)*std::cos(u(0)) - std::sqrt(d*d - h*h*x(3)*x(3)*std::sin(u(0))*std::sin(u(0)));
-        x_n(0) = x(0) + b*std::cos(x(2));
-        x_n(1) = x(1) + b*std::sin(x(2));
-        x_n(2) = x(2) + std::asin((h*x(3)/d)*std::sin(u(0)));
-        x_n(3) = x(3) + h*u(1);
-        return x_n;
+        dual2nd b = d + h*x(3)*cos(u(0)) - sqrt(d*d - h*h*x(3)*x(3)*sin(u(0))*sin(u(0)));
+        return x(0) + b*cos(x(2));
     };
+    fs.push_back(f0);
+    auto f1 = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
+        const double h = 0.03;
+        const double d = 2.0;
+        dual2nd b = d + h*x(3)*cos(u(0)) - sqrt(d*d - h*h*x(3)*x(3)*sin(u(0))*sin(u(0)));
+        return x(1) + b*sin(x(2));
+    };
+    fs.push_back(f1);
+    auto f2 = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
+        const double h = 0.03;
+        const double d = 2.0;
+        return x(2) + asin((h*x(3)/d)*sin(u(0)));
+    };
+    fs.push_back(f2);
+    auto f3 = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
+        const double h = 0.03;
+        const double d = 2.0;
+        return x(3) + h*u(1);
+    };
+    fs.push_back(f3);
 
     // Stage Cost Function
-    q = [this](const Eigen::VectorXd& x, const Eigen::VectorXd& u) -> double {
+    q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
         return 0.01 * (u(0)*u(0) + 0.01*u(1)*u(1)) +
-            0.01 * (std::sqrt(x(0) * x(0) + 0.1 * 0.1) - 0.1) +
-            0.01 * (std::sqrt(x(1) * x(1) + 0.1 * 0.1) - 0.1);
+            0.01 * (sqrt(x(0) * x(0) + 0.1 * 0.1) - 0.1) +
+            0.01 * (sqrt(x(1) * x(1) + 0.1 * 0.1) - 0.1);
     };
 
     // Terminal Cost Function
-    p = [this](const Eigen::VectorXd& x) -> double {
-        return std::sqrt(x(0) * x(0) + 0.1 * 0.1) - 0.1 +
-           std::sqrt(x(1) * x(1) + 0.1 * 0.1) - 0.1 +
-           std::sqrt(x(2) * x(2) + 0.01 * 0.01) - 0.01 +
-           std::sqrt(x(3) * x(3) + 1.0 * 1.0) - 1.0;
+    p = [this](const VectorXdual2nd& x) -> dual2nd {
+        return sqrt(x(0) * x(0) + 0.1 * 0.1) - 0.1 +
+           sqrt(x(1) * x(1) + 0.1 * 0.1) - 0.1 +
+           sqrt(x(2) * x(2) + 0.01 * 0.01) - 0.01 +
+           sqrt(x(3) * x(3) + 1.0 * 1.0) - 1.0;
     };
 
     // Constraint
-    c = [this](const Eigen::VectorXd& x, const Eigen::VectorXd& u) -> Eigen::VectorXd {
-        Eigen::VectorXd c_n(x.size());
+    c = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
+        VectorXdual2nd c_n(x.size());
         c_n(0) = u(0) - 0.5;
         c_n(1) = -u(0) - 0.5;
         c_n(2) = u(1) - 2.0;

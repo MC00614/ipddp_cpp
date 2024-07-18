@@ -35,21 +35,23 @@ inline Eigen::MatrixXd tensdot(const Eigen::VectorXd& vector, const Eigen::Tenso
 }
 
 template<typename Func1, typename Func2>
-inline Eigen::Tensor<double, 3> vectorHessian(Func1 f, Func2 fs, VectorXdual2nd x, VectorXdual2nd u, const std::string& variable, double eps = 1e-5) {
-    int rows = f(x, u).size();
+inline void vectorHessian(Eigen::Tensor<double, 3> &hessians, Func1 f, Func2 fs, VectorXdual2nd x, VectorXdual2nd u, const std::string& variable, double eps = 1e-5) {
+    int rows = x.size();
     int cols1;
     int cols2;
-    Eigen::Tensor<double, 3> hessians;
+    Eigen::MatrixXd second_derivative;
     
     if (variable == "xx") {
         cols1 = x.size();
         cols2 = x.size();
-        hessians.resize(rows, cols1, cols2);
         for (int i = 0; i < rows; ++i) {
-            Eigen::MatrixXd second_derivative = hessian(fs[i], wrt(x), at(x,u));
+            second_derivative = hessian(fs[i], wrt(x), at(x,u));
             for (int j = 0; j < cols1; ++j) {
-                for (int k = 0; k < cols2; ++k) {
+                for (int k = j; k < cols2; ++k) {
                     hessians(i, j, k) = second_derivative(j,k);
+                    if (j != k) {
+                        hessians(i, k, j) = second_derivative(j,k);
+                    }
                 }
             }
         }
@@ -57,12 +59,14 @@ inline Eigen::Tensor<double, 3> vectorHessian(Func1 f, Func2 fs, VectorXdual2nd 
     else if (variable == "uu") {
         cols1 = u.size();
         cols2 = u.size();
-        hessians.resize(rows, cols1, cols2);
         for (int i = 0; i < rows; ++i) {
-            Eigen::MatrixXd second_derivative = hessian(fs[i], wrt(x), at(x,u));
+            second_derivative = hessian(fs[i], wrt(x), at(x,u));
             for (int j = 0; j < cols1; ++j) {
-                for (int k = 0; k < cols2; ++k) {
+                for (int k = j; k < cols2; ++k) {
                     hessians(i, j, k) = second_derivative(j,k);
+                    if (j != k) {
+                        hessians(i, k, j) = second_derivative(j,k);
+                    }
                 }
             }
         }
@@ -70,14 +74,13 @@ inline Eigen::Tensor<double, 3> vectorHessian(Func1 f, Func2 fs, VectorXdual2nd 
     else if (variable == "xu") {
         cols1 = x.size();
         cols2 = u.size();
-        hessians.resize(rows, cols1, cols2);
         for (int k = 0; k < cols2; ++k) {
             VectorXdual2nd u_p = u;
             VectorXdual2nd u_m = u;
             u_p(k) += eps;
             u_m(k) -= eps;
 
-            Eigen::MatrixXd second_derivative = (jacobian(f, wrt(x), at(x,u_p)) - jacobian(f, wrt(x), at(x,u_m))) / (2 * eps);
+            second_derivative = (jacobian(f, wrt(x), at(x,u_p)) - jacobian(f, wrt(x), at(x,u_m))) / (2 * eps);
 
             for (int i = 0; i < rows; ++i) {
                 for (int j = 0; j < cols1; ++j) {
@@ -88,34 +91,30 @@ inline Eigen::Tensor<double, 3> vectorHessian(Func1 f, Func2 fs, VectorXdual2nd 
     }
     else {throw std::invalid_argument("Invalid variable. Use 'xx', 'uu' or 'xu'.");}
 
-    return hessians;
+    return;
 }
 
 template<typename Func>
-inline Eigen::MatrixXd scalarHessian(Func f, VectorXdual2nd x, VectorXdual2nd u, const std::string& variable, double eps = 1e-5) {
+inline void scalarHessian(Eigen::MatrixXd &hessians, Func f, VectorXdual2nd x, VectorXdual2nd u, const std::string& variable, double eps = 1e-5) {
     int rows;
     int cols;
-    Eigen::MatrixXd hessians;
 
     if (variable == "xu") {
         rows = x.size();
         cols = u.size();
-        hessians.resize(rows, cols);
+        VectorXdual2nd u_p(cols);
+        VectorXdual2nd u_m(cols);
         for (int k = 0; k < cols; ++k) {
-            VectorXdual2nd u_p = u;
-            VectorXdual2nd u_m = u;
+            u_p = u;
+            u_m = u;
             u_p(k) += eps;
             u_m(k) -= eps;
-
-            Eigen::MatrixXd second_derivative = (gradient(f, wrt(x), at(x,u_p)) - gradient(f, wrt(x), at(x,u_m))) / (2 * eps);
-            for (int j = 0; j < rows; ++j) {
-                hessians(j, k) = second_derivative(j);
-            }
+            hessians.col(k) = (gradient(f, wrt(x), at(x,u_p)) - gradient(f, wrt(x), at(x,u_m))) / (2 * eps);
         }
     }
-    else {throw std::invalid_argument("Invalid variable. Use 'xu'. \n If you want to calculate hessian of 'xx' or 'uu', use hessian function.");}
+    else {throw std::invalid_argument("Invalid variable. Use 'xu'. \n If you want to calculate hessian of 'xx' or 'uu', use autodiff function.");}
 
-    return hessians;
+    return;
 }
 
 /////////////////////////////////////////////////////////
