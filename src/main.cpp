@@ -24,10 +24,15 @@ int main() {
     param.infeasible = false;
 
     // Solver Setting
+    clock_t start = clock();
+
     SOC_IPDDP soc_ipddp(model);
     soc_ipddp.init(param);
-
     soc_ipddp.solve();
+
+    clock_t finish = clock();
+    double duration = (double)(finish - start) / CLOCKS_PER_SEC;
+    std::cout << "\nIn Total : " << duration << " Seconds" << std::endl;
 
     // Parse Result
     Eigen::MatrixXd X_init = soc_ipddp.getInitX();

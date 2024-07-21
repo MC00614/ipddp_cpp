@@ -190,18 +190,18 @@ void SOC_IPDDP::solve() {
         std::cout<< "\niter : " << iter << std::endl;
 
         std::cout<< "Backward Pass" << std::endl;
-        start = clock();
+        // start = clock();
         this->backwardPass();
-        finish = clock();
-        duration = (double)(finish - start) / CLOCKS_PER_SEC;
-        std::cout << duration << "seconds" << std::endl;
+        // finish = clock();
+        // duration = (double)(finish - start) / CLOCKS_PER_SEC;
+        // std::cout << duration << "seconds" << std::endl;
         
         std::cout<< "Forward Pass" << std::endl;
-        start = clock();
+        // start = clock();
         this->forwardPass();
-        finish = clock();
-        duration = (double)(finish - start) / CLOCKS_PER_SEC;
-        std::cout << duration << "seconds" << std::endl;
+        // finish = clock();
+        // duration = (double)(finish - start) / CLOCKS_PER_SEC;
+        // std::cout << duration << "seconds" << std::endl;
         
         std::cout<< "mu : " << param.mu << std::endl;
         std::cout<< "Cost : " << cost << std::endl;
@@ -418,11 +418,11 @@ void SOC_IPDDP::checkRegulate() {
 }
 
 void SOC_IPDDP::forwardPass() {
-    Eigen::MatrixXd X_new;
-    Eigen::MatrixXd U_new;
-    Eigen::MatrixXd Y_new;
-    Eigen::MatrixXd S_new;
-    Eigen::MatrixXd C_new;
+    Eigen::MatrixXd X_new(dim_x, N+1);
+    Eigen::MatrixXd U_new(dim_u, N);
+    Eigen::MatrixXd Y_new(dim_c, N);
+    Eigen::MatrixXd S_new(dim_c, N);
+    Eigen::MatrixXd C_new(dim_c, N);
 
     double tau = std::max(0.99, 1.0 - param.mu);
     
@@ -431,11 +431,6 @@ void SOC_IPDDP::forwardPass() {
     double error_new = 0.0;
 
     for (step = 0; step < step_list.size(); ++step) {
-        X_new = Eigen::MatrixXd::Zero(dim_x, N+1);
-        U_new = Eigen::MatrixXd::Zero(dim_u, N);
-        Y_new = Eigen::MatrixXd::Zero(dim_c, N);
-        S_new = Eigen::MatrixXd::Zero(dim_c, N);
-        C_new = Eigen::MatrixXd::Zero(dim_c, N);
 
         forward_failed = false;
         double step_size = step_list[step];

@@ -18,11 +18,14 @@ include_directories(
     autodiff/
     matplotlibcpp/
     ${PYTHON_INCLUDE_DIRS}
-    )
+)
 
 add_executable(${PROJECT_NAME}
     src/main.cpp
 )
+
+# add_compile_options(-march=native)
+target_compile_options(${PROJECT_NAME} PRIVATE -O2)
 
 target_link_libraries(${PROJECT_NAME}
     ${PYTHON_LIBRARIES}
