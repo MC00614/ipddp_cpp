@@ -1,7 +1,5 @@
 #include "model_base.h"
 
-#include <eigen3/Eigen/Dense>
-
 class InvPend : public ModelBase {
 public:
     InvPend();
@@ -29,29 +27,32 @@ InvPend::InvPend() {
     Y = 0.01*Eigen::MatrixXd::Ones(dim_c, N);
 
     S = 0.1*Eigen::MatrixXd::Ones(dim_c, N);
-
+    
     // Discrete Time System
-    f = [this](const Eigen::VectorXd& x, const Eigen::VectorXd& u) -> Eigen::VectorXd {
+    auto f0 = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
         const double h = 0.05;
-        Eigen::VectorXd x_n(x.size());
-        x_n(0) = x(0) + h * x(1);
-        x_n(1) = x(1) + h * std::sin(x(0)) + h * u(0);
-        return x_n;
+        return x(0) + h * x(1);
     };
+    fs.push_back(f0);
+    auto f1 = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
+        const double h = 0.05;
+        return x(1) + h * sin(x(0)) + h * u(0);
+    };
+    fs.push_back(f1);
 
     // Stage Cost Function
-    q = [this](const Eigen::VectorXd& x, const Eigen::VectorXd& u) -> double {
+    q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
         return 0.025 * (x.squaredNorm() + u.squaredNorm());
     };
 
     // Terminal Cost Function
-    p = [this](const Eigen::VectorXd& x) -> double {
+    p = [this](const VectorXdual2nd& x) -> dual2nd {
         return 5.0 * x.squaredNorm();
     };
 
     // Constraint
-    c = [this](const Eigen::VectorXd& x, const Eigen::VectorXd& u) -> Eigen::VectorXd {
-        Eigen::VectorXd c_n(x.size());
+    c = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
+        VectorXdual2nd c_n(x.size());
         c_n(0) = u(0) - 0.25;
         c_n(1) = -u(0) - 0.25;
         return c_n;
