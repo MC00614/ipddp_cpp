@@ -15,7 +15,6 @@ if (BUILD_EXAMPLE)
     set(CMAKE_CXX_EXTENSIONS OFF)       # avoid compile flags of the type -std=gnu++1z added by cmake
 
     include_directories(
-        ipddp/
         eigen/
         autodiff/
         matplotlibcpp/
