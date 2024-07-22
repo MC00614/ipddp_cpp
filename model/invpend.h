@@ -52,7 +52,7 @@ InvPend::InvPend() {
 
     // Constraint
     c = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        VectorXdual2nd c_n(x.size());
+        VectorXdual2nd c_n(2);
         c_n(0) = u(0) - 0.25;
         c_n(1) = -u(0) - 0.25;
         return c_n;
