@@ -163,20 +163,18 @@ void SOC_IPDDP::resetFilter() {
     forward_failed = false;
 }
 
-
 void SOC_IPDDP::resetRegulation() {
     this->regulate = 0;
     this->backward_failed = false;
 }
 
-
 double SOC_IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U) {
     dual2nd cost = 0.0;
     for (int t = 0; t < N; ++t) {
-        cost += q(X.col(t), U.col(t)).val;
+        cost += q(X.col(t), U.col(t));
     }
-    cost += static_cast<double>(p(X.col(N)).val);
-    return static_cast<double>(cost);
+    cost += p(X.col(N));
+    return static_cast<double>(cost.val);
 }
 
 void SOC_IPDDP::solve() {
