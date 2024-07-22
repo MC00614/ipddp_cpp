@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(soc_ipddp)
+project(ipddp)
 
 find_package(PythonLibs REQUIRED)
 
@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON) # ensure the C++ standard given before is ac
 set(CMAKE_CXX_EXTENSIONS OFF)       # avoid compile flags of the type -std=gnu++1z added by cmake
 
 include_directories(
-    soc_ipddp/
+    ipddp/
     model/
     # eigen/
     ${EIGEN3_INCLUDE_DIRS}

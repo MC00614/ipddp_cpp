@@ -17,11 +17,11 @@ using namespace autodiff;
 
 #include <iostream>
 
-class SOC_IPDDP {
+class IPDDP {
 public:
     template<typename ModelClass>
-    SOC_IPDDP(ModelClass model);
-    ~SOC_IPDDP();
+    IPDDP(ModelClass model);
+    ~IPDDP();
 
     void init(Param param);
     void solve();
@@ -93,7 +93,7 @@ private:
 
 
 template<typename ModelClass>
-SOC_IPDDP::SOC_IPDDP(ModelClass model) {
+IPDDP::IPDDP(ModelClass model) {
     // Check Model
     if (!model.N || !model.dim_x || !model.dim_u) {throw std::invalid_argument("Model Parameter is null.");}
     this->N = model.N;
@@ -122,10 +122,10 @@ SOC_IPDDP::SOC_IPDDP(ModelClass model) {
     this->Ks.resize(this->dim_c, this->dim_x * this->N);
 }
 
-SOC_IPDDP::~SOC_IPDDP() {
+IPDDP::~IPDDP() {
 }
 
-void SOC_IPDDP::init(Param param) {
+void IPDDP::init(Param param) {
     this->param = param;
 
     this->initialRoll();
@@ -138,7 +138,7 @@ void SOC_IPDDP::init(Param param) {
     }
 }
 
-void SOC_IPDDP::initialRoll() {
+void IPDDP::initialRoll() {
     this->C.resize(this->dim_c, this->N);
     for (int t = 0; t < this->N; ++t) {
         C.col(t) = c(X.col(t), U.col(t)).cast<double>();
@@ -149,7 +149,7 @@ void SOC_IPDDP::initialRoll() {
     cost = calculateTotalCost(X, U);
 }
 
-void SOC_IPDDP::resetFilter() {
+void IPDDP::resetFilter() {
     if (param.infeasible) {
         logcost = cost - (param.mu*Y.array().log().sum());
         error = (C + Y).lpNorm<1>();
@@ -163,12 +163,12 @@ void SOC_IPDDP::resetFilter() {
     forward_failed = false;
 }
 
-void SOC_IPDDP::resetRegulation() {
+void IPDDP::resetRegulation() {
     this->regulate = 0;
     this->backward_failed = false;
 }
 
-double SOC_IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U) {
+double IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U) {
     dual2nd cost = 0.0;
     for (int t = 0; t < N; ++t) {
         cost += q(X.col(t), U.col(t));
@@ -177,7 +177,7 @@ double SOC_IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::Matr
     return static_cast<double>(cost.val);
 }
 
-void SOC_IPDDP::solve() {
+void IPDDP::solve() {
     int iter = 0;
 
     clock_t start;
@@ -221,7 +221,7 @@ void SOC_IPDDP::solve() {
     }
 }
 
-void SOC_IPDDP::backwardPass() {
+void IPDDP::backwardPass() {
     VectorXdual2nd x(dim_x);
     VectorXdual2nd u(dim_u);
     Eigen::VectorXd y(dim_c);
@@ -405,7 +405,7 @@ void SOC_IPDDP::backwardPass() {
     }
 }
 
-void SOC_IPDDP::checkRegulate() {
+void IPDDP::checkRegulate() {
     if (forward_failed || backward_failed) {++regulate;}
     else if (step == 0) {--regulate;}
     else if (step <= 3) {regulate = regulate;}
@@ -415,7 +415,7 @@ void SOC_IPDDP::checkRegulate() {
     else if (24 < regulate) {regulate = 24;}
 }
 
-void SOC_IPDDP::forwardPass() {
+void IPDDP::forwardPass() {
     Eigen::MatrixXd X_new(dim_x, N+1);
     Eigen::MatrixXd U_new(dim_u, N);
     Eigen::MatrixXd Y_new(dim_c, N);
@@ -491,22 +491,22 @@ void SOC_IPDDP::forwardPass() {
     else {std::cout<<"Forward Failed"<<std::endl;}
 }
 
-Eigen::MatrixXd SOC_IPDDP::getInitX() {
+Eigen::MatrixXd IPDDP::getInitX() {
     return X_init;
 }
 
-Eigen::MatrixXd SOC_IPDDP::getInitU() {
+Eigen::MatrixXd IPDDP::getInitU() {
     return U_init;
 }
 
-Eigen::MatrixXd SOC_IPDDP::getResX() {
+Eigen::MatrixXd IPDDP::getResX() {
     return X;
 }
 
-Eigen::MatrixXd SOC_IPDDP::getResU() {
+Eigen::MatrixXd IPDDP::getResU() {
     return U;
 }
 
-std::vector<double> SOC_IPDDP::getAllCost() {
+std::vector<double> IPDDP::getAllCost() {
     return all_cost;
 }

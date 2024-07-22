@@ -7,7 +7,7 @@
 // #include "cart_pole.h"
 #include "car_parking.h"
 
-#include "soc_ipddp.h"
+#include "ipddp.h"
 #include "visualize.h"
 
 int main() {
@@ -26,20 +26,20 @@ int main() {
     // Solver Setting
     clock_t start = clock();
 
-    SOC_IPDDP soc_ipddp(model);
-    soc_ipddp.init(param);
-    soc_ipddp.solve();
+    IPDDP ipddp(model);
+    ipddp.init(param);
+    ipddp.solve();
 
     clock_t finish = clock();
     double duration = (double)(finish - start) / CLOCKS_PER_SEC;
     std::cout << "\nIn Total : " << duration << " Seconds" << std::endl;
 
     // Parse Result
-    Eigen::MatrixXd X_init = soc_ipddp.getInitX();
-    Eigen::MatrixXd U_init = soc_ipddp.getInitU();
-    Eigen::MatrixXd X_result = soc_ipddp.getResX();
-    Eigen::MatrixXd U_result = soc_ipddp.getResU();
-    std::vector<double> all_cost = soc_ipddp.getAllCost();
+    Eigen::MatrixXd X_init = ipddp.getInitX();
+    Eigen::MatrixXd U_init = ipddp.getInitU();
+    Eigen::MatrixXd X_result = ipddp.getResX();
+    Eigen::MatrixXd U_result = ipddp.getResU();
+    std::vector<double> all_cost = ipddp.getAllCost();
 
     // Visualize
     visualize(X_init, U_init, X_result, U_result, all_cost);

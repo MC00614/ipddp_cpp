@@ -1,4 +1,4 @@
-# SOC-IPDDP
+# IPDDP
 
 ### Feature
 - IPDDP Implemented
@@ -12,6 +12,11 @@
   
   github.com/lava/matplotlib-cpp
 
+  
+- autodiff
+  
+  github.com/autodiff/autodiff
+
 
 ### Usage Example
 ```
@@ -19,5 +24,5 @@ mkdir build
 cd build
 cmake ..
 make
-./soc_ipddp
+./ipddp
 ```
