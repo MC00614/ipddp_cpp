@@ -4,6 +4,10 @@ project(ipddp)
 find_package(PythonLibs REQUIRED)
 find_package (Eigen3 REQUIRED NO_MODULE)
 
+include_directories(
+    ipddp/
+)
+
 if (BUILD_EXAMPLE)
     # autodiff requires a c++17 enabled compiler
     set(CMAKE_CXX_STANDARD 17)          # ensure cmake instructs compiler to use C++17
