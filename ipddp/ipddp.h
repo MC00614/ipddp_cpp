@@ -24,7 +24,7 @@ public:
     ~IPDDP();
 
     void init(Param param);
-    void solve();
+    void solve(Eigen::MatrixXd &X, Eigen::MatrixXd &U, Eigen::MatrixXd &Center, Eigen::VectorXd &Radius);
 
     Eigen::MatrixXd getInitX();
     Eigen::MatrixXd getInitU();
@@ -55,11 +55,11 @@ private:
     // Terminal Cost Function
     std::function<dual2nd(VectorXdual2nd)> p;
     // Constraint
-    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> c;
+    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd, Eigen::MatrixXd, Eigen::VectorXd)> c;
 
     double cost;
     Param param;
-    void initialRoll();
+    void initialRoll(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius);
     void resetFilter();
     double logcost;
     double error;
@@ -85,9 +85,9 @@ private:
     std::vector<double> all_cost;
 
     // Algorithm
-    void backwardPass();
+    void backwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius);
     void checkRegulate();
-    void forwardPass();
+    void forwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius);
     double calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U);
 };
 
@@ -128,20 +128,15 @@ IPDDP::~IPDDP() {
 void IPDDP::init(Param param) {
     this->param = param;
 
-    this->initialRoll();
-    if (this->param.mu == 0) {this->param.mu = cost / N / dim_c;} // Auto Select
-    this->resetFilter();
-    this->resetRegulation();
-
     for (double i = 1; i < 11; ++i) {
         step_list.push_back(std::pow(2.0, -i));
     }
 }
 
-void IPDDP::initialRoll() {
+void IPDDP::initialRoll(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
     this->C.resize(this->dim_c, this->N);
     for (int t = 0; t < this->N; ++t) {
-        C.col(t) = c(X.col(t), U.col(t)).cast<double>();
+        C.col(t) = c(X.col(t), U.col(t), Center, Radius).cast<double>();
         X.col(t+1) = f(X.col(t), U.col(t)).cast<double>();
     }
     X_init = X;
@@ -177,7 +172,17 @@ double IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd
     return static_cast<double>(cost.val);
 }
 
-void IPDDP::solve() {
+void IPDDP::solve(Eigen::MatrixXd &X, Eigen::MatrixXd &U, Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
+    this->X = X;
+    this->U = U;
+
+    this->initialRoll(Center, Radius);
+    std::cout<<"initialRoll"<<std::endl;
+
+    if (this->param.mu == 0) {this->param.mu = cost / N / dim_c;} // Auto Select
+    this->resetFilter();
+    this->resetRegulation();
+
     int iter = 0;
 
     clock_t start;
@@ -185,27 +190,27 @@ void IPDDP::solve() {
     double duration;
 
     while (iter++ < this->param.max_iter) {
-        std::cout<< "\niter : " << iter << std::endl;
+        // std::cout<< "\niter : " << iter << std::endl;
 
-        std::cout<< "Backward Pass" << std::endl;
+        // std::cout<< "Backward Pass" << std::endl;
         // start = clock();
-        this->backwardPass();
+        this->backwardPass(Center, Radius);
         // finish = clock();
         // duration = (double)(finish - start) / CLOCKS_PER_SEC;
         // std::cout << duration << "seconds" << std::endl;
         
-        std::cout<< "Forward Pass" << std::endl;
+        // std::cout<< "Forward Pass" << std::endl;
         // start = clock();
-        this->forwardPass();
+        this->forwardPass(Center, Radius);
         // finish = clock();
         // duration = (double)(finish - start) / CLOCKS_PER_SEC;
         // std::cout << duration << "seconds" << std::endl;
         
-        std::cout<< "mu : " << param.mu << std::endl;
-        std::cout<< "Cost : " << cost << std::endl;
-        std::cout<< "Opt Error : " << opterror << std::endl;
-        std::cout<< "Regulate : " << regulate << std::endl;
-        std::cout<< "Step Size : " << step_list[step] << std::endl;
+        // std::cout<< "mu : " << param.mu << std::endl;
+        // std::cout<< "Cost : " << cost << std::endl;
+        // std::cout<< "Opt Error : " << opterror << std::endl;
+        // std::cout<< "Regulate : " << regulate << std::endl;
+        // std::cout<< "Step Size : " << step_list[step] << std::endl;
         all_cost.push_back(cost);
 
         if (std::max(opterror, param.mu) <= param.tolerance) {
@@ -219,9 +224,12 @@ void IPDDP::solve() {
             resetRegulation();
         }
     }
+
+    X = getResX();
+    U = getResU();
 }
 
-void IPDDP::backwardPass() {
+void IPDDP::backwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
     VectorXdual2nd x(dim_x);
     VectorXdual2nd u(dim_u);
     Eigen::VectorXd y(dim_c);
@@ -298,8 +306,8 @@ void IPDDP::backwardPass() {
             fx = jacobian(f, wrt(x), at(x,u));
             fu = jacobian(f, wrt(u), at(x,u));
 
-            Qsx = jacobian(c, wrt(x), at(x,u));
-            Qsu = jacobian(c, wrt(u), at(x,u));
+            Qsx = jacobian(c, wrt(x), at(x,u,Center,Radius));
+            Qsu = jacobian(c, wrt(u), at(x,u,Center,Radius));
 
             vectorHessian(fxx, f, fs, x, u, "xx");
             vectorHessian(fxu, f, fs, x, u, "xu");
@@ -415,7 +423,7 @@ void IPDDP::checkRegulate() {
     else if (24 < regulate) {regulate = 24;}
 }
 
-void IPDDP::forwardPass() {
+void IPDDP::forwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
     Eigen::MatrixXd X_new(dim_x, N+1);
     Eigen::MatrixXd U_new(dim_u, N);
     Eigen::MatrixXd Y_new(dim_c, N);
@@ -450,7 +458,7 @@ void IPDDP::forwardPass() {
                 int t_dim_x = t * dim_x;
                 S_new.col(t) = S.col(t) + (step_size * ks.col(t)) + (Ks.middleCols(t_dim_x, dim_x) * (X_new.col(t) - X.col(t)));
                 U_new.col(t) = U.col(t) + (step_size * ku.col(t)) + (Ku.middleCols(t_dim_x, dim_x) * (X_new.col(t) - X.col(t)));
-                C_new.col(t) = c(X_new.col(t), U_new.col(t)).cast<double>();
+                C_new.col(t) = c(X_new.col(t), U_new.col(t), Center, Radius).cast<double>();
                 if ((C_new.col(t).array() > (1 - tau) * C.col(t).array()).any()) {forward_failed = true; break;}
                 if ((S_new.col(t).array() < (1 - tau) * S.col(t).array()).any()) {forward_failed = true; break;}
                 X_new.col(t+1) = f(X_new.col(t), U_new.col(t)).cast<double>();
@@ -465,7 +473,7 @@ void IPDDP::forwardPass() {
             logcost_new = cost_new - (param.mu * Y_new.array().log().sum());
             // CHECK POSITION
             for (int t = 0; t < N; ++t) {
-                C_new.col(t) = c(X_new.col(t), U_new.col(t)).cast<double>();
+                C_new.col(t) = c(X_new.col(t), U_new.col(t), Center, Radius).cast<double>();
             }
             error_new = std::max(param.tolerance, (C_new + Y_new).lpNorm<1>());
         }
@@ -488,7 +496,7 @@ void IPDDP::forwardPass() {
         S = S_new;
         C = C_new;
     }
-    else {std::cout<<"Forward Failed"<<std::endl;}
+    // else {std::cout<<"Forward Failed"<<std::endl;}
 }
 
 Eigen::MatrixXd IPDDP::getInitX() {
