@@ -33,6 +33,7 @@ public:
     std::vector<double> getAllCost();
 
 private:
+    int center_point;
     double duration_;
 
     Eigen::MatrixXd X_init;
@@ -88,7 +89,7 @@ private:
     void backwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius);
     void checkRegulate();
     void forwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius);
-    double calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U);
+    double calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U, const Eigen::MatrixXd& Center);
 };
 
 
@@ -101,11 +102,9 @@ IPDDP::IPDDP(ModelClass model) {
     this->dim_u = model.dim_u;
     this->dim_c = model.dim_c;
 
-    if (!model.X.size() || !model.U.size()) {throw std::invalid_argument("Model State is null.");}
-    this->X = model.X;
-    this->U = model.U;
     this->Y = model.Y;
     this->S = model.S;
+    this->C.resize(this->dim_c, this->N);
     
     if (!model.f || !model.q || !model.p) {throw std::invalid_argument("Model Function is null.");}
     this->f = model.f;
@@ -120,6 +119,8 @@ IPDDP::IPDDP(ModelClass model) {
     this->Ku.resize(this->dim_u, this->dim_x * this->N);
     this->Ky.resize(this->dim_c, this->dim_x * this->N);
     this->Ks.resize(this->dim_c, this->dim_x * this->N);
+
+    center_point = model.center_point;
 }
 
 IPDDP::~IPDDP() {
@@ -134,14 +135,10 @@ void IPDDP::init(Param param) {
 }
 
 void IPDDP::initialRoll(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
-    this->C.resize(this->dim_c, this->N);
     for (int t = 0; t < this->N; ++t) {
         C.col(t) = c(X.col(t), U.col(t), Center, Radius).cast<double>();
-        X.col(t+1) = f(X.col(t), U.col(t)).cast<double>();
     }
-    X_init = X;
-    U_init = U;
-    cost = calculateTotalCost(X, U);
+    cost = calculateTotalCost(X, U, Center);
 }
 
 void IPDDP::resetFilter() {
@@ -163,11 +160,12 @@ void IPDDP::resetRegulation() {
     this->backward_failed = false;
 }
 
-double IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U) {
+double IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U, const Eigen::MatrixXd& Center) {
     dual2nd cost = 0.0;
     for (int t = 0; t < N; ++t) {
         cost += q(X.col(t), U.col(t));
     }
+    cost += param.q * (X.topRows(center_point).leftCols(N) - Center).colwise().norm().sum();
     cost += p(X.col(N));
     return static_cast<double>(cost.val);
 }
@@ -177,7 +175,6 @@ void IPDDP::solve(Eigen::MatrixXd &X, Eigen::MatrixXd &U, Eigen::MatrixXd &Cente
     this->U = U;
 
     this->initialRoll(Center, Radius);
-    std::cout<<"initialRoll"<<std::endl;
 
     if (this->param.mu == 0) {this->param.mu = cost / N / dim_c;} // Auto Select
     this->resetFilter();
@@ -190,28 +187,8 @@ void IPDDP::solve(Eigen::MatrixXd &X, Eigen::MatrixXd &U, Eigen::MatrixXd &Cente
     double duration;
 
     while (iter++ < this->param.max_iter) {
-        // std::cout<< "\niter : " << iter << std::endl;
-
-        // std::cout<< "Backward Pass" << std::endl;
-        // start = clock();
         this->backwardPass(Center, Radius);
-        // finish = clock();
-        // duration = (double)(finish - start) / CLOCKS_PER_SEC;
-        // std::cout << duration << "seconds" << std::endl;
-        
-        // std::cout<< "Forward Pass" << std::endl;
-        // start = clock();
         this->forwardPass(Center, Radius);
-        // finish = clock();
-        // duration = (double)(finish - start) / CLOCKS_PER_SEC;
-        // std::cout << duration << "seconds" << std::endl;
-        
-        // std::cout<< "mu : " << param.mu << std::endl;
-        // std::cout<< "Cost : " << cost << std::endl;
-        // std::cout<< "Opt Error : " << opterror << std::endl;
-        // std::cout<< "Regulate : " << regulate << std::endl;
-        // std::cout<< "Step Size : " << step_list[step] << std::endl;
-        all_cost.push_back(cost);
 
         if (std::max(opterror, param.mu) <= param.tolerance) {
             std::cout << "Optimal Solution" << std::endl;
@@ -467,7 +444,7 @@ void IPDDP::forwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
 
         if (forward_failed) {continue;}
 
-        cost_new = calculateTotalCost(X_new, U_new);
+        cost_new = calculateTotalCost(X_new, U_new, Center);
 
         if (param.infeasible) {
             logcost_new = cost_new - (param.mu * Y_new.array().log().sum());
