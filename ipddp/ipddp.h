@@ -72,7 +72,6 @@ private:
     void resetRegulation();
     int regulate;
     bool backward_failed;
-    bool backward_error;
 
     Eigen::MatrixXd ku;
     Eigen::MatrixXd ky;
@@ -143,6 +142,8 @@ void IPDDP::initialRoll(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
 }
 
 void IPDDP::resetFilter() {
+    Y = 0.01*Eigen::MatrixXd::Ones(dim_c, N);
+    S = 0.01*Eigen::MatrixXd::Ones(dim_c, N);
     if (param.infeasible) {
         logcost = cost - (param.mu*Y.array().log().sum());
         error = (C + Y).lpNorm<1>();
@@ -159,7 +160,6 @@ void IPDDP::resetFilter() {
 void IPDDP::resetRegulation() {
     this->regulate = 0;
     this->backward_failed = false;
-    this->backward_error = false;
 }
 
 double IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U, const Eigen::MatrixXd& Center) {
@@ -190,28 +190,25 @@ void IPDDP::solve(Eigen::MatrixXd &X, Eigen::MatrixXd &U, Eigen::MatrixXd &Cente
 
     while (iter++ < this->param.max_iter) {
         this->backwardPass(Center, Radius);
-        if (backward_error) {break;}
         if (backward_failed) {continue;}
         this->forwardPass(Center, Radius);
 
+        // std::cout << "opterror = " << opterror << std::endl;
+        // std::cout << "param.mu = " << param.mu << std::endl;
+        // std::cout << "param.tolerance = " << param.tolerance << std::endl;
         if (std::max(opterror, param.mu) <= param.tolerance) {
             std::cout << "Optimal Solution" << std::endl;
             break;
         }
 
         if (opterror <= (0.2 * param.mu)) {
-            std::cout << "opterror <= (0.2 * param.mu)" << std::endl;
             param.mu = std::max((param.tolerance / 10), std::min(0.2 * param.mu, std::pow(param.mu, 1.2)));
             resetFilter();
             resetRegulation();
         }
     }
-
-    std::cout << "RES = " << (X -getResX()).sum() << std::endl;
     X = getResX();
     U = getResU();
-    std::cout << "Step = " << step << std::endl;
-    std::cout << "Reg = " << regulate << std::endl;
 }
 
 void IPDDP::backwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
@@ -270,9 +267,7 @@ void IPDDP::backwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
     mu_err = 0;
     Qu_err = 0;
 
-    backward_error = false;
     checkRegulate();
-    if (regulate == 24) {backward_error = true; return;}
 
     x = X.col(N).cast<dual2nd>();
     Vx = gradient(p, wrt(x), at(x));
