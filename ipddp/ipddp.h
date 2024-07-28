@@ -81,8 +81,6 @@ private:
     Eigen::MatrixXd Ky;
     Eigen::MatrixXd Ks;
 
-    Eigen::VectorXd U_prev;
-
     double opterror;
     // Eigen::VectorXd dV;
 
@@ -122,7 +120,6 @@ IPDDP::IPDDP(ModelClass model) {
     this->Ku.resize(this->dim_u, this->dim_x * this->N);
     this->Ky.resize(this->dim_c, this->dim_x * this->N);
     this->Ks.resize(this->dim_c, this->dim_x * this->N);
-    this->U_prev = Eigen::VectorXd::Zero(dim_u);
 
     center_point = model.center_point;
 }
@@ -172,9 +169,8 @@ double IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd
     for (int t = 0; t < N; ++t) {
         cost += q(X.col(t), U.col(t));
     }
-    cost += param.q * (X.topRows(center_point).leftCols(N) - Center).colwise().norm().sum();
+    // cost += param.q * (X.topRows(center_point).leftCols(N) - Center).colwise().norm().sum();
     cost += p(X.col(N));
-    cost += (U_prev - U.col(0)).lpNorm<1>();
     return static_cast<double>(cost.val);
 }
 
@@ -212,10 +208,10 @@ void IPDDP::solve(Eigen::MatrixXd &X, Eigen::MatrixXd &U, Eigen::MatrixXd &Cente
             resetRegulation();
         }
     }
+
     X = getResX();
     U = getResU();
 
-    U_prev = U.col(0);
     // std::cout<<"iter = "<<iter<<std::endl;
     // std::cout<<"logcost = "<<logcost<<std::endl;
     // std::cout<<"error = "<<error<<std::endl;
@@ -442,10 +438,10 @@ void IPDDP::forwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
                 int t_dim_x = t * dim_x;
                 Y_new.col(t) = Y.col(t) + (step_size * ky.col(t)) + (Ky.middleCols(t_dim_x, dim_x) * (X_new.col(t) - X.col(t)));
                 S_new.col(t) = S.col(t) + (step_size * ks.col(t)) + (Ks.middleCols(t_dim_x, dim_x) * (X_new.col(t) - X.col(t)));
-                C_new.col(t) = c(X_new.col(t), U_new.col(t), Center.col(t), Radius(t)).cast<double>();
                 if ((Y_new.col(t).array() < (1 - tau) * Y.col(t).array()).any()) {forward_failed = true; break;}
                 if ((S_new.col(t).array() < (1 - tau) * S.col(t).array()).any()) {forward_failed = true; break;}
                 U_new.col(t) = U.col(t) + (step_size * ku.col(t)) + (Ku.middleCols(t_dim_x, dim_x) * (X_new.col(t) - X.col(t)));
+                C_new.col(t) = c(X_new.col(t), U_new.col(t), Center.col(t), Radius(t)).cast<double>();
                 X_new.col(t+1) = f(X_new.col(t), U_new.col(t)).cast<double>();
             }
         }
@@ -460,9 +456,6 @@ void IPDDP::forwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
                 X_new.col(t+1) = f(X_new.col(t), U_new.col(t)).cast<double>();
             }
         }
-        
-        // TEMP
-        U_new.col(0) = U.col(0);
 
         if (forward_failed) {continue;}
 
@@ -470,8 +463,8 @@ void IPDDP::forwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
 
         if (param.infeasible) {
             logcost_new = cost_new - (param.mu * Y_new.array().log().sum());
-            error_new = (C_new + Y_new).lpNorm<1>();
-            // error_new = std::max(param.tolerance, (C_new + Y_new).lpNorm<1>());
+            // error_new = (C_new + Y_new).lpNorm<1>();
+            error_new = std::max(param.tolerance, (C_new + Y_new).lpNorm<1>());
         }
         else {
             logcost_new = cost_new - (param.mu * (-C_new).array().log().sum());
@@ -485,6 +478,12 @@ void IPDDP::forwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
         cost = cost_new;
         logcost = std::min(logcost, logcost_new);
         error = std::min(error, error_new);
+
+        // std::cout << "step_list[step]  : " << step_list[step] << std::endl;
+        // std::cout << "ku  : \n" << ku.leftCols(10) << std::endl;
+        // std::cout << "(step_size * ku.col(t))  : \n" << (step_list[step] * ku.col(0)) << std::endl;
+        // std::cout << "P_U : " << U.col(0)(0)<< std::endl;
+        // std::cout << "N_U : " << U_new.col(0)(0)<< std::endl;
         X = X_new;
         U = U_new;
         Y = Y_new;
