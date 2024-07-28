@@ -460,6 +460,9 @@ void IPDDP::forwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
                 X_new.col(t+1) = f(X_new.col(t), U_new.col(t)).cast<double>();
             }
         }
+        
+        // TEMP
+        U_new.col(0) = U.col(0);
 
         if (forward_failed) {continue;}
 
