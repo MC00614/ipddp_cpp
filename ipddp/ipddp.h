@@ -71,6 +71,7 @@ private:
 
     void resetRegulation();
     int regulate;
+    bool backward_error;
     bool backward_failed;
 
     Eigen::MatrixXd ku;
@@ -79,6 +80,8 @@ private:
     Eigen::MatrixXd Ku;
     Eigen::MatrixXd Ky;
     Eigen::MatrixXd Ks;
+
+    Eigen::VectorXd U_prev;
 
     double opterror;
     // Eigen::VectorXd dV;
@@ -119,6 +122,7 @@ IPDDP::IPDDP(ModelClass model) {
     this->Ku.resize(this->dim_u, this->dim_x * this->N);
     this->Ky.resize(this->dim_c, this->dim_x * this->N);
     this->Ks.resize(this->dim_c, this->dim_x * this->N);
+    this->U_prev = Eigen::VectorXd::Zero(dim_u);
 
     center_point = model.center_point;
 }
@@ -159,6 +163,7 @@ void IPDDP::resetFilter() {
 
 void IPDDP::resetRegulation() {
     this->regulate = 0;
+    this->backward_error = false;
     this->backward_failed = false;
 }
 
@@ -169,6 +174,7 @@ double IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd
     }
     cost += param.q * (X.topRows(center_point).leftCols(N) - Center).colwise().norm().sum();
     cost += p(X.col(N));
+    cost += (U_prev - U.col(0)).lpNorm<1>();
     return static_cast<double>(cost.val);
 }
 
@@ -190,12 +196,11 @@ void IPDDP::solve(Eigen::MatrixXd &X, Eigen::MatrixXd &U, Eigen::MatrixXd &Cente
 
     while (iter++ < this->param.max_iter) {
         this->backwardPass(Center, Radius);
+        if (backward_error) {break;}
         if (backward_failed) {continue;}
+
         this->forwardPass(Center, Radius);
 
-        // std::cout << "opterror = " << opterror << std::endl;
-        // std::cout << "param.mu = " << param.mu << std::endl;
-        // std::cout << "param.tolerance = " << param.tolerance << std::endl;
         if (std::max(opterror, param.mu) <= param.tolerance) {
             std::cout << "Optimal Solution" << std::endl;
             break;
@@ -209,6 +214,11 @@ void IPDDP::solve(Eigen::MatrixXd &X, Eigen::MatrixXd &U, Eigen::MatrixXd &Cente
     }
     X = getResX();
     U = getResU();
+
+    U_prev = U.col(0);
+    // std::cout<<"iter = "<<iter<<std::endl;
+    // std::cout<<"logcost = "<<logcost<<std::endl;
+    // std::cout<<"error = "<<error<<std::endl;
 }
 
 void IPDDP::backwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
@@ -267,7 +277,9 @@ void IPDDP::backwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
     mu_err = 0;
     Qu_err = 0;
 
+    backward_error = false;
     checkRegulate();
+    if (backward_error) {return;}
 
     x = X.col(N).cast<dual2nd>();
     Vx = gradient(p, wrt(x), at(x));
@@ -395,13 +407,16 @@ void IPDDP::backwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
 
 void IPDDP::checkRegulate() {
     if (forward_failed || backward_failed) {++regulate;}
-    else if (step == 0) {--regulate;}
-    else if (step <= 3) {regulate = regulate;}
-    else {++regulate;}
+    else {--regulate;}
+    // else if (step == 0) {--regulate;}
+    // else if (step <= 3) {regulate = regulate;}
+    // else {++regulate;}
 
     if (regulate < 0) {regulate = 0;}
-    else if (24 < regulate) {regulate = 24;}
+    else if (24 < regulate) {backward_error = true;}
+    // else if (24 < regulate) {regulate = 24;}
 }
+
 
 void IPDDP::forwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
     Eigen::MatrixXd X_new(dim_x, N+1);
@@ -452,21 +467,21 @@ void IPDDP::forwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
 
         if (param.infeasible) {
             logcost_new = cost_new - (param.mu * Y_new.array().log().sum());
-            // error_new = std::max(param.tolerance, (C_new + Y_new).lpNorm<1>());
             error_new = (C_new + Y_new).lpNorm<1>();
+            // error_new = std::max(param.tolerance, (C_new + Y_new).lpNorm<1>());
         }
         else {
             logcost_new = cost_new - (param.mu * (-C_new).array().log().sum());
             error_new = 0.0;
         }
-        if (logcost_new < logcost  || error_new < error) {break;}
+        if (logcost_new < logcost || error_new < error) {break;}
         else {forward_failed = true;}
     }
 
     if (!forward_failed) {
         cost = cost_new;
-        logcost = logcost_new;
-        error = error_new;
+        logcost = std::min(logcost, logcost_new);
+        error = std::min(error, error_new);
         X = X_new;
         U = U_new;
         Y = Y_new;
