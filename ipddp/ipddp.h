@@ -169,7 +169,7 @@ double IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd
     for (int t = 0; t < N; ++t) {
         cost += q(X.col(t), U.col(t));
     }
-    // cost += param.q * (X.topRows(center_point).leftCols(N) - Center).colwise().norm().sum();
+    cost += param.q * (X.topRows(center_point).leftCols(N) - Center).colwise().norm().sum();
     cost += p(X.col(N));
     return static_cast<double>(cost.val);
 }
@@ -470,7 +470,9 @@ void IPDDP::forwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
             logcost_new = cost_new - (param.mu * (-C_new).array().log().sum());
             error_new = 0.0;
         }
-        if (logcost_new < logcost || error_new < error) {break;}
+        // CHECK
+        // if (logcost_new < logcost || error_new < error) {break;}
+        if (logcost_new < logcost && error_new < error) {break;}
         else {forward_failed = true;}
     }
 
