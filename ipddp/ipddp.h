@@ -299,9 +299,9 @@ void IPDDP::backwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
         Qsx = jacobian(c, wrt(x), at(x,u,Center.col(t),Radius(t)));
         Qsu = jacobian(c, wrt(u), at(x,u,Center.col(t),Radius(t)));
 
-        vectorHessian(fxx, f, fs, x, u, "xx");
-        vectorHessian(fxu, f, fs, x, u, "xu");
-        vectorHessian(fuu, f, fs, x, u, "uu");
+        // vectorHessian(fxx, f, fs, x, u, "xx");
+        // vectorHessian(fxu, f, fs, x, u, "xu");
+        // vectorHessian(fuu, f, fs, x, u, "uu");
 
         qx = gradient(q, wrt(x), at(x,u));
         qu = gradient(q, wrt(u), at(x,u));
@@ -313,9 +313,12 @@ void IPDDP::backwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
         scalarHessian(qxu, q, x, u, "xu");
         quu = hessian(q, wrt(u), at(x,u));
 
-        Qxx = qxx + (fx.transpose() * Vxx * fx) + tensdot(Vx, fxx);
-        Qxu = qxu + (fx.transpose() * Vxx * fu) + tensdot(Vx, fxu);
-        Quu = quu + (fu.transpose() * Vxx * fu) + tensdot(Vx, fuu);
+        // Qxx = qxx + (fx.transpose() * Vxx * fx) + tensdot(Vx, fxx);
+        // Qxu = qxu + (fx.transpose() * Vxx * fu) + tensdot(Vx, fxu);
+        // Quu = quu + (fu.transpose() * Vxx * fu) + tensdot(Vx, fuu);
+        Qxx = qxx + (fx.transpose() * Vxx * fx);
+        Qxu = qxu + (fx.transpose() * Vxx * fu);
+        Quu = quu + (fu.transpose() * Vxx * fu);
 
         diag_s = s.asDiagonal();
 
