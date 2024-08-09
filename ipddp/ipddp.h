@@ -466,15 +466,12 @@ void IPDDP::forwardPass(Eigen::MatrixXd &Center, Eigen::VectorXd &Radius) {
 
         if (param.infeasible) {
             logcost_new = cost_new - (param.mu * Y_new.array().log().sum());
-            // error_new = (C_new + Y_new).lpNorm<1>();
             error_new = std::max(param.tolerance, (C_new + Y_new).lpNorm<1>());
         }
         else {
             logcost_new = cost_new - (param.mu * (-C_new).array().log().sum());
             error_new = 0.0;
         }
-        // CHECK
-        // if (logcost_new < logcost || error_new < error) {break;}
         if (logcost_new < logcost && error_new < error) {break;}
         else {forward_failed = true;}
     }
