@@ -3,6 +3,7 @@ project(ipddp)
 
 find_package(PythonLibs REQUIRED)
 find_package (Eigen3 REQUIRED NO_MODULE)
+# find_package (SymEngine REQUIRED)
 
 include_directories(
     ipddp/
@@ -16,8 +17,8 @@ if (BUILD_EXAMPLE)
 
     include_directories(
         eigen/
-        autodiff/
         matplotlibcpp/
+        autodiff/
         ${PYTHON_INCLUDE_DIRS}
         example/model/
     )
