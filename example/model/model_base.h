@@ -15,6 +15,8 @@ public:
     int dim_x;
     int dim_u;
     int dim_c;
+    int dim_g;
+    int dim_h;
     Eigen::MatrixXd X;
     Eigen::MatrixXd U;
     Eigen::MatrixXd Y;
@@ -22,23 +24,19 @@ public:
 
     // Discrete Time System
     std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> f;
-    std::vector<std::function<dual2nd(VectorXdual2nd, VectorXdual2nd)>> fs;
     // Stage Cost Function
     std::function<dual2nd(VectorXdual2nd, VectorXdual2nd)> q;
     // Terminal Cost Function
     std::function<dual2nd(VectorXdual2nd)> p;
-    // Constraint
+    // Nonnegative Orthant Constraint Mapping
+    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> g;
+    // Connic Constraint Mapping
+    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> h;
+    // Constraint Stack
     std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> c;
 };
 
 ModelBase::ModelBase() {
-    f = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        VectorXdual2nd x_n(dim_x);
-        for (int i = 0; i < dim_x; ++i) {
-            x_n(i) = fs[i](x,u);
-        }
-        return x_n;
-    };
 };
 
 ModelBase::~ModelBase() {

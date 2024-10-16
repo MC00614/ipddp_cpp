@@ -13,7 +13,9 @@ InvPend::InvPend() {
     // Dimensions
     dim_x = 2;
     dim_u = 1;
-    dim_c = 2;
+    dim_g = 2;
+    dim_h = 2;
+    dim_c = dim_g + dim_h;
 
     // Status Setting
     X = Eigen::MatrixXd::Zero(dim_x, N+1);
@@ -29,16 +31,13 @@ InvPend::InvPend() {
     S = 0.1*Eigen::MatrixXd::Ones(dim_c, N);
     
     // Discrete Time System
-    auto f0 = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
+    f = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
         const double h = 0.05;
-        return x(0) + h * x(1);
+        VectorXdual2nd x_n(dim_x);
+        x_n(0) = x(0) + h * x(1);
+        x_n(1) = x(1) + h * sin(x(0)) + h * u(0);
+        return x_n;
     };
-    fs.push_back(f0);
-    auto f1 = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
-        const double h = 0.05;
-        return x(1) + h * sin(x(0)) + h * u(0);
-    };
-    fs.push_back(f1);
 
     // Stage Cost Function
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
@@ -50,11 +49,27 @@ InvPend::InvPend() {
         return 5.0 * x.squaredNorm();
     };
 
-    // Constraint
+    // Nonnegative Orthant Constraint Mapping
+    g = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
+        VectorXdual2nd g_n(dim_g);
+        g_n(0) = u(0) - 0.25;
+        g_n(1) = -u(0) - 0.25;
+        return g_n;
+    };
+
+    // Connic Constraint Mapping
+    h = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
+        VectorXdual2nd h_n(dim_h);
+        h_n(0) = x(0);
+        h_n(1) = x(1);
+        return h_n;
+    };
+
+    // Constraint Stack
     c = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        VectorXdual2nd c_n(2);
-        c_n(0) = u(0) - 0.25;
-        c_n(1) = -u(0) - 0.25;
+        VectorXdual2nd c_n(dim_c);
+        c_n.topRows(dim_g) = g(x,u);
+        c_n.bottomRows(dim_h) = h(x,u);
         return c_n;
     };
 }
