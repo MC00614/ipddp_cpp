@@ -3,25 +3,25 @@
 
 #include <cmath>
 
+#include "rocket.h"
 #include "invpend.h"
-// #include "cart_pole.h"
-#include "car_parking.h"
 
 #include "ipddp.h"
 #include "visualize.h"
 
 int main() {
     // Load Dynamic Model
-    auto model = InvPend();
+    auto model = Rocket();
+    // auto model = InvPend();
     // auto model = CartPole();
     // auto model = CarParking();
     
     // Parameter Setting
     Param param;
     param.tolerance = 1e-7;
-    param.max_iter = 100;
-    param.mu = 0;
-    param.infeasible = false;
+    param.max_iter = 1000;
+    param.mu = 0.2;
+    param.infeasible = true;
 
     // Solver Setting
     clock_t start = clock();

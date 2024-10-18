@@ -14,7 +14,7 @@ InvPend::InvPend() {
     dim_x = 2;
     dim_u = 1;
     dim_g = 2;
-    dim_h = 2;
+    dim_h = 0;
     dim_c = dim_g + dim_h;
 
     // Status Setting
@@ -57,19 +57,11 @@ InvPend::InvPend() {
         return g_n;
     };
 
-    // Connic Constraint Mapping
-    h = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        VectorXdual2nd h_n(dim_h);
-        h_n(0) = x(0);
-        h_n(1) = x(1);
-        return h_n;
-    };
-
     // Constraint Stack
     c = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
         VectorXdual2nd c_n(dim_c);
-        c_n.topRows(dim_g) = g(x,u);
-        c_n.bottomRows(dim_h) = h(x,u);
+        if (dim_g) {c_n.topRows(dim_g) = g(x,u);}
+        if (dim_h) {c_n.bottomRows(dim_h) = h(x,u);}
         return c_n;
     };
 }
