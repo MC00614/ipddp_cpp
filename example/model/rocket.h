@@ -8,7 +8,7 @@ public:
 
 Rocket::Rocket() {
     // Stage Count
-    N = 1000;
+    N = 300;
 
     // Dimensions
     dim_x = 6;
@@ -19,28 +19,22 @@ Rocket::Rocket() {
 
     // Status Setting
     X = Eigen::MatrixXd::Zero(dim_x, N+1);
-    X(0,0) = 8.0;
-    X(1,0) = 4.0;
-    // X(0,0) = 20.0;
-    // X(1,0) = 7.0;
+    // X(0,0) = 10.0;
+    // X(1,0) = 5.0;
+    X(0,0) = 20.0;
+    X(1,0) = 7.0;
 
-    // U = 0.02*Eigen::MatrixXd::Random(dim_u, N) - Eigen::MatrixXd::Constant(dim_u, N, 0.01);
     U = Eigen::MatrixXd::Zero(dim_u, N);
     U.row(0) = 9.81 * 10.0 * Eigen::VectorXd::Ones(N);
 
-    // Y = 0.1 * Eigen::MatrixXd::Ones(dim_c, N);
-    // S = 0.1 * Eigen::MatrixXd::Ones(dim_c, N);
-
-    Y = Eigen::MatrixXd::Ones(dim_c, N);
-    S = Eigen::MatrixXd::Ones(dim_c, N);
-    Eigen::VectorXd s_init(dim_c);
+    S = 0.01 * Eigen::MatrixXd::Ones(dim_c, N);
+    Y = 0.01 * Eigen::MatrixXd::Ones(dim_c, N);
     Eigen::VectorXd y_init(dim_c);
-    // s_init << 0.1;
-    // y_init << 0.1;
-    s_init << 0.1, 0.2, 0.1;
-    y_init << 0.1, 0.2, 0.1;
-    S.colwise() = s_init;
+    Eigen::VectorXd s_init(dim_c);
+    y_init << 0.01, 0.001, 0.0;
+    s_init << 0.01, 0.001, 0.0;
     Y.colwise() = y_init;
+    S.colwise() = s_init;
     
     // Discrete Time System
     f = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
@@ -62,14 +56,11 @@ Rocket::Rocket() {
     // Stage Cost Function
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
         return (2 * 1E-5 * u.squaredNorm()) + ((pow(x(0), 2)+pow(x(1), 2)) * 1e-3 * 5);
-        // return (2 * 1E-5 * u.squaredNorm()) + (pow(x(1), 2) * 1e-3 * 5);
-        // return (2 * 1E-5 * u.squaredNorm()) + (pow(x(1), 2) * 1e-3 * 5);
     };
 
     // Terminal Cost Function
     p = [this](const VectorXdual2nd& x) -> dual2nd {
-        return 30000.0 * x.squaredNorm();
-        // return 2000.0 * x.topRows(2).squaredNorm();
+        return 2000.0 * x.norm();
     };
 
     // Nonnegative Orthant Constraint Mapping

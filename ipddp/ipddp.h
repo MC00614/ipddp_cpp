@@ -239,7 +239,7 @@ void IPDDP::solve() {
 }
 
 Eigen::MatrixXd IPDDP::L(const Eigen::VectorXd& x) {
-    Eigen::MatrixXd Lx = x.asDiagonal();
+    Eigen::MatrixXd Lx = (x(0)*Eigen::VectorXd::Ones(x.rows())).asDiagonal();
     Lx.leftCols(1) = x;
     Lx.topRows(1) = x.transpose();
     return Lx;
@@ -412,9 +412,9 @@ void IPDDP::backwardPass() {
 
 void IPDDP::checkRegulate() {
     if (forward_failed || backward_failed) {++regulate;}
-    else if (step == 0) {--regulate;}
-    else if (step <= 3) {regulate = regulate;}
-    else {++regulate;}
+    // else if (step == 0) {--regulate;}
+    // else if (step <= 3) {regulate = regulate;}
+    else {--regulate;}
 
     if (regulate < 0) {regulate = 0;}
     else if (24 < regulate) {regulate = 24;}
@@ -465,6 +465,8 @@ void IPDDP::forwardPass() {
 
         if (dim_g) {barrier_g_new = Y_new.topRows(dim_g).array().log().sum();}
         if (dim_h) {barrier_h_new += log(Y_new.row(dim_c-dim_h).array().pow(2.0).sum() - Y_new.bottomRows(dim_h-1).array().pow(2.0).sum())/2;}
+        // std::cout<<"barriercost G = "<<barrier_g_new<<std::endl;
+        // std::cout<<"barriercost H = "<<barrier_h_new<<std::endl;
         logcost_new = cost_new - param.mu * (barrier_g_new + barrier_h_new);
         for (int t = 0; t < N; ++t) {
             C_new.col(t) = c(X_new.col(t), U_new.col(t)).cast<double>();
@@ -485,6 +487,7 @@ void IPDDP::forwardPass() {
         Y = Y_new;
         S = S_new;
         C = C_new;
+        // std::cout<<"Y = "<<Y.transpose()<<std::endl;
     }
     else {std::cout<<"Forward Failed"<<std::endl;}
 }
