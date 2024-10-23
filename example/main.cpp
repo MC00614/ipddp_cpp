@@ -3,7 +3,7 @@
 
 #include <cmath>
 
-#include "rocket.h"
+#include "rocket2d.h"
 #include "invpend.h"
 
 #include "ipddp.h"
@@ -11,7 +11,7 @@
 
 int main() {
     // Load Dynamic Model
-    auto model = Rocket();
+    auto model = Rocket2D();
     // auto model = InvPend();
     // auto model = CartPole();
     // auto model = CarParking();

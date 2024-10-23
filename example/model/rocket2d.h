@@ -1,12 +1,12 @@
 #include "model_base.h"
 
-class Rocket : public ModelBase {
+class Rocket2D : public ModelBase {
 public:
-    Rocket();
-    ~Rocket();
+    Rocket2D();
+    ~Rocket2D();
 };
 
-Rocket::Rocket() {
+Rocket2D::Rocket2D() {
     // Stage Count
     N = 300;
 
@@ -91,5 +91,5 @@ Rocket::Rocket() {
     };
 }
 
-Rocket::~Rocket() {
+Rocket2D::~Rocket2D() {
 }
