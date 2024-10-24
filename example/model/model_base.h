@@ -14,13 +14,14 @@ public:
     int N;
     int dim_x;
     int dim_u;
-    int dim_c;
     int dim_g;
     int dim_h;
-    Eigen::MatrixXd X;
-    Eigen::MatrixXd U;
-    Eigen::MatrixXd Y;
-    Eigen::MatrixXd S;
+    int dim_c;
+    Eigen::VectorXd x0;
+    Eigen::MatrixXd X_init;
+    Eigen::MatrixXd U_init;
+    Eigen::MatrixXd Y_init;
+    Eigen::MatrixXd S_init;
 
     // Discrete Time System
     std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> f;
