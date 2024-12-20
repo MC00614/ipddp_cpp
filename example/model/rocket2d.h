@@ -19,7 +19,7 @@ Rocket2D::Rocket2D() {
     l = 0.7;
     dt = 0.1;
     mass = 10.0;
-    I = 1.0 / 12.0 * mass * pow(2.0, 2);
+    I = 3.33;
     gravity.resize(2);
     gravity << -9.81, 0.0;
     umax = mass*9.81*1.1;

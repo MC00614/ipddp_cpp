@@ -3,15 +3,16 @@
 
 #include <cmath>
 
-// #include "rocket2d.h"
-#include "rocket3d.h"
+#include "rocket2d.h"
+// #include "rocket3d.h"
 
 #include "ipddp.h"
 #include "visualize.h"
 
 int main() {
     // Load Dynamic Model
-    auto model = Rocket3D();
+    auto model = Rocket2D();
+    // auto model = Rocket3D();
     // auto model = InvPend();
     // auto model = CartPole();
     // auto model = CarParking();
