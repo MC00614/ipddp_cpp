@@ -1,60 +1,52 @@
 #include "model_base.h"
 
-class Rocket2D : public ModelBase {
+class Drone3D : public ModelBase {
 public:
-    Rocket2D();
-    ~Rocket2D();
+    Drone3D();
+    ~Drone3D();
 
     // User Variable
-    double l;
     double dt;
-    double mass;
-    double I;
-    Eigen::VectorXd gravity;
+    double gravity;
     double umax;
     Eigen::MatrixXd U;
 };
 
-Rocket2D::Rocket2D() {
-    l = 0.7;
+Drone3D::Drone3D() {
     dt = 0.1;
-    mass = 10.0;
-    I = 3.33;
-    gravity.resize(2);
-    gravity << -9.81, 0.0;
-    umax = mass*9.81*1.1;
+    gravity = 9.81;
+    umax = gravity * 1.5;
 
     // Stage Count
     N = 300;
 
     // Dimensions
     dim_x = 6;
-    dim_u = 2;
+    dim_u = 3;
     dim_g = 1;
-    dim_h = 2;
+    dim_h = 3;
     dim_h2 = 0;
 
     // Status Setting
     X_init = Eigen::MatrixXd::Zero(dim_x, N+1);
-    X_init(0,0) = 10.0;
-    X_init(1,0) = 5.0;
+    X_init(0,0) = 3.0;
+    X_init(1,0) = 4.0;
+    X_init(2,0) = 5.0;
 
     U_init = Eigen::MatrixXd::Zero(dim_u, N);
-    U_init.row(0) = 9.81 * 10.0 * Eigen::VectorXd::Ones(N);
+    U_init.row(2) = 9.81 * Eigen::VectorXd::Ones(N);
     
     // Discrete Time System
     f = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
         VectorXdual2nd x_n(dim_x);
         VectorXdual2nd f_dot(dim_x);
-        MatrixXdual2nd U(2,2);
-        U << cos(x(4)), -sin(x(4)),
-            sin(x(4)),  cos(x(4));
         f_dot << 
-            x(2),
             x(3),
-            gravity + U * u / mass,
+            x(4),
             x(5),
-            -(l / I) * u(1);
+            u(0),
+            u(1),
+            u(2) - gravity;
         x_n = x + (dt * f_dot);
         return x_n;
     };
@@ -66,7 +58,7 @@ Rocket2D::Rocket2D() {
 
     // Terminal Cost Function
     p = [this](const VectorXdual2nd& x) -> dual2nd {
-        return 2000.0 * x.norm();
+        return 2000 * x.norm();
     };
 
     // Nonnegative Orthant Constraint Mapping
@@ -78,20 +70,22 @@ Rocket2D::Rocket2D() {
 
     // Connic Constraint Mapping
     h = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        const double input_angmax = tan(0.5 * (M_PI/180.0));
-        VectorXdual2nd h_n(2);
-        h_n(0) = input_angmax * u(0);
-        h_n(1) = u(1);
+        const double input_angmax = tan(20.0 * (M_PI/180.0));
+        VectorXdual2nd h_n(3);
+        h_n(0) = input_angmax * u(2);
+        h_n(1) = u(0);
+        h_n(2) = u(1);
         return -h_n;
     };
     h2 = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        const double state_angmax = tan(0.5 * (M_PI/180.0));
-        VectorXdual2nd h2_n(2);
-        h2_n(0) = state_angmax * x(0);
-        h2_n(1) = x(1);
+        const double state_angmax = tan(45.0 * (M_PI/180.0));
+        VectorXdual2nd h2_n(3);
+        h2_n(0) = state_angmax * x(2);
+        h2_n(1) = x(0);
+        h2_n(2) = x(1);
         return -h2_n;
     };
 }
 
-Rocket2D::~Rocket2D() {
+Drone3D::~Drone3D() {
 }

@@ -80,11 +80,12 @@ private:
 template<typename ModelClass>
 IPDDP::IPDDP(ModelClass model_) : model(model_) {
     // Stack Constraint
-    model.dim_c = model.dim_g + model.dim_h;
+    model.dim_c = model.dim_g + model.dim_h + model.dim_h2;
     model.c = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
         VectorXdual2nd c_n(model.dim_c);
         if (model.dim_g) {c_n.topRows(model.dim_g) = model.g(x, u);}
-        if (model.dim_h) {c_n.bottomRows(model.dim_h) = model.h(x, u);}
+        if (model.dim_h) {c_n.middleRows(model.dim_g, model.dim_h) = model.h(x, u);}
+        if (model.dim_h2) {c_n.bottomRows(model.dim_h2) = model.h2(x, u);}
         return c_n;
     };
 
@@ -105,14 +106,16 @@ IPDDP::IPDDP(ModelClass model_) : model(model_) {
     else {
         Y = Eigen::MatrixXd::Zero(model.dim_c, model.N);
         if (model.dim_g) {Y.topRows(model.dim_g) = 0.01*Eigen::MatrixXd::Ones(model.dim_g,model.N);}
-        if (model.dim_h) {Y.row(model.dim_c - model.dim_h) = 0.001*Eigen::VectorXd::Ones(model.N);}
+        if (model.dim_h) {Y.row(model.dim_g) = 0.001*Eigen::VectorXd::Ones(model.N);}
+        if (model.dim_h2) {Y.row(model.dim_c - model.dim_h2) = 0.001*Eigen::VectorXd::Ones(model.N);}
     }
 
     if (model.S_init.size()) {S = model.S_init;}
     else {
         S = Eigen::MatrixXd::Zero(model.dim_c, model.N);
         if (model.dim_g) {S.topRows(model.dim_g) = 0.01*Eigen::MatrixXd::Ones(model.dim_g,model.N);}
-        if (model.dim_h) {S.row(model.dim_c - model.dim_h) = 0.001*Eigen::VectorXd::Ones(model.N);}
+        if (model.dim_h) {S.row(model.dim_g) = 0.001*Eigen::VectorXd::Ones(model.N);}
+        if (model.dim_h2) {S.row(model.dim_c - model.dim_h2) = 0.001*Eigen::VectorXd::Ones(model.N);}
     }
 
     ku.resize(model.dim_u, model.N);
@@ -151,7 +154,9 @@ void IPDDP::initialRoll() {
 void IPDDP::resetFilter() {
     double barriercost = 0.0;
     if (model.dim_g) {barriercost += Y.topRows(model.dim_g).array().log().sum();}
-    if (model.dim_h) {barriercost += log(Y.row(model.dim_c-model.dim_h).array().pow(2.0).sum() - Y.bottomRows(model.dim_h-1).array().pow(2.0).sum())/2;}
+    if (model.dim_h) {barriercost += log(Y.row(model.dim_g).array().pow(2.0).sum() - Y.middleRows(model.dim_g+1, model.dim_h-1).array().pow(2.0).sum())/2;}
+    if (model.dim_h2) {barriercost += log(Y.row(model.dim_c-model.dim_h2).array().pow(2.0).sum() - Y.bottomRows(model.dim_h2-1).array().pow(2.0).sum())/2;}
+
     logcost = cost - param.mu * barriercost;
     error = (C + Y).colwise().lpNorm<1>().sum();
     if (error < param.tolerance) {error = 0;}
@@ -311,12 +316,19 @@ void IPDDP::backwardPass() {
                 S_.topLeftCorner(model.dim_g, model.dim_g) = s.topRows(model.dim_g).asDiagonal();
             }
             if (model.dim_h) {
-                Y_.bottomRightCorner(model.dim_h, model.dim_h) = L(y.bottomRows(model.dim_h));
-                S_.bottomRightCorner(model.dim_h, model.dim_h) = L(s.bottomRows(model.dim_h));
+                Y_.block(model.dim_g, model.dim_g, model.dim_h, model.dim_h) = L(y.middleRows(model.dim_g, model.dim_h));
+                S_.block(model.dim_g, model.dim_g, model.dim_h, model.dim_h) = L(s.middleRows(model.dim_g, model.dim_h));
+            }
+            if (model.dim_h2) {
+                Y_.bottomRightCorner(model.dim_h2, model.dim_h2) = L(y.bottomRows(model.dim_h2));
+                S_.bottomRightCorner(model.dim_h2, model.dim_h2) = L(s.bottomRows(model.dim_h2));
             }
             Eigen::VectorXd e = Eigen::VectorXd::Ones(model.dim_c);
             if (model.dim_h) {
-                e.bottomRows(model.dim_h-1) = Eigen::VectorXd::Zero(model.dim_h-1);
+                e.middleRows(model.dim_g+1, model.dim_h-1) = Eigen::VectorXd::Zero(model.dim_h-1);
+            }
+            if (model.dim_h2) {
+                e.bottomRows(model.dim_h2-1) = Eigen::VectorXd::Zero(model.dim_h2-1);
             }
 
             fx = jacobian(model.f, wrt(x), at(x,u));
@@ -444,10 +456,16 @@ void IPDDP::forwardPass() {
                 if ((S_new.col(t).topRows(model.dim_g).array() < (1 - tau) * S.col(t).topRows(model.dim_g).array()).any()) {forward_failed = true; break;}
             }
             if (model.dim_h) {
-                if ((Y_new.col(t).row(model.dim_c-model.dim_h).array().pow(2.0) - Y_new.col(t).bottomRows(model.dim_h-1).array().pow(2.0).sum()
-                < (1 - tau) * (Y.col(t).row(model.dim_c-model.dim_h).array().pow(2.0) - Y.col(t).bottomRows(model.dim_h-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
-                if ((S_new.col(t).row(model.dim_c-model.dim_h).array().pow(2.0) - S_new.col(t).bottomRows(model.dim_h-1).array().pow(2.0).sum()
-                < (1 - tau) * (S.col(t).row(model.dim_c-model.dim_h).array().pow(2.0) - S.col(t).bottomRows(model.dim_h-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
+                if ((Y_new.col(t).row(model.dim_g).array().pow(2.0) - Y_new.col(t).middleRows(model.dim_g+1, model.dim_h-1).array().pow(2.0).sum()
+                < (1 - tau) * (Y.col(t).row(model.dim_g).array().pow(2.0) - Y.col(t).middleRows(model.dim_g+1, model.dim_h-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
+                if ((S_new.col(t).row(model.dim_g).array().pow(2.0) - S_new.col(t).middleRows(model.dim_g+1, model.dim_h-1).array().pow(2.0).sum()
+                < (1 - tau) * (S.col(t).row(model.dim_g).array().pow(2.0) - S.col(t).middleRows(model.dim_g+1, model.dim_h-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
+            }
+            if (model.dim_h2) {
+                if ((Y_new.col(t).row(model.dim_c-model.dim_h2).array().pow(2.0) - Y_new.col(t).bottomRows(model.dim_h2-1).array().pow(2.0).sum()
+                < (1 - tau) * (Y.col(t).row(model.dim_c-model.dim_h2).array().pow(2.0) - Y.col(t).bottomRows(model.dim_h2-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
+                if ((S_new.col(t).row(model.dim_c-model.dim_h2).array().pow(2.0) - S_new.col(t).bottomRows(model.dim_h2-1).array().pow(2.0).sum()
+                < (1 - tau) * (S.col(t).row(model.dim_c-model.dim_h2).array().pow(2.0) - S.col(t).bottomRows(model.dim_h2-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
             }
             U_new.col(t) = U.col(t) + (step_size * ku.col(t)) + (Ku.middleCols(t_dim_x, model.dim_x) * (X_new.col(t) - X.col(t)));
             X_new.col(t+1) = model.f(X_new.col(t), U_new.col(t)).cast<double>();
@@ -457,8 +475,11 @@ void IPDDP::forwardPass() {
 
         cost_new = calculateTotalCost(X_new, U_new);
 
+        barrier_g_new = 0.0;
+        barrier_h_new = 0.0;
         if (model.dim_g) {barrier_g_new = Y_new.topRows(model.dim_g).array().log().sum();}
-        if (model.dim_h) {barrier_h_new += log(Y_new.row(model.dim_c-model.dim_h).array().pow(2.0).sum() - Y_new.bottomRows(model.dim_h-1).array().pow(2.0).sum())/2;}
+        if (model.dim_h) {barrier_h_new = log(Y_new.row(model.dim_g).array().pow(2.0).sum() - Y_new.middleRows(model.dim_g+1, model.dim_h-1).array().pow(2.0).sum())/2;}
+        if (model.dim_h2) {barrier_h_new += log(Y_new.row(model.dim_c-model.dim_h2).array().pow(2.0).sum() - Y_new.bottomRows(model.dim_h2-1).array().pow(2.0).sum())/2;}
         // std::cout<<"barriercost G = "<<barrier_g_new<<std::endl;
         // std::cout<<"barriercost H = "<<barrier_h_new<<std::endl;
         logcost_new = cost_new - param.mu * (barrier_g_new + barrier_h_new);

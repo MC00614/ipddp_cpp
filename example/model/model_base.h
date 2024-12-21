@@ -16,6 +16,7 @@ public:
     int dim_u;
     int dim_g;
     int dim_h;
+    int dim_h2;
     int dim_c;
     Eigen::VectorXd x0;
     Eigen::MatrixXd X_init;
@@ -33,6 +34,7 @@ public:
     std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> g;
     // Connic Constraint Mapping
     std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> h;
+    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> h2;
     // Constraint Stack
     std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> c;
 };
