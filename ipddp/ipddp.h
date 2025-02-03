@@ -349,9 +349,10 @@ void IPDDP::backwardPass() {
             Qx = qx + (Qsx.transpose() * s) + (fx.transpose() * Vx);
             Qu = qu + (Qsu.transpose() * s) + (fu.transpose() * Vx);
 
-            qxx = hessian(model.q, wrt(x), at(x,u));
-            scalarHessian(qxu, model.q, x, u, "xu");
-            quu = hessian(model.q, wrt(u), at(x,u));
+            auto qdd = hessian(model.q, wrt(x,u), at(x,u));
+            qxx = qdd.topLeftCorner(model.dim_x, model.dim_x);
+            qxu = qdd.block(0, model.dim_x, model.dim_x, model.dim_u);
+            quu = qdd.bottomRightCorner(model.dim_u, model.dim_u);
 
             Qxx = qxx + (fx.transpose() * Vxx * fx);
             Qxu = qxu + (fx.transpose() * Vxx * fu);
@@ -414,9 +415,9 @@ void IPDDP::backwardPass() {
             // std::cout<<"ku_: "<<ku_<<std::endl;
             // std::cout<<"Ku_: "<<Ku_<<std::endl;
 
-            std::cout<<"Qu.lpNorm<Eigen::Infinity>(): "<<Qu.lpNorm<Eigen::Infinity>()<<std::endl;
-            std::cout<<"rp.lpNorm<Eigen::Infinity>(): "<<rp.lpNorm<Eigen::Infinity>()<<std::endl;
-            std::cout<<"rd.lpNorm<Eigen::Infinity>(): "<<rd.lpNorm<Eigen::Infinity>()<<std::endl;
+            // std::cout<<"Qu.lpNorm<Eigen::Infinity>(): "<<Qu.lpNorm<Eigen::Infinity>()<<std::endl;
+            // std::cout<<"rp.lpNorm<Eigen::Infinity>(): "<<rp.lpNorm<Eigen::Infinity>()<<std::endl;
+            // std::cout<<"rd.lpNorm<Eigen::Infinity>(): "<<rd.lpNorm<Eigen::Infinity>()<<std::endl;
             opterror = std::max({Qu.lpNorm<Eigen::Infinity>(), rp.lpNorm<Eigen::Infinity>(), rd.lpNorm<Eigen::Infinity>(), opterror});
         }
 }
