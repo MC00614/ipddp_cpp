@@ -330,6 +330,8 @@ void IPDDP::backwardPass() {
             if (model.dim_h2) {
                 e.bottomRows(model.dim_h2-1) = Eigen::VectorXd::Zero(model.dim_h2-1);
             }
+            // std::cout<<"Y\n"<<Y_<<std::endl;
+            // std::cout<<"Y_inv\n"<<Y_.inverse()<<std::endl;
 
             fx = jacobian(model.f, wrt(x), at(x,u));
             fu = jacobian(model.f, wrt(u), at(x,u));
@@ -412,6 +414,9 @@ void IPDDP::backwardPass() {
             // std::cout<<"ku_: "<<ku_<<std::endl;
             // std::cout<<"Ku_: "<<Ku_<<std::endl;
 
+            std::cout<<"Qu.lpNorm<Eigen::Infinity>(): "<<Qu.lpNorm<Eigen::Infinity>()<<std::endl;
+            std::cout<<"rp.lpNorm<Eigen::Infinity>(): "<<rp.lpNorm<Eigen::Infinity>()<<std::endl;
+            std::cout<<"rd.lpNorm<Eigen::Infinity>(): "<<rd.lpNorm<Eigen::Infinity>()<<std::endl;
             opterror = std::max({Qu.lpNorm<Eigen::Infinity>(), rp.lpNorm<Eigen::Infinity>(), rd.lpNorm<Eigen::Infinity>(), opterror});
         }
 }
@@ -452,20 +457,20 @@ void IPDDP::forwardPass() {
             Y_new.col(t) = Y.col(t) + (step_size * ky.col(t)) + (Ky.middleCols(t_dim_x, model.dim_x) * (X_new.col(t) - X.col(t)));
             S_new.col(t) = S.col(t) + (step_size * ks.col(t)) + (Ks.middleCols(t_dim_x, model.dim_x) * (X_new.col(t) - X.col(t)));
             if (model.dim_g) {
-                if ((Y_new.col(t).topRows(model.dim_g).array() < (1 - tau) * Y.col(t).topRows(model.dim_g).array()).any()) {forward_failed = true; break;}
-                if ((S_new.col(t).topRows(model.dim_g).array() < (1 - tau) * S.col(t).topRows(model.dim_g).array()).any()) {forward_failed = true; break;}
+                if ((Y_new.col(t).topRows(model.dim_g).array() < (1 - tau) * Y.col(t).topRows(model.dim_g).array()).any()) {std::cout<<"1"<<std::endl;forward_failed = true; break;}
+                if ((S_new.col(t).topRows(model.dim_g).array() < (1 - tau) * S.col(t).topRows(model.dim_g).array()).any()) {std::cout<<"2"<<std::endl;forward_failed = true; break;}
             }
             if (model.dim_h) {
                 if ((Y_new.col(t).row(model.dim_g).array().pow(2.0) - Y_new.col(t).middleRows(model.dim_g+1, model.dim_h-1).array().pow(2.0).sum()
-                < (1 - tau) * (Y.col(t).row(model.dim_g).array().pow(2.0) - Y.col(t).middleRows(model.dim_g+1, model.dim_h-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
+                < (1 - tau) * (Y.col(t).row(model.dim_g).array().pow(2.0) - Y.col(t).middleRows(model.dim_g+1, model.dim_h-1).array().pow(2.0).sum())).any()) {std::cout<<"3"<<std::endl;forward_failed = true; break;}
                 if ((S_new.col(t).row(model.dim_g).array().pow(2.0) - S_new.col(t).middleRows(model.dim_g+1, model.dim_h-1).array().pow(2.0).sum()
-                < (1 - tau) * (S.col(t).row(model.dim_g).array().pow(2.0) - S.col(t).middleRows(model.dim_g+1, model.dim_h-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
+                < (1 - tau) * (S.col(t).row(model.dim_g).array().pow(2.0) - S.col(t).middleRows(model.dim_g+1, model.dim_h-1).array().pow(2.0).sum())).any()) {std::cout<<"4"<<std::endl;forward_failed = true; break;}
             }
             if (model.dim_h2) {
                 if ((Y_new.col(t).row(model.dim_c-model.dim_h2).array().pow(2.0) - Y_new.col(t).bottomRows(model.dim_h2-1).array().pow(2.0).sum()
-                < (1 - tau) * (Y.col(t).row(model.dim_c-model.dim_h2).array().pow(2.0) - Y.col(t).bottomRows(model.dim_h2-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
+                < (1 - tau) * (Y.col(t).row(model.dim_c-model.dim_h2).array().pow(2.0) - Y.col(t).bottomRows(model.dim_h2-1).array().pow(2.0).sum())).any()) {std::cout<<"5"<<std::endl;forward_failed = true; break;}
                 if ((S_new.col(t).row(model.dim_c-model.dim_h2).array().pow(2.0) - S_new.col(t).bottomRows(model.dim_h2-1).array().pow(2.0).sum()
-                < (1 - tau) * (S.col(t).row(model.dim_c-model.dim_h2).array().pow(2.0) - S.col(t).bottomRows(model.dim_h2-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
+                < (1 - tau) * (S.col(t).row(model.dim_c-model.dim_h2).array().pow(2.0) - S.col(t).bottomRows(model.dim_h2-1).array().pow(2.0).sum())).any()) {std::cout<<"6"<<std::endl;forward_failed = true; break;}
             }
             U_new.col(t) = U.col(t) + (step_size * ku.col(t)) + (Ku.middleCols(t_dim_x, model.dim_x) * (X_new.col(t) - X.col(t)));
             X_new.col(t+1) = model.f(X_new.col(t), U_new.col(t)).cast<double>();
@@ -489,7 +494,7 @@ void IPDDP::forwardPass() {
         error = (C + Y).colwise().lpNorm<1>().sum();
         // error_new = std::max(param.tolerance, (C_new + Y_new).lpNorm<1>());
         // if (logcost >= logcost_new || error >= error_new) {break;}
-        if (logcost >= logcost_new && error >= error_new) {break;}
+        if (logcost >= logcost_new && error >= error_new) {std::cout<<"10"<<std::endl;break;}
         forward_failed = true;
     }
 

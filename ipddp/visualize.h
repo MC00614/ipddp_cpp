@@ -31,21 +31,23 @@ void visualize(Eigen::MatrixXd X_initial, Eigen::MatrixXd U_initial, Eigen::Matr
         plt::title("X Dimension " + std::to_string(i), {{"fontsize", "20"}});
         plt::legend();
     }
-
-    // for (size_t i = 0; i < U_RES.size(); ++i) {
-    //     plt::subplot(dim_u + 1, 1, i+1);
-    //     // plt::subplot(dim_x + dim_u + 1, 1, dim_x + 1 + i);
-    //     plt::plot(U_INIT[i], {{"label", "Init"}});
-    //     plt::plot(U_RES[i], {{"label", "Result"}});
-    //     plt::title("U Dimension " + std::to_string(i), {{"fontsize", "20"}});
-    //     plt::legend();
-    // }
-
-    // plt::subplot(dim_u + 1, 1, dim_u + 1);
-    // // plt::subplot(dim_x + dim_u + 1, 1, dim_x + dim_u + 1);
-    // plt::plot(all_cost, {{"label", "Cost"}});
-    // plt::title("Cost", {{"fontsize", "20"}});
-    // plt::legend();
-
     plt::show();
+
+    for (size_t i = 0; i < U_RES.size(); ++i) {
+        plt::subplot(dim_u + 1, 1, i+1);
+        // plt::subplot(dim_x + dim_u + 1, 1, dim_x + 1 + i);
+        plt::plot(U_INIT[i], {{"label", "Init"}});
+        plt::plot(U_RES[i], {{"label", "Result"}});
+        plt::title("U Dimension " + std::to_string(i), {{"fontsize", "20"}});
+        plt::legend();
+    }
+
+    plt::subplot(dim_u + 1, 1, dim_u + 1);
+    // plt::subplot(dim_x + dim_u + 1, 1, dim_x + dim_u + 1);
+    plt::plot(all_cost, {{"label", "Cost"}});
+    plt::title("Cost", {{"fontsize", "20"}});
+    plt::legend();
+    plt::show();
+
+    std::cout<<(90-(X_result.row(0).array() / X_result.row(1).array()).atan()*180/3.14).matrix()<<std::endl;
 }

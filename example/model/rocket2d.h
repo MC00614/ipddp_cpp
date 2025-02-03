@@ -25,19 +25,19 @@ Rocket2D::Rocket2D() {
     umax = mass*9.81*1.1;
 
     // Stage Count
-    N = 300;
+    N = 100;
 
     // Dimensions
     dim_x = 6;
     dim_u = 2;
     dim_g = 1;
-    dim_h = 2;
+    dim_h = 0;
     dim_h2 = 0;
 
     // Status Setting
     X_init = Eigen::MatrixXd::Zero(dim_x, N+1);
     X_init(0,0) = 10.0;
-    X_init(1,0) = 5.0;
+    X_init(1,0) = 8.0;
 
     U_init = Eigen::MatrixXd::Zero(dim_u, N);
     U_init.row(0) = 9.81 * 10.0 * Eigen::VectorXd::Ones(N);
@@ -78,14 +78,14 @@ Rocket2D::Rocket2D() {
 
     // Connic Constraint Mapping
     h = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        const double input_angmax = tan(0.5 * (M_PI/180.0));
+        const double input_angmax = tan(20.0 * (M_PI/180.0));
         VectorXdual2nd h_n(2);
         h_n(0) = input_angmax * u(0);
         h_n(1) = u(1);
         return -h_n;
     };
     h2 = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        const double state_angmax = tan(0.5 * (M_PI/180.0));
+        const double state_angmax = tan(45.0 * (M_PI/180.0));
         VectorXdual2nd h2_n(2);
         h2_n(0) = state_angmax * x(0);
         h2_n(1) = x(1);
