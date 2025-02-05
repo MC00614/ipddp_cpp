@@ -209,7 +209,10 @@ void IPDDP::solve() {
             std::cout << "Max regulation (backward_failed)" << std::endl;
             break;
         }
-        if (backward_failed) {continue;}
+        if (backward_failed) {
+            std::cout<< "Backward Failed" << std::endl;
+            continue;
+        }
         // finish = clock();
         // duration = (double)(finish - start) / CLOCKS_PER_SEC;
         // std::cout << duration << "seconds" << std::endl;
@@ -310,7 +313,7 @@ void IPDDP::backwardPass() {
         Vxx = hessian(model->p, wrt(x), at(x));
 
         // CHECK
-        backward_failed = 0;
+        backward_failed = false;
         // std::cout<<"Y = "<<Y<<std::endl;
         // std::cout<<"S = "<<S<<std::endl;
 
@@ -429,6 +432,12 @@ void IPDDP::backwardPass() {
             // std::cout<<"rd.lpNorm<Eigen::Infinity>(): "<<rd.lpNorm<Eigen::Infinity>()<<std::endl;
 
             // TODO: CHECK LARGE Qu (Assumption: Y inverse)
+            // if (Qu.lpNorm<Eigen::Infinity>() > 1000000) {
+            //     std::cout<<"Y_ = "<<Y_<<std::endl;
+            //     std::cout<<"Yinv = "<<Yinv<<std::endl;
+            //     std::cout<<"Qu = "<<Qu<<std::endl;
+            //     std::cout<<"Vx = "<<Vx<<std::endl;
+            // }
             opterror = std::max({Qu.lpNorm<Eigen::Infinity>(), rp.lpNorm<Eigen::Infinity>(), rd.lpNorm<Eigen::Infinity>(), opterror});
         }
 }
