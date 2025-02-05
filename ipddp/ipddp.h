@@ -97,14 +97,13 @@ IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
         dim_hs_top.push_back(dim_h_top);
         dim_h_top += dim_h;
     }
-
     c = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
         VectorXdual2nd c_n(dim_c);
         if (model->dim_g) {
             c_n.topRows(model->dim_g) = model->g(x, u);
         }
         for (int i = 0; i < model->dim_hs.size(); ++i) {
-            c_n.middleRows(dim_hs_top[i], model->dim_hs[i]) = model->h(x, u);
+            c_n.middleRows(dim_hs_top[i], model->dim_hs[i]) = model->hs[i](x, u);
         }
         return c_n;
     };
@@ -125,8 +124,8 @@ IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
     if (model->S_init.size()) {S = model->S_init;}
     else {
         S = Eigen::MatrixXd::Zero(dim_c, model->N);
-        if (model->dim_g) {S.topRows(model->dim_g) = 0.1*Eigen::MatrixXd::Ones(model->dim_g,model->N);}
-        for (auto dim_h_top : dim_hs_top) {S.row(dim_h_top) = 0.1*Eigen::VectorXd::Ones(model->N);}
+        if (model->dim_g) {S.topRows(model->dim_g) = 0.2*Eigen::MatrixXd::Ones(model->dim_g,model->N);}
+        for (auto dim_h_top : dim_hs_top) {S.row(dim_h_top) = 0.2*Eigen::VectorXd::Ones(model->N);}
     }
     
     ku.resize(model->dim_u, model->N);
@@ -164,6 +163,8 @@ void IPDDP::initialRoll() {
         C.col(t) = c(X.col(t), U.col(t)).cast<double>();
         X.col(t+1) = model->f(X.col(t), U.col(t)).cast<double>();
     }
+    // std::cout<<C<<std::endl;
+    return;
     cost = calculateTotalCost(X, U);
 }
 
