@@ -503,9 +503,9 @@ void IPDDP::forwardPass() {
         }
         // std::cout<<"barriercost G = "<<barrier_g_new<<std::endl;
         // std::cout<<"barriercost H = "<<barrier_h_new<<std::endl;
-        error_new = (C + Y).colwise().lpNorm<1>().sum();
-        // error_new = std::max(param.tolerance, (C_new + Y_new).lpNorm<1>());
-        if (logcost >= logcost_new || error >= error_new) {break;}
+        // error_new = (C + Y).colwise().lpNorm<1>().sum();
+        error_new = std::max(param.tolerance, (C_new + Y_new).lpNorm<1>());
+        if (logcost >= logcost_new && error >= error_new) {break;}
         // if (logcost >= logcost_new && error >= error_new) {std::cout<<"10"<<std::endl;break;}
         // std::cout<<"error = "<<error<<std::endl;
         forward_failed = true;
