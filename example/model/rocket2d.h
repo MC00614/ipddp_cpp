@@ -30,7 +30,7 @@ Rocket2D::Rocket2D() {
     dim_x = 6;
     X_init = Eigen::MatrixXd::Zero(dim_x, N+1);
     X_init(0,0) = 8.0;
-    X_init(1,0) = 2.0;
+    X_init(1,0) = 4.0;
 
     dim_u = 2;
     U_init = Eigen::MatrixXd::Zero(dim_u, N);
@@ -61,7 +61,7 @@ Rocket2D::Rocket2D() {
     // Terminal Cost Function
     p = [this](const VectorXdual2nd& x) -> dual2nd {
         // return 0;
-        return 20000.0 * x.norm();
+        return 5000.0 * x.norm();
     };
 
     // Nonnegative Orthant Constraint Mapping

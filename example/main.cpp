@@ -19,7 +19,6 @@ int main() {
     param.tolerance = 1e-7;
     param.max_iter = 1000;
     param.mu = 0.2;
-    param.infeasible = true;
 
     // Solver Setting
     clock_t start = clock();
