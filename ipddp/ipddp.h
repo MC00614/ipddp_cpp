@@ -117,8 +117,8 @@ IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
     if (model->Y_init.size()) {Y = model->Y_init;}
     else {
         Y = Eigen::MatrixXd::Zero(dim_c, model->N);
-        if (model->dim_g) {Y.topRows(model->dim_g) = 0.1*Eigen::MatrixXd::Ones(model->dim_g,model->N);}
-        for (auto dim_h_top : dim_hs_top) {Y.row(dim_h_top) = 0.1*Eigen::VectorXd::Ones(model->N);}
+        if (model->dim_g) {Y.topRows(model->dim_g) = Eigen::MatrixXd::Ones(model->dim_g,model->N);}
+        for (auto dim_h_top : dim_hs_top) {Y.row(dim_h_top) = Eigen::VectorXd::Ones(model->N);}
     }
 
     if (model->S_init.size()) {S = model->S_init;}
