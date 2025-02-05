@@ -16,9 +16,9 @@ int main() {
     
     // Parameter Setting
     Param param;
-    param.tolerance = 1e-7;
+    param.tolerance = 1e-2;
     param.max_iter = 1000;
-    param.mu = 0.2;
+    param.mu = 0.1;
 
     // Solver Setting
     clock_t start = clock();

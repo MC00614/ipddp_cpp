@@ -30,7 +30,7 @@ Rocket2D::Rocket2D() {
     dim_x = 6;
     X_init = Eigen::MatrixXd::Zero(dim_x, N+1);
     X_init(0,0) = 8.0;
-    X_init(1,0) = 4.0;
+    X_init(1,0) = 6.0;
 
     dim_u = 2;
     U_init = Eigen::MatrixXd::Zero(dim_u, N);
@@ -55,13 +55,13 @@ Rocket2D::Rocket2D() {
 
     // Stage Cost Function
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
-        return (2 * 1e-5 * u.squaredNorm()) + (x.topRows(2).squaredNorm() * 5);
+        return (2 * 1e-3 * u.norm()) + (5 * 1e-3 * x.norm());
     };
 
     // Terminal Cost Function
     p = [this](const VectorXdual2nd& x) -> dual2nd {
         // return 0;
-        return 5000.0 * x.norm();
+        return 5 * 1e-3 * x.norm();
     };
 
     // Nonnegative Orthant Constraint Mapping
@@ -87,7 +87,7 @@ Rocket2D::Rocket2D() {
     // Connic Constraint Mapping (Guidance Cone)
     dim_h = 2;
     h = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        const double state_angmax = tan(60.0 * (M_PI/180.0));
+        const double state_angmax = tan(45.0 * (M_PI/180.0));
         VectorXdual2nd h_n(2);
         h_n(0) = state_angmax * x(0);
         h_n(1) = x(1);

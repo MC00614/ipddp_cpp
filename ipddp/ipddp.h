@@ -124,8 +124,8 @@ IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
     if (model->S_init.size()) {S = model->S_init;}
     else {
         S = Eigen::MatrixXd::Zero(dim_c, model->N);
-        if (model->dim_g) {S.topRows(model->dim_g) = 0.002*Eigen::MatrixXd::Ones(model->dim_g,model->N);}
-        for (auto dim_h_top : dim_hs_top) {S.row(dim_h_top) = 0.002*Eigen::VectorXd::Ones(model->N);}
+        if (model->dim_g) {S.topRows(model->dim_g) = 0.01*Eigen::MatrixXd::Ones(model->dim_g,model->N);}
+        for (auto dim_h_top : dim_hs_top) {S.row(dim_h_top) = 0.01*Eigen::VectorXd::Ones(model->N);}
     }
     
     ku.resize(model->dim_u, model->N);
@@ -427,6 +427,8 @@ void IPDDP::backwardPass() {
             // std::cout<<"Qu.lpNorm<Eigen::Infinity>(): "<<Qu.lpNorm<Eigen::Infinity>()<<std::endl;
             // std::cout<<"rp.lpNorm<Eigen::Infinity>(): "<<rp.lpNorm<Eigen::Infinity>()<<std::endl;
             // std::cout<<"rd.lpNorm<Eigen::Infinity>(): "<<rd.lpNorm<Eigen::Infinity>()<<std::endl;
+
+            // TODO: CHECK LARGE Qu (Assumption: Y inverse)
             opterror = std::max({Qu.lpNorm<Eigen::Infinity>(), rp.lpNorm<Eigen::Infinity>(), rd.lpNorm<Eigen::Infinity>(), opterror});
         }
 }
@@ -467,14 +469,14 @@ void IPDDP::forwardPass() {
             Y_new.col(t) = Y.col(t) + (step_size * ky.col(t)) + (Ky.middleCols(t_dim_x, model->dim_x) * (X_new.col(t) - X.col(t)));
             S_new.col(t) = S.col(t) + (step_size * ks.col(t)) + (Ks.middleCols(t_dim_x, model->dim_x) * (X_new.col(t) - X.col(t)));
             if (model->dim_g) {
-                if ((Y_new.col(t).topRows(model->dim_g).array() < (1 - tau) * Y.col(t).topRows(model->dim_g).array()).any()) {std::cout<<"1"<<std::endl;std::cout<<Y_new.col(t).topRows(model->dim_g).array()<<std::endl;forward_failed = true; break;}
-                if ((S_new.col(t).topRows(model->dim_g).array() < (1 - tau) * S.col(t).topRows(model->dim_g).array()).any()) {std::cout<<"2"<<std::endl;std::cout<<S_new.col(t).topRows(model->dim_g).array()<<std::endl;forward_failed = true; break;}
+                if ((Y_new.col(t).topRows(model->dim_g).array() < (1 - tau) * Y.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
+                if ((S_new.col(t).topRows(model->dim_g).array() < (1 - tau) * S.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
             }
             for (int i = 0; i < model->dim_hs.size(); ++i) {
                 if ((Y_new.col(t).row(dim_hs_top[i]).array().pow(2.0) - Y_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum()
-                < (1 - tau) * (Y.col(t).row(dim_hs_top[i]).array().pow(2.0) - Y.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())).any()) {std::cout<<"3"<<std::endl;forward_failed = true; break;}
+                < (1 - tau) * (Y.col(t).row(dim_hs_top[i]).array().pow(2.0) - Y.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
                 if ((S_new.col(t).row(dim_hs_top[i]).array().pow(2.0) - S_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum()
-                < (1 - tau) * (S.col(t).row(dim_hs_top[i]).array().pow(2.0) - S.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())).any()) {std::cout<<"4"<<std::endl;forward_failed = true; break;}
+                < (1 - tau) * (S.col(t).row(dim_hs_top[i]).array().pow(2.0) - S.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
             }
             U_new.col(t) = U.col(t) + (step_size * ku.col(t)) + (Ku.middleCols(t_dim_x, model->dim_x) * (X_new.col(t) - X.col(t)));
             X_new.col(t+1) = model->f(X_new.col(t), U_new.col(t)).cast<double>();
@@ -496,10 +498,10 @@ void IPDDP::forwardPass() {
         for (int t = 0; t < model->N; ++t) {
             C_new.col(t) = c(X_new.col(t), U_new.col(t)).cast<double>();
         }
-        error = (C + Y).colwise().lpNorm<1>().sum();
-        // error_new = std::max(param.tolerance, (C_new + Y_new).lpNorm<1>());
-        // if (logcost >= logcost_new || error >= error_new) {break;}
-        if (logcost >= logcost_new && error >= error_new) {std::cout<<"10"<<std::endl;break;}
+        // error = (C + Y).colwise().lpNorm<1>().sum();
+        error_new = std::max(param.tolerance, (C_new + Y_new).lpNorm<1>());
+        if (logcost >= logcost_new || error >= error_new) {break;}
+        // if (logcost >= logcost_new && error >= error_new) {std::cout<<"10"<<std::endl;break;}
         // std::cout<<"error = "<<error<<std::endl;
         forward_failed = true;
     }
