@@ -48,6 +48,4 @@ void visualize(Eigen::MatrixXd X_initial, Eigen::MatrixXd U_initial, Eigen::Matr
     plt::title("Cost", {{"fontsize", "20"}});
     plt::legend();
     plt::show();
-
-    std::cout<<(90-(X_result.row(0).array() / X_result.row(1).array()).atan()*180/3.14).matrix()<<std::endl;
 }

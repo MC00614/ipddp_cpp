@@ -17,11 +17,13 @@ using namespace autodiff;
 
 #include <iomanip>
 #include <iostream>
+#include <memory>
+#include <type_traits>
 
 class IPDDP {
 public:
     template<typename ModelClass>
-    IPDDP(ModelClass model);
+    explicit IPDDP(std::shared_ptr<ModelClass> model_ptr);
     ~IPDDP();
 
     void init(Param param);
@@ -34,7 +36,12 @@ public:
     std::vector<double> getAllCost();
 
 private:
-    ModelBase model;
+    std::shared_ptr<ModelBase> model;
+
+    // Constraint Stack
+    std::vector<int> dim_hs_top;
+    int dim_c;
+    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> c;
 
     Eigen::MatrixXd X;
     Eigen::MatrixXd U;
@@ -64,6 +71,8 @@ private:
     Eigen::MatrixXd Ky;
     Eigen::MatrixXd Ks;
 
+    Eigen::VectorXd e;
+
     double opterror;
     // Eigen::VectorXd dV;
 
@@ -78,52 +87,59 @@ private:
 };
 
 template<typename ModelClass>
-IPDDP::IPDDP(ModelClass model_) : model(model_) {
+IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
+    static_assert(std::is_base_of<ModelBase, ModelClass>::value, "ModelClass must be derived from ModelBase");
     // Stack Constraint
-    model.dim_c = model.dim_g + model.dim_h + model.dim_h2;
-    model.c = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        VectorXdual2nd c_n(model.dim_c);
-        if (model.dim_g) {c_n.topRows(model.dim_g) = model.g(x, u);}
-        if (model.dim_h) {c_n.middleRows(model.dim_g, model.dim_h) = model.h(x, u);}
-        if (model.dim_h2) {c_n.bottomRows(model.dim_h2) = model.h2(x, u);}
+    dim_c = model->dim_g + accumulate(model->dim_hs.begin(), model->dim_hs.end(), 0);
+
+    int dim_h_top = model->dim_g;
+    for (auto dim_h : model->dim_hs) {
+        dim_hs_top.push_back(dim_h_top);
+        dim_h_top += dim_h;
+    }
+
+    c = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
+        VectorXdual2nd c_n(dim_c);
+        if (model->dim_g) {
+            c_n.topRows(model->dim_g) = model->g(x, u);
+        }
+        for (int i = 0; i < model->dim_hs.size(); ++i) {
+            c_n.middleRows(dim_hs_top[i], model->dim_hs[i]) = model->h(x, u);
+        }
         return c_n;
     };
 
     // Initialization
-    if (model.X_init.size()) {X = model.X_init;}
-    else if (model.x0.size()) {
-        X = Eigen::MatrixXd::Zero(model.dim_x, model.N+1);
-        X.col(0) = model.x0;
-    }
-    else {
-        std::cout<<"Warning: Initial State Not Found"<<std::endl;
-        X = Eigen::MatrixXd::Zero(model.dim_x, model.N+1);
-    }
-    if (model.U_init.size()) {U = model.U_init;}
-    else {U = Eigen::MatrixXd::Zero(model.dim_u, model.N);}
+    if (model->X_init.size()) {X = model->X_init;}
+    else {X = Eigen::MatrixXd::Zero(model->dim_x, model->N+1);}
+    if (model->U_init.size()) {U = model->U_init;}
+    else {U = Eigen::MatrixXd::Zero(model->dim_u, model->N);}
 
-    if (model.Y_init.size()) {Y = model.Y_init;}
+    if (model->Y_init.size()) {Y = model->Y_init;}
     else {
-        Y = Eigen::MatrixXd::Zero(model.dim_c, model.N);
-        if (model.dim_g) {Y.topRows(model.dim_g) = 0.01*Eigen::MatrixXd::Ones(model.dim_g,model.N);}
-        if (model.dim_h) {Y.row(model.dim_g) = 0.001*Eigen::VectorXd::Ones(model.N);}
-        if (model.dim_h2) {Y.row(model.dim_c - model.dim_h2) = 0.001*Eigen::VectorXd::Ones(model.N);}
+        Y = Eigen::MatrixXd::Zero(dim_c, model->N);
+        if (model->dim_g) {Y.topRows(model->dim_g) = 0.01*Eigen::MatrixXd::Ones(model->dim_g,model->N);}
+        for (auto dim_h_top : dim_hs_top) {Y.row(dim_h_top) = 0.01*Eigen::VectorXd::Ones(model->N);}
     }
 
-    if (model.S_init.size()) {S = model.S_init;}
+    if (model->S_init.size()) {S = model->S_init;}
     else {
-        S = Eigen::MatrixXd::Zero(model.dim_c, model.N);
-        if (model.dim_g) {S.topRows(model.dim_g) = 0.01*Eigen::MatrixXd::Ones(model.dim_g,model.N);}
-        if (model.dim_h) {S.row(model.dim_g) = 0.001*Eigen::VectorXd::Ones(model.N);}
-        if (model.dim_h2) {S.row(model.dim_c - model.dim_h2) = 0.001*Eigen::VectorXd::Ones(model.N);}
+        S = Eigen::MatrixXd::Zero(dim_c, model->N);
+        if (model->dim_g) {S.topRows(model->dim_g) = 0.1*Eigen::MatrixXd::Ones(model->dim_g,model->N);}
+        for (auto dim_h_top : dim_hs_top) {S.row(dim_h_top) = 0.1*Eigen::VectorXd::Ones(model->N);}
     }
+    
+    ku.resize(model->dim_u, model->N);
+    ky.resize(dim_c, model->N);
+    ks.resize(dim_c, model->N);
+    Ku.resize(model->dim_u, model->dim_x * model->N);
+    Ky.resize(dim_c, model->dim_x * model->N);
+    Ks.resize(dim_c, model->dim_x * model->N);
 
-    ku.resize(model.dim_u, model.N);
-    ky.resize(model.dim_c, model.N);
-    ks.resize(model.dim_c, model.N);
-    Ku.resize(model.dim_u, model.dim_x * model.N);
-    Ky.resize(model.dim_c, model.dim_x * model.N);
-    Ks.resize(model.dim_c, model.dim_x * model.N);
+    e = Eigen::VectorXd::Ones(dim_c);
+    for (int i = 0; i < model->dim_hs.size(); ++i) {
+        e.middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1) = Eigen::VectorXd::Zero(model->dim_hs[i]-1);
+    }
 }
 
 IPDDP::~IPDDP() {
@@ -133,7 +149,7 @@ void IPDDP::init(Param param) {
     this->param = param;
 
     this->initialRoll();
-    if (this->param.mu == 0) {this->param.mu = cost / model.N / model.dim_c;} // Auto Select
+    if (this->param.mu == 0) {this->param.mu = cost / model->N / dim_c;} // Auto Select
     this->resetFilter();
     this->resetRegulation();
 
@@ -143,20 +159,18 @@ void IPDDP::init(Param param) {
 }
 
 void IPDDP::initialRoll() {
-    this->C.resize(this->model.dim_c, this->model.N);
-    for (int t = 0; t < this->model.N; ++t) {
-        C.col(t) = model.c(X.col(t), U.col(t)).cast<double>();
-        X.col(t+1) = model.f(X.col(t), U.col(t)).cast<double>();
+    this->C.resize(this->dim_c, this->model->N);
+    for (int t = 0; t < this->model->N; ++t) {
+        C.col(t) = c(X.col(t), U.col(t)).cast<double>();
+        X.col(t+1) = model->f(X.col(t), U.col(t)).cast<double>();
     }
     cost = calculateTotalCost(X, U);
 }
 
 void IPDDP::resetFilter() {
     double barriercost = 0.0;
-    if (model.dim_g) {barriercost += Y.topRows(model.dim_g).array().log().sum();}
-    if (model.dim_h) {barriercost += log(Y.row(model.dim_g).array().pow(2.0).sum() - Y.middleRows(model.dim_g+1, model.dim_h-1).array().pow(2.0).sum())/2;}
-    if (model.dim_h2) {barriercost += log(Y.row(model.dim_c-model.dim_h2).array().pow(2.0).sum() - Y.bottomRows(model.dim_h2-1).array().pow(2.0).sum())/2;}
-
+    if (model->dim_g) {barriercost += Y.topRows(model->dim_g).array().log().sum();}
+    for (int i = 0; i < model->dim_hs.size(); ++i) {barriercost += log(Y.row(dim_hs_top[i]).array().pow(2.0).sum() - Y.middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())/2;}
     logcost = cost - param.mu * barriercost;
     error = (C + Y).colwise().lpNorm<1>().sum();
     if (error < param.tolerance) {error = 0;}
@@ -172,10 +186,10 @@ void IPDDP::resetRegulation() {
 
 double IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U) {
     dual2nd cost = 0.0;
-    for (int t = 0; t < model.N; ++t) {
-        cost += model.q(X.col(t), U.col(t));
+    for (int t = 0; t < model->N; ++t) {
+        cost += model->q(X.col(t), U.col(t));
     }
-    cost += model.p(X.col(model.N));
+    cost += model->p(X.col(model->N));
     return static_cast<double>(cost.val);
 }
 
@@ -246,27 +260,27 @@ Eigen::MatrixXd IPDDP::L(const Eigen::VectorXd& x) {
 }
 
 void IPDDP::backwardPass() {
-    VectorXdual2nd x(model.dim_x);
-    VectorXdual2nd u(model.dim_u);
-    Eigen::VectorXd y(model.dim_c);
-    Eigen::VectorXd s(model.dim_c);
-    Eigen::VectorXd c_v(model.dim_c);
+    VectorXdual2nd x(model->dim_x);
+    VectorXdual2nd u(model->dim_u);
+    Eigen::VectorXd y(dim_c);
+    Eigen::VectorXd s(dim_c);
+    Eigen::VectorXd c_v(dim_c);
 
-    Eigen::VectorXd Vx(model.dim_x);
-    Eigen::MatrixXd Vxx(model.dim_x,model.dim_x);
+    Eigen::VectorXd Vx(model->dim_x);
+    Eigen::MatrixXd Vxx(model->dim_x,model->dim_x);
 
-    Eigen::MatrixXd fx(model.dim_x,model.dim_x), fu(model.dim_x,model.dim_u);
-    Eigen::MatrixXd Qsx(model.dim_c,model.dim_x), Qsu(model.dim_c,model.dim_u);
-    // Eigen::Tensor<double, 3> fxx(model.dim_x,model.dim_x,model.dim_x);
-    // Eigen::Tensor<double, 3> fxu(model.dim_x,model.dim_x,model.dim_u);
-    // Eigen::Tensor<double, 3> fuu(model.dim_x,model.dim_u,model.dim_u);
+    Eigen::MatrixXd fx(model->dim_x,model->dim_x), fu(model->dim_x,model->dim_u);
+    Eigen::MatrixXd Qsx(dim_c,model->dim_x), Qsu(dim_c,model->dim_u);
+    // Eigen::Tensor<double, 3> fxx(model->dim_x,model->dim_x,model->dim_x);
+    // Eigen::Tensor<double, 3> fxu(model->dim_x,model->dim_x,model->dim_u);
+    // Eigen::Tensor<double, 3> fuu(model->dim_x,model->dim_u,model->dim_u);
 
-    Eigen::VectorXd qx(model.dim_x), qu(model.dim_u);
-    Eigen::MatrixXd qxx(model.dim_x,model.dim_x), qxu(model.dim_x,model.dim_u), quu(model.dim_u,model.dim_u);
+    Eigen::VectorXd qx(model->dim_x), qu(model->dim_u);
+    Eigen::MatrixXd qxx(model->dim_x,model->dim_x), qxu(model->dim_x,model->dim_u), quu(model->dim_u,model->dim_u);
 
-    Eigen::VectorXd Qx(model.dim_x), Qu(model.dim_u);
-    Eigen::MatrixXd Qxx(model.dim_x,model.dim_x), Qxu(model.dim_x,model.dim_u), Quu(model.dim_u,model.dim_u);
-    Eigen::MatrixXd Quu_sim(model.dim_u,model.dim_u);
+    Eigen::VectorXd Qx(model->dim_x), Qu(model->dim_u);
+    Eigen::MatrixXd Qxx(model->dim_x,model->dim_x), Qxu(model->dim_x,model->dim_u), Quu(model->dim_u,model->dim_u);
+    Eigen::MatrixXd Quu_sim(model->dim_u,model->dim_u);
 
     Eigen::MatrixXd Yinv;
     Eigen::MatrixXd SYinv;
@@ -278,12 +292,12 @@ void IPDDP::backwardPass() {
     Eigen::LLT<Eigen::MatrixXd> Quu_llt;
     Eigen::MatrixXd R;
 
-    Eigen::VectorXd ku_(model.dim_u);
-    Eigen::VectorXd ky_(model.dim_c);
-    Eigen::VectorXd ks_(model.dim_c);
-    Eigen::MatrixXd Ku_(model.dim_u, model.dim_x);
-    Eigen::MatrixXd Ky_(model.dim_c, model.dim_x);
-    Eigen::MatrixXd Ks_(model.dim_c, model.dim_x);
+    Eigen::VectorXd ku_(model->dim_u);
+    Eigen::VectorXd ky_(dim_c);
+    Eigen::VectorXd ks_(dim_c);
+    Eigen::MatrixXd Ku_(model->dim_u, model->dim_x);
+    Eigen::MatrixXd Ky_(dim_c, model->dim_x);
+    Eigen::MatrixXd Ks_(dim_c, model->dim_x);
 
     opterror = 0.0;
 
@@ -292,15 +306,17 @@ void IPDDP::backwardPass() {
 
         checkRegulate();
 
-        x = X.col(model.N).cast<dual2nd>();
-        Vx = gradient(model.p, wrt(x), at(x));
-        Vxx = hessian(model.p, wrt(x), at(x));
+        x = X.col(model->N).cast<dual2nd>();
+        Vx = gradient(model->p, wrt(x), at(x));
+        Vxx = hessian(model->p, wrt(x), at(x));
 
         // CHECK
         backward_failed = 0;
+        // std::cout<<"Y = "<<Y<<std::endl;
+        // std::cout<<"S = "<<S<<std::endl;
 
-        for (int t = model.N - 1; t >= 0; --t) {
-            int t_dim_x = t * model.dim_x;
+        for (int t = model->N - 1; t >= 0; --t) {
+            int t_dim_x = t * model->dim_x;
 
             x = X.col(t).cast<dual2nd>();
             u = U.col(t).cast<dual2nd>();
@@ -309,55 +325,44 @@ void IPDDP::backwardPass() {
             s = S.col(t);
             c_v = C.col(t);
 
-            Eigen::MatrixXd Y_ = Eigen::MatrixXd::Zero(model.dim_c, model.dim_c);
-            Eigen::MatrixXd S_ = Eigen::MatrixXd::Zero(model.dim_c, model.dim_c);
-            if (model.dim_g) {
-                Y_.topLeftCorner(model.dim_g, model.dim_g) = y.topRows(model.dim_g).asDiagonal();
-                S_.topLeftCorner(model.dim_g, model.dim_g) = s.topRows(model.dim_g).asDiagonal();
+            Eigen::MatrixXd Y_ = Eigen::MatrixXd::Zero(dim_c, dim_c);
+            Eigen::MatrixXd S_ = Eigen::MatrixXd::Zero(dim_c, dim_c);
+            if (model->dim_g) {
+                Y_.topLeftCorner(model->dim_g, model->dim_g) = y.topRows(model->dim_g).asDiagonal();
+                S_.topLeftCorner(model->dim_g, model->dim_g) = s.topRows(model->dim_g).asDiagonal();
             }
-            if (model.dim_h) {
-                Y_.block(model.dim_g, model.dim_g, model.dim_h, model.dim_h) = L(y.middleRows(model.dim_g, model.dim_h));
-                S_.block(model.dim_g, model.dim_g, model.dim_h, model.dim_h) = L(s.middleRows(model.dim_g, model.dim_h));
+            for (int i = 0; i < model->dim_hs.size(); ++i) {
+                Y_.block(dim_hs_top[i], dim_hs_top[i], model->dim_hs[i], model->dim_hs[i]) = L(y.middleRows(dim_hs_top[i], model->dim_hs[i]));
+                S_.block(dim_hs_top[i], dim_hs_top[i], model->dim_hs[i], model->dim_hs[i]) = L(s.middleRows(dim_hs_top[i], model->dim_hs[i]));
             }
-            if (model.dim_h2) {
-                Y_.bottomRightCorner(model.dim_h2, model.dim_h2) = L(y.bottomRows(model.dim_h2));
-                S_.bottomRightCorner(model.dim_h2, model.dim_h2) = L(s.bottomRows(model.dim_h2));
-            }
-            Eigen::VectorXd e = Eigen::VectorXd::Ones(model.dim_c);
-            if (model.dim_h) {
-                e.middleRows(model.dim_g+1, model.dim_h-1) = Eigen::VectorXd::Zero(model.dim_h-1);
-            }
-            if (model.dim_h2) {
-                e.bottomRows(model.dim_h2-1) = Eigen::VectorXd::Zero(model.dim_h2-1);
-            }
+
             // std::cout<<"Y\n"<<Y_<<std::endl;
             // std::cout<<"Y_inv\n"<<Y_.inverse()<<std::endl;
 
-            fx = jacobian(model.f, wrt(x), at(x,u));
-            fu = jacobian(model.f, wrt(u), at(x,u));
+            fx = jacobian(model->f, wrt(x), at(x,u));
+            fu = jacobian(model->f, wrt(u), at(x,u));
 
-            Qsx = jacobian(model.c, wrt(x), at(x,u));
-            Qsu = jacobian(model.c, wrt(u), at(x,u));
+            Qsx = jacobian(c, wrt(x), at(x,u));
+            Qsu = jacobian(c, wrt(u), at(x,u));
 
-            // vectorHessian(fxx, model.f, fs, x, u, "xx");
-            // vectorHessian(fxu, model.f, fs, x, u, "xu");
-            // vectorHessian(fuu, model.f, fs, x, u, "uu");
+            // vectorHessian(fxx, model->f, fs, x, u, "xx");
+            // vectorHessian(fxu, model->f, fs, x, u, "xu");
+            // vectorHessian(fuu, model->f, fs, x, u, "uu");
 
-            qx = gradient(model.q, wrt(x), at(x,u));
-            qu = gradient(model.q, wrt(u), at(x,u));
+            qx = gradient(model->q, wrt(x), at(x,u));
+            qu = gradient(model->q, wrt(u), at(x,u));
 
             Qx = qx + (Qsx.transpose() * s) + (fx.transpose() * Vx);
             Qu = qu + (Qsu.transpose() * s) + (fu.transpose() * Vx);
 
-            auto qdd = hessian(model.q, wrt(x,u), at(x,u));
-            qxx = qdd.topLeftCorner(model.dim_x, model.dim_x);
-            qxu = qdd.block(0, model.dim_x, model.dim_x, model.dim_u);
-            quu = qdd.bottomRightCorner(model.dim_u, model.dim_u);
+            auto qdd = hessian(model->q, wrt(x,u), at(x,u));
+            qxx = qdd.topLeftCorner(model->dim_x, model->dim_x);
+            qxu = qdd.block(0, model->dim_x, model->dim_x, model->dim_u);
+            quu = qdd.bottomRightCorner(model->dim_u, model->dim_u);
 
             Qxx = qxx + (fx.transpose() * Vxx * fx);
             Qxu = qxu + (fx.transpose() * Vxx * fu);
             Quu = quu + (fu.transpose() * Vxx * fu);
-            // std::cout<<"Quu1 = "<<Quu<<std::endl;
 
             // Qxx = qxx + (fx.transpose() * Vxx * fx) + tensdot(Vx, fxx);
             // Qxu = qxu + (fx.transpose() * Vxx * fu) + tensdot(Vx, fxu);
@@ -377,8 +382,8 @@ void IPDDP::backwardPass() {
             Qx += Qsx.transpose() * (Yinv * r);
             Qu += Qsu.transpose() * (Yinv * r);
 
-            Quu += Eigen::MatrixXd::Identity(model.dim_u, model.dim_u) * (std::pow(1.6, regulate) - 1);
-            // Quu += Eigen::MatrixXd::Identity(model.dim_u, model.dim_u) * regulate;
+            Quu += Eigen::MatrixXd::Identity(model->dim_u, model->dim_u) * (std::pow(1.6, regulate) - 1);
+            // Quu += Eigen::MatrixXd::Identity(model->dim_u, model->dim_u) * regulate;
             // Quu += quu * (std::pow(1.6, regulate) - 1);
 
             Quu_sim = 0.5*(Quu + Quu.transpose());
@@ -402,15 +407,20 @@ void IPDDP::backwardPass() {
             
             // dV(0) = dV(0) + (ku_.transpose() * Qu)(0);
             // dV(1) = dV(1) + (0.5 * ku_.transpose() * Quu * ku_)(0);
+
             Vx = Qx + (Ku_.transpose() * Qu) + (Ku_.transpose() * Quu * ku_) + (Qxu * ku_);
             Vxx = Qxx + (Ku_.transpose() * Qxu.transpose()) + (Qxu * Ku_) + (Ku_.transpose() * Quu * Ku_);
+
+            // CHECK: Value Update with Lagrangian (s / Typo in Paper (transpose K and R))
+            Vx += (Ks_.transpose() * c_v) + (Qsx.transpose() * ks_) + (Ku_.transpose() * Qsu.transpose() * ks_) + (Ks_.transpose() * Qsu * ku_);
+            Vxx += (Qsx.transpose() * Ks_) + (Ks_.transpose() * Qsx) + (Ku_.transpose() * Qsu.transpose() * Ks_) + (Ks_.transpose() * Qsu * Ku_);
             
             ku.col(t) = ku_;
-            Ku.middleCols(t_dim_x, model.dim_x) = Ku_;
+            Ku.middleCols(t_dim_x, model->dim_x) = Ku_;
             ks.col(t) = ks_;
-            Ks.middleCols(t_dim_x, model.dim_x) = Ks_;
+            Ks.middleCols(t_dim_x, model->dim_x) = Ks_;
             ky.col(t) = ky_;
-            Ky.middleCols(t_dim_x, model.dim_x) = Ky_;
+            Ky.middleCols(t_dim_x, model->dim_x) = Ky_;
 
             // std::cout<<"ku_: "<<ku_<<std::endl;
             // std::cout<<"Ku_: "<<Ku_<<std::endl;
@@ -433,11 +443,11 @@ void IPDDP::checkRegulate() {
 }
 
 void IPDDP::forwardPass() {
-    Eigen::MatrixXd X_new(model.dim_x, model.N+1);
-    Eigen::MatrixXd U_new(model.dim_u, model.N);
-    Eigen::MatrixXd Y_new(model.dim_c, model.N);
-    Eigen::MatrixXd S_new(model.dim_c, model.N);
-    Eigen::MatrixXd C_new(model.dim_c, model.N);
+    Eigen::MatrixXd X_new(model->dim_x, model->N+1);
+    Eigen::MatrixXd U_new(model->dim_u, model->N);
+    Eigen::MatrixXd Y_new(dim_c, model->N);
+    Eigen::MatrixXd S_new(dim_c, model->N);
+    Eigen::MatrixXd C_new(dim_c, model->N);
 
     double tau = std::max(0.99, 1.0 - param.mu);
     
@@ -453,28 +463,22 @@ void IPDDP::forwardPass() {
         double step_size = step_list[step];
 
         X_new.col(0) = X.col(0);
-        for (int t = 0; t < model.N; ++t) {
-            int t_dim_x = t * model.dim_x;
-            Y_new.col(t) = Y.col(t) + (step_size * ky.col(t)) + (Ky.middleCols(t_dim_x, model.dim_x) * (X_new.col(t) - X.col(t)));
-            S_new.col(t) = S.col(t) + (step_size * ks.col(t)) + (Ks.middleCols(t_dim_x, model.dim_x) * (X_new.col(t) - X.col(t)));
-            if (model.dim_g) {
-                if ((Y_new.col(t).topRows(model.dim_g).array() < (1 - tau) * Y.col(t).topRows(model.dim_g).array()).any()) {std::cout<<"1"<<std::endl;forward_failed = true; break;}
-                if ((S_new.col(t).topRows(model.dim_g).array() < (1 - tau) * S.col(t).topRows(model.dim_g).array()).any()) {std::cout<<"2"<<std::endl;forward_failed = true; break;}
+        for (int t = 0; t < model->N; ++t) {
+            int t_dim_x = t * model->dim_x;
+            Y_new.col(t) = Y.col(t) + (step_size * ky.col(t)) + (Ky.middleCols(t_dim_x, model->dim_x) * (X_new.col(t) - X.col(t)));
+            S_new.col(t) = S.col(t) + (step_size * ks.col(t)) + (Ks.middleCols(t_dim_x, model->dim_x) * (X_new.col(t) - X.col(t)));
+            if (model->dim_g) {
+                if ((Y_new.col(t).topRows(model->dim_g).array() < (1 - tau) * Y.col(t).topRows(model->dim_g).array()).any()) {std::cout<<"1"<<std::endl;std::cout<<Y_new.col(t).topRows(model->dim_g).array()<<std::endl;forward_failed = true; break;}
+                if ((S_new.col(t).topRows(model->dim_g).array() < (1 - tau) * S.col(t).topRows(model->dim_g).array()).any()) {std::cout<<"2"<<std::endl;std::cout<<S_new.col(t).topRows(model->dim_g).array()<<std::endl;forward_failed = true; break;}
             }
-            if (model.dim_h) {
-                if ((Y_new.col(t).row(model.dim_g).array().pow(2.0) - Y_new.col(t).middleRows(model.dim_g+1, model.dim_h-1).array().pow(2.0).sum()
-                < (1 - tau) * (Y.col(t).row(model.dim_g).array().pow(2.0) - Y.col(t).middleRows(model.dim_g+1, model.dim_h-1).array().pow(2.0).sum())).any()) {std::cout<<"3"<<std::endl;forward_failed = true; break;}
-                if ((S_new.col(t).row(model.dim_g).array().pow(2.0) - S_new.col(t).middleRows(model.dim_g+1, model.dim_h-1).array().pow(2.0).sum()
-                < (1 - tau) * (S.col(t).row(model.dim_g).array().pow(2.0) - S.col(t).middleRows(model.dim_g+1, model.dim_h-1).array().pow(2.0).sum())).any()) {std::cout<<"4"<<std::endl;forward_failed = true; break;}
+            for (int i = 0; i < model->dim_hs.size(); ++i) {
+                if ((Y_new.col(t).row(dim_hs_top[i]).array().pow(2.0) - Y_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum()
+                < (1 - tau) * (Y.col(t).row(dim_hs_top[i]).array().pow(2.0) - Y.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())).any()) {std::cout<<"3"<<std::endl;forward_failed = true; break;}
+                if ((S_new.col(t).row(dim_hs_top[i]).array().pow(2.0) - S_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum()
+                < (1 - tau) * (S.col(t).row(dim_hs_top[i]).array().pow(2.0) - S.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())).any()) {std::cout<<"4"<<std::endl;forward_failed = true; break;}
             }
-            if (model.dim_h2) {
-                if ((Y_new.col(t).row(model.dim_c-model.dim_h2).array().pow(2.0) - Y_new.col(t).bottomRows(model.dim_h2-1).array().pow(2.0).sum()
-                < (1 - tau) * (Y.col(t).row(model.dim_c-model.dim_h2).array().pow(2.0) - Y.col(t).bottomRows(model.dim_h2-1).array().pow(2.0).sum())).any()) {std::cout<<"5"<<std::endl;forward_failed = true; break;}
-                if ((S_new.col(t).row(model.dim_c-model.dim_h2).array().pow(2.0) - S_new.col(t).bottomRows(model.dim_h2-1).array().pow(2.0).sum()
-                < (1 - tau) * (S.col(t).row(model.dim_c-model.dim_h2).array().pow(2.0) - S.col(t).bottomRows(model.dim_h2-1).array().pow(2.0).sum())).any()) {std::cout<<"6"<<std::endl;forward_failed = true; break;}
-            }
-            U_new.col(t) = U.col(t) + (step_size * ku.col(t)) + (Ku.middleCols(t_dim_x, model.dim_x) * (X_new.col(t) - X.col(t)));
-            X_new.col(t+1) = model.f(X_new.col(t), U_new.col(t)).cast<double>();
+            U_new.col(t) = U.col(t) + (step_size * ku.col(t)) + (Ku.middleCols(t_dim_x, model->dim_x) * (X_new.col(t) - X.col(t)));
+            X_new.col(t+1) = model->f(X_new.col(t), U_new.col(t)).cast<double>();
         }
 
         if (forward_failed) {continue;}
@@ -483,19 +487,21 @@ void IPDDP::forwardPass() {
 
         barrier_g_new = 0.0;
         barrier_h_new = 0.0;
-        if (model.dim_g) {barrier_g_new = Y_new.topRows(model.dim_g).array().log().sum();}
-        if (model.dim_h) {barrier_h_new = log(Y_new.row(model.dim_g).array().pow(2.0).sum() - Y_new.middleRows(model.dim_g+1, model.dim_h-1).array().pow(2.0).sum())/2;}
-        if (model.dim_h2) {barrier_h_new += log(Y_new.row(model.dim_c-model.dim_h2).array().pow(2.0).sum() - Y_new.bottomRows(model.dim_h2-1).array().pow(2.0).sum())/2;}
+
+        if (model->dim_g) {barrier_g_new = Y_new.topRows(model->dim_g).array().log().sum();}
+        for (int i = 0; i < model->dim_hs.size(); ++i) {barrier_h_new += log(Y_new.row(dim_hs_top[i]).array().pow(2.0).sum() - Y_new.middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())/2;}
+
         // std::cout<<"barriercost G = "<<barrier_g_new<<std::endl;
         // std::cout<<"barriercost H = "<<barrier_h_new<<std::endl;
         logcost_new = cost_new - param.mu * (barrier_g_new + barrier_h_new);
-        for (int t = 0; t < model.N; ++t) {
-            C_new.col(t) = model.c(X_new.col(t), U_new.col(t)).cast<double>();
+        for (int t = 0; t < model->N; ++t) {
+            C_new.col(t) = c(X_new.col(t), U_new.col(t)).cast<double>();
         }
         error = (C + Y).colwise().lpNorm<1>().sum();
         // error_new = std::max(param.tolerance, (C_new + Y_new).lpNorm<1>());
         // if (logcost >= logcost_new || error >= error_new) {break;}
         if (logcost >= logcost_new && error >= error_new) {std::cout<<"10"<<std::endl;break;}
+        // std::cout<<"error = "<<error<<std::endl;
         forward_failed = true;
     }
 
@@ -524,3 +530,4 @@ Eigen::MatrixXd IPDDP::getResU() {
 std::vector<double> IPDDP::getAllCost() {
     return all_cost;
 }
+

@@ -5,19 +5,14 @@
 
 #include "rocket2d.h"
 // #include "rocket3d.h"
-#include "drone3d.h"
+// #include "drone3d.h"
 
 #include "ipddp.h"
 #include "visualize.h"
 
 int main() {
     // Load Dynamic Model
-    // auto model = Drone3D();
-    auto model = Rocket2D();
-    // auto model = Rocket3D();
-    // auto model = InvPend();
-    // auto model = CartPole();
-    // auto model = CarParking();
+    auto model = std::make_shared<Rocket2D>();    
     
     // Parameter Setting
     Param param;
@@ -38,8 +33,8 @@ int main() {
     std::cout << "\nIn Total : " << duration << " Seconds" << std::endl;
 
     // Parse Result
-    Eigen::MatrixXd X_init = Eigen::MatrixXd::Zero(model.dim_x, model.N+1);
-    Eigen::MatrixXd U_init = Eigen::MatrixXd::Zero(model.dim_u, model.N);
+    Eigen::MatrixXd X_init = Eigen::MatrixXd::Zero(model->dim_x, model->N+1);
+    Eigen::MatrixXd U_init = Eigen::MatrixXd::Zero(model->dim_u, model->N);
     Eigen::MatrixXd X_result = ipddp.getResX();
     Eigen::MatrixXd U_result = ipddp.getResU();
     std::vector<double> all_cost = ipddp.getAllCost();

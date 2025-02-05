@@ -14,10 +14,10 @@ public:
     int N;
     int dim_x;
     int dim_u;
-    int dim_g;
-    int dim_h;
-    int dim_h2;
-    int dim_c;
+    int dim_g = 0;
+    int dim_h = 0;
+    std::vector<int> dim_hs;
+    
     Eigen::VectorXd x0;
     Eigen::MatrixXd X_init;
     Eigen::MatrixXd U_init;
@@ -34,9 +34,7 @@ public:
     std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> g;
     // Connic Constraint Mapping
     std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> h;
-    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> h2;
-    // Constraint Stack
-    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> c;
+    std::vector<std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)>> hs;
 };
 
 ModelBase::ModelBase() {
