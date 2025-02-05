@@ -431,13 +431,6 @@ void IPDDP::backwardPass() {
             // std::cout<<"rp.lpNorm<Eigen::Infinity>(): "<<rp.lpNorm<Eigen::Infinity>()<<std::endl;
             // std::cout<<"rd.lpNorm<Eigen::Infinity>(): "<<rd.lpNorm<Eigen::Infinity>()<<std::endl;
 
-            // TODO: CHECK LARGE Qu (Assumption: Y inverse)
-            // if (Qu.lpNorm<Eigen::Infinity>() > 1000000) {
-            //     std::cout<<"Y_ = "<<Y_<<std::endl;
-            //     std::cout<<"Yinv = "<<Yinv<<std::endl;
-            //     std::cout<<"Qu = "<<Qu<<std::endl;
-            //     std::cout<<"Vx = "<<Vx<<std::endl;
-            // }
             opterror = std::max({Qu.lpNorm<Eigen::Infinity>(), rp.lpNorm<Eigen::Infinity>(), rd.lpNorm<Eigen::Infinity>(), opterror});
         }
 }
@@ -477,19 +470,23 @@ void IPDDP::forwardPass() {
             int t_dim_x = t * model->dim_x;
             Y_new.col(t) = Y.col(t) + (step_size * ky.col(t)) + (Ky.middleCols(t_dim_x, model->dim_x) * (X_new.col(t) - X.col(t)));
             S_new.col(t) = S.col(t) + (step_size * ks.col(t)) + (Ks.middleCols(t_dim_x, model->dim_x) * (X_new.col(t) - X.col(t)));
-            if (model->dim_g) {
-                if ((Y_new.col(t).topRows(model->dim_g).array() < (1 - tau) * Y.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
-                if ((S_new.col(t).topRows(model->dim_g).array() < (1 - tau) * S.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
-            }
-            for (int i = 0; i < model->dim_hs.size(); ++i) {
-                if ((Y_new.col(t).row(dim_hs_top[i]).array().pow(2.0) - Y_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum()
-                < (1 - tau) * (Y.col(t).row(dim_hs_top[i]).array().pow(2.0) - Y.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
-                if ((S_new.col(t).row(dim_hs_top[i]).array().pow(2.0) - S_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum()
-                < (1 - tau) * (S.col(t).row(dim_hs_top[i]).array().pow(2.0) - S.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
-            }
             U_new.col(t) = U.col(t) + (step_size * ku.col(t)) + (Ku.middleCols(t_dim_x, model->dim_x) * (X_new.col(t) - X.col(t)));
             X_new.col(t+1) = model->f(X_new.col(t), U_new.col(t)).cast<double>();
         }
+
+        // // Filter-based approach
+        // for (int t = 0; t < model->N; ++t) {
+        //     if (model->dim_g) {
+        //         if ((Y_new.col(t).topRows(model->dim_g).array() < (1 - tau) * Y.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
+        //         if ((S_new.col(t).topRows(model->dim_g).array() < (1 - tau) * S.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
+        //     }
+        //     for (int i = 0; i < model->dim_hs.size(); ++i) {
+        //         if ((Y_new.col(t).row(dim_hs_top[i]).array().pow(2.0) - Y_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum()
+        //         < (1 - tau) * (Y.col(t).row(dim_hs_top[i]).array().pow(2.0) - Y.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
+        //         if ((S_new.col(t).row(dim_hs_top[i]).array().pow(2.0) - S_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum()
+        //         < (1 - tau) * (S.col(t).row(dim_hs_top[i]).array().pow(2.0) - S.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
+        //     }
+        // }
 
         if (forward_failed) {continue;}
 
@@ -500,15 +497,14 @@ void IPDDP::forwardPass() {
 
         if (model->dim_g) {barrier_g_new = Y_new.topRows(model->dim_g).array().log().sum();}
         for (int i = 0; i < model->dim_hs.size(); ++i) {barrier_h_new += log(Y_new.row(dim_hs_top[i]).array().pow(2.0).sum() - Y_new.middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())/2;}
-
-        // std::cout<<"barriercost G = "<<barrier_g_new<<std::endl;
-        // std::cout<<"barriercost H = "<<barrier_h_new<<std::endl;
         logcost_new = cost_new - param.mu * (barrier_g_new + barrier_h_new);
         for (int t = 0; t < model->N; ++t) {
             C_new.col(t) = c(X_new.col(t), U_new.col(t)).cast<double>();
         }
-        // error = (C + Y).colwise().lpNorm<1>().sum();
-        error_new = std::max(param.tolerance, (C_new + Y_new).lpNorm<1>());
+        // std::cout<<"barriercost G = "<<barrier_g_new<<std::endl;
+        // std::cout<<"barriercost H = "<<barrier_h_new<<std::endl;
+        error_new = (C + Y).colwise().lpNorm<1>().sum();
+        // error_new = std::max(param.tolerance, (C_new + Y_new).lpNorm<1>());
         if (logcost >= logcost_new || error >= error_new) {break;}
         // if (logcost >= logcost_new && error >= error_new) {std::cout<<"10"<<std::endl;break;}
         // std::cout<<"error = "<<error<<std::endl;
