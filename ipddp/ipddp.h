@@ -474,19 +474,20 @@ void IPDDP::forwardPass() {
             X_new.col(t+1) = model->f(X_new.col(t), U_new.col(t)).cast<double>();
         }
 
-        // // Filter-based approach
-        // for (int t = 0; t < model->N; ++t) {
-        //     if (model->dim_g) {
-        //         if ((Y_new.col(t).topRows(model->dim_g).array() < (1 - tau) * Y.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
-        //         if ((S_new.col(t).topRows(model->dim_g).array() < (1 - tau) * S.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
-        //     }
-        //     for (int i = 0; i < model->dim_hs.size(); ++i) {
-        //         if ((Y_new.col(t).row(dim_hs_top[i]).array().pow(2.0) - Y_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum()
-        //         < (1 - tau) * (Y.col(t).row(dim_hs_top[i]).array().pow(2.0) - Y.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
-        //         if ((S_new.col(t).row(dim_hs_top[i]).array().pow(2.0) - S_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum()
-        //         < (1 - tau) * (S.col(t).row(dim_hs_top[i]).array().pow(2.0) - S.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
-        //     }
-        // }
+        // Filter-based approach
+        for (int t = 0; t < model->N; ++t) {
+            if (model->dim_g) {
+                if ((Y_new.col(t).topRows(model->dim_g).array() < (1 - tau) * Y.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
+                if ((S_new.col(t).topRows(model->dim_g).array() < (1 - tau) * S.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
+            }
+            // CHECK: (1-tau)^2?
+            for (int i = 0; i < model->dim_hs.size(); ++i) {
+                if ((Y_new.col(t).row(dim_hs_top[i]).array().pow(2.0) - Y_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum()
+                < (1 - tau)*(1 - tau) * (Y.col(t).row(dim_hs_top[i]).array().pow(2.0) - Y.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
+                if ((S_new.col(t).row(dim_hs_top[i]).array().pow(2.0) - S_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum()
+                < (1 - tau)*(1 - tau) * (S.col(t).row(dim_hs_top[i]).array().pow(2.0) - S.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
+            }
+        }
 
         if (forward_failed) {continue;}
 

@@ -30,7 +30,7 @@ Rocket2D::Rocket2D() {
     dim_x = 6;
     X_init = Eigen::MatrixXd::Zero(dim_x, N+1);
     X_init(0,0) = 8.0;
-    X_init(1,0) = 10.0;
+    X_init(1,0) = 6.0;
 
     dim_u = 2;
     U_init = Eigen::MatrixXd::Zero(dim_u, N);
