@@ -1,5 +1,7 @@
 #pragma once
 
+#define MAX_STEP 10
+
 #include "param.h"
 #include "model_base.h"
 #include "helper_function.h"
@@ -152,8 +154,8 @@ void IPDDP::init(Param param) {
     this->resetFilter();
     this->resetRegulation();
 
-    for (double i = 1; i < 11; ++i) {
-        step_list.push_back(std::pow(2.0, -i));
+    for (int i = 0; i <= MAX_STEP; ++i) {
+        step_list.push_back(std::pow(2.0, static_cast<double>(-i)));
     }
 }
 
@@ -460,7 +462,7 @@ void IPDDP::forwardPass() {
     double barrier_h_new = 0.0;
     double error_new = 0.0;
 
-    for (step = 0; step < step_list.size(); ++step) {
+    for (step = 0; step < MAX_STEP; ++step) {
 
         forward_failed = false;
         double step_size = step_list[step];
