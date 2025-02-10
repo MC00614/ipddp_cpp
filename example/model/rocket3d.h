@@ -20,7 +20,7 @@ public:
 
 Rocket3D::Rocket3D() {
     r = 0.4;
-    l = 0.7;
+    l = 1.4;
     dt = 0.1;
     mass = 10.0;
     gravity << 0.0, 0.0, -9.81;
@@ -29,7 +29,7 @@ Rocket3D::Rocket3D() {
            0, (1.0/12.0) * mass * (3 * r * r + l * l), 0,
            0, 0, 0.5 * mass * r * r;
     J_B_inv = J_B.inverse();
-    L_thrust << 0, 0, -l;
+    L_thrust << 0, 0, -l/2;
 
     // Stage Count
     N = 100;
@@ -39,6 +39,9 @@ Rocket3D::Rocket3D() {
     X_init(0,0) = 4.0;
     X_init(1,0) = 6.0;
     X_init(2,0) = 8.0;
+    X_init(3,0) = 1.5;
+    X_init(4,0) = -2.0;
+    X_init(5,0) = -.5;
 
     // Quaternion
     X_init(6, 0) = 1.0;
@@ -52,32 +55,44 @@ Rocket3D::Rocket3D() {
     
     // Discrete Time System
     f = [this](const VectorXdual2nd& x, const Vector3dual2nd& u) -> VectorXdual2nd {
-        VectorXdual2nd x_n(dim_x);
+        VectorXdual2nd x_n = x;
         VectorXdual2nd f_dot(dim_x);
-        Matrix3dual2nd C;
-        C << 1 - 2 * (x(8) * x(8) + x(9) * x(9)),
-            2 * (x(7) * x(8) - x(6) * x(9)),
-            2 * (x(7) * x(9) + x(6) * x(8)),
-            2 * (x(7) * x(8) + x(6) * x(9)),
-            1 - 2 * (x(7) * x(7) + x(9) * x(9)),
-            2 * (x(8) * x(9) - x(6) * x(7)),
-            2 * (x(7) * x(9) - x(6) * x(8)),
-            2 * (x(8) * x(9) + x(6) * x(7)),
-            1 - 2 * (x(7) * x(7) + x(8) * x(8));
 
+        Vector3dual2nd r = x.segment(0,3);
+        Vector3dual2nd v = x.segment(3,3);
+        Vector4dual2nd q = x.segment(6,4);
         Vector3dual2nd w = x.segment(10,3);
+
+        Matrix3dual2nd C;
+        C << 1 - 2 * (q(2) * q(2) + q(3) * q(3)),
+            2 * (q(1) * q(2) - q(0) * q(3)),
+            2 * (q(1) * q(3) + q(0) * q(2)),
+            2 * (q(1) * q(2) + q(0) * q(3)),
+            1 - 2 * (q(1) * q(1) + q(3) * q(3)),
+            2 * (q(2) * q(3) - q(0) * q(1)),
+            2 * (q(1) * q(3) - q(0) * q(2)),
+            2 * (q(2) * q(3) + q(0) * q(1)),
+            1 - 2 * (q(1) * q(1) + q(2) * q(2));
+
+        // Matrix4dual2nd Lq;
+        // Lq << q(0), -q(1), -q(2), -q(3),
+        //     q(1),  q(0), -q(3),  q(2),
+        //     q(2),  q(3),  q(0), -q(1),
+        //     q(3), -q(2),  q(1),  q(0);
+        // Vector4dual2nd Phi = (Vector4dual2nd() << 1, w * dt /2).finished().normalized();
+
         Matrix4dual2nd Omega;
         Omega << 0,         -w(0), -w(1), -w(2),
-                w(0),   0,          w(2), -w(1),
-                w(1),  -w(2),   0,         w(0),
-                w(2),   w(1),  -w(0),  0;
-        f_dot << 
-            x.segment(3, 3),
-            gravity + (C * u / mass),
-            0.5 * (Omega * x.segment(6,4)),
-            J_B_inv * (L_thrust.cross(u) - w.cross(J_B * w));
-        x_n = x + (dt * f_dot);
-        // std::cout<<x_n.segment(6,4).normalize();
+                 w(0),   0,          w(2), -w(1),
+                 w(1),  -w(2),   0,         w(0),
+                 w(2),   w(1), -w(0),   0;
+        
+        x_n.segment(0,3) += dt * (v);
+        x_n.segment(3,3) += dt * (gravity + (C * u / mass));
+        // x_n.segment(6,4) += Lq * Phi;
+        x_n.segment(6,4) += dt * (0.5 * (Omega * q));
+        x_n.segment(6,4).normalize();
+        x_n.segment(10,3) += dt * (J_B_inv * (L_thrust.cross(u) - w.cross(J_B * w)));
         return x_n;
     };
 
