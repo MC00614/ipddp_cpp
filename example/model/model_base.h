@@ -16,6 +16,7 @@ public:
     int dim_u;
     int dim_g = 0;
     int dim_h = 0;
+    int dim_c = 0;
     std::vector<int> dim_hs;
     
     Eigen::VectorXd x0;
@@ -35,6 +36,23 @@ public:
     // Connic Constraint Mapping
     std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> h;
     std::vector<std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)>> hs;
+    // Constraint Stack
+    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> c;
+
+    // Differential Functions
+    virtual Eigen::MatrixXd fx(VectorXdual2nd& x, VectorXdual2nd& u);
+    virtual Eigen::MatrixXd fu(VectorXdual2nd& x, VectorXdual2nd& u);
+
+    virtual Eigen::VectorXd px(VectorXdual2nd& x);
+    virtual Eigen::MatrixXd pxx(VectorXdual2nd& x);
+
+    virtual Eigen::VectorXd qx(VectorXdual2nd& x, VectorXdual2nd& u);
+    virtual Eigen::VectorXd qu(VectorXdual2nd& x, VectorXdual2nd& u);
+
+    virtual Eigen::MatrixXd qdd(VectorXdual2nd& x, VectorXdual2nd& u);
+
+    virtual Eigen::MatrixXd cx(VectorXdual2nd& x, VectorXdual2nd& u);
+    virtual Eigen::MatrixXd cu(VectorXdual2nd& x, VectorXdual2nd& u);
 };
 
 ModelBase::ModelBase() {
@@ -43,4 +61,38 @@ ModelBase::ModelBase() {
 ModelBase::~ModelBase() {
 };
 
+Eigen::MatrixXd ModelBase::fx(VectorXdual2nd& x, VectorXdual2nd& u) {
+    return jacobian(f, wrt(x), at(x,u));
+}
 
+Eigen::MatrixXd ModelBase::fu(VectorXdual2nd& x, VectorXdual2nd& u) {
+    return jacobian(f, wrt(u), at(x,u));
+}
+
+Eigen::VectorXd ModelBase::px(VectorXdual2nd& x) {
+    return gradient(p, wrt(x), at(x));
+}
+
+Eigen::MatrixXd ModelBase::pxx(VectorXdual2nd& x) {
+    return hessian(p, wrt(x), at(x));
+}
+
+Eigen::VectorXd ModelBase::qx(VectorXdual2nd& x, VectorXdual2nd& u) {
+    return gradient(q, wrt(x), at(x,u));
+}
+
+Eigen::VectorXd ModelBase::qu(VectorXdual2nd& x, VectorXdual2nd& u) {
+    return gradient(q, wrt(u), at(x,u));
+}
+
+Eigen::MatrixXd ModelBase::qdd(VectorXdual2nd& x, VectorXdual2nd& u) {
+    return hessian(q, wrt(x,u), at(x,u));
+}
+
+Eigen::MatrixXd ModelBase::cx(VectorXdual2nd& x, VectorXdual2nd& u) {
+    return jacobian(c, wrt(x), at(x,u));
+}
+
+Eigen::MatrixXd ModelBase::cu(VectorXdual2nd& x, VectorXdual2nd& u) {
+    return jacobian(c, wrt(u), at(x,u));
+}
