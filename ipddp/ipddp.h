@@ -1,6 +1,6 @@
 #pragma once
 
-#define MAX_STEP 10
+#define MAX_STEP 20
 
 #include "param.h"
 #include "model_base.h"
@@ -91,7 +91,7 @@ IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
     static_assert(std::is_base_of<ModelBase, ModelClass>::value, "ModelClass must be derived from ModelBase");
     // Stack Constraint (TODO: Move to Model)
     model->dim_c = model->dim_g + accumulate(model->dim_hs.begin(), model->dim_hs.end(), 0);
-
+    if (!model->dim_rn) {model->dim_rn = model->dim_x;}
     int dim_h_top = model->dim_g;
     for (auto dim_h : model->dim_hs) {
         dim_hs_top.push_back(dim_h_top);
@@ -131,9 +131,9 @@ IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
     ku.resize(model->dim_u, model->N);
     ky.resize(model->dim_c, model->N);
     ks.resize(model->dim_c, model->N);
-    Ku.resize(model->dim_u, model->dim_x * model->N);
-    Ky.resize(model->dim_c, model->dim_x * model->N);
-    Ks.resize(model->dim_c, model->dim_x * model->N);
+    Ku.resize(model->dim_u, model->dim_rn * model->N);
+    Ky.resize(model->dim_c, model->dim_rn * model->N);
+    Ks.resize(model->dim_c, model->dim_rn * model->N);
 
     e = Eigen::VectorXd::Ones(model->dim_c);
     for (int i = 0; i < model->dim_hs.size(); ++i) {
@@ -271,21 +271,21 @@ void IPDDP::backwardPass() {
     Eigen::MatrixXd Y_;
     Eigen::MatrixXd S_;
 
-    Eigen::VectorXd Vx(model->dim_x);
-    Eigen::MatrixXd Vxx(model->dim_x,model->dim_x);
+    Eigen::VectorXd Vx(model->dim_rn);
+    Eigen::MatrixXd Vxx(model->dim_rn,model->dim_rn);
 
-    Eigen::MatrixXd fx(model->dim_x,model->dim_x), fu(model->dim_x,model->dim_u);
-    Eigen::MatrixXd Qsx(model->dim_c,model->dim_x), Qsu(model->dim_c,model->dim_u);
-    // Eigen::Tensor<double, 3> fxx(model->dim_x,model->dim_x,model->dim_x);
-    // Eigen::Tensor<double, 3> fxu(model->dim_x,model->dim_x,model->dim_u);
-    // Eigen::Tensor<double, 3> fuu(model->dim_x,model->dim_u,model->dim_u);
+    Eigen::MatrixXd fx(model->dim_rn,model->dim_rn), fu(model->dim_rn,model->dim_u);
+    Eigen::MatrixXd Qsx(model->dim_c,model->dim_rn), Qsu(model->dim_c,model->dim_u);
+    // Eigen::Tensor<double, 3> fxx(model->dim_rn,model->dim_rn,model->dim_rn);
+    // Eigen::Tensor<double, 3> fxu(model->dim_rn,model->dim_rn,model->dim_u);
+    // Eigen::Tensor<double, 3> fuu(model->dim_rn,model->dim_u,model->dim_u);
 
-    Eigen::VectorXd qx(model->dim_x), qu(model->dim_u);
-    Eigen::MatrixXd qdd(model->dim_x+model->dim_u, model->dim_x+model->dim_u);
-    Eigen::MatrixXd qxx(model->dim_x,model->dim_x), qxu(model->dim_x,model->dim_u), quu(model->dim_u,model->dim_u);
+    Eigen::VectorXd qx(model->dim_rn), qu(model->dim_u);
+    Eigen::MatrixXd qdd(model->dim_rn+model->dim_u, model->dim_rn+model->dim_u);
+    Eigen::MatrixXd qxx(model->dim_rn,model->dim_rn), qxu(model->dim_rn,model->dim_u), quu(model->dim_u,model->dim_u);
 
-    Eigen::VectorXd Qx(model->dim_x), Qu(model->dim_u);
-    Eigen::MatrixXd Qxx(model->dim_x,model->dim_x), Qxu(model->dim_x,model->dim_u), Quu(model->dim_u,model->dim_u);
+    Eigen::VectorXd Qx(model->dim_rn), Qu(model->dim_u);
+    Eigen::MatrixXd Qxx(model->dim_rn,model->dim_rn), Qxu(model->dim_rn,model->dim_u), Quu(model->dim_u,model->dim_u);
     Eigen::MatrixXd Quu_sim(model->dim_u,model->dim_u);
 
     Eigen::MatrixXd Yinv;
@@ -301,9 +301,9 @@ void IPDDP::backwardPass() {
     Eigen::VectorXd ku_(model->dim_u);
     Eigen::VectorXd ky_(model->dim_c);
     Eigen::VectorXd ks_(model->dim_c);
-    Eigen::MatrixXd Ku_(model->dim_u, model->dim_x);
-    Eigen::MatrixXd Ky_(model->dim_c, model->dim_x);
-    Eigen::MatrixXd Ks_(model->dim_c, model->dim_x);
+    Eigen::MatrixXd Ku_(model->dim_u, model->dim_rn);
+    Eigen::MatrixXd Ky_(model->dim_c, model->dim_rn);
+    Eigen::MatrixXd Ks_(model->dim_c, model->dim_rn);
 
     opterror = 0.0;
 
@@ -322,7 +322,7 @@ void IPDDP::backwardPass() {
         // std::cout<<"S = "<<S<<std::endl;
 
         for (int t = model->N - 1; t >= 0; --t) {
-            int t_dim_x = t * model->dim_x;
+            int t_dim_x = t * model->dim_rn;
 
             x = X.col(t).cast<dual2nd>();
             u = U.col(t).cast<dual2nd>();
@@ -359,16 +359,19 @@ void IPDDP::backwardPass() {
             qu = model->qu(x,u);
 
             qdd = model->qdd(x,u);
-            qxx = qdd.topLeftCorner(model->dim_x, model->dim_x);
-            qxu = qdd.block(0, model->dim_x, model->dim_x, model->dim_u);
+            qxx = qdd.topLeftCorner(model->dim_rn, model->dim_rn);
+            qxu = qdd.block(0, model->dim_rn, model->dim_rn, model->dim_u);
             quu = qdd.bottomRightCorner(model->dim_u, model->dim_u);
 
             Qx = qx + (Qsx.transpose() * s) + (fx.transpose() * Vx);
             Qu = qu + (Qsu.transpose() * s) + (fu.transpose() * Vx);
 
             Qxx = qxx + (fx.transpose() * Vxx * fx);
-            Qxu = qxu + (fx.transpose() * Vxx * fu);
-            Quu = quu + (fu.transpose() * Vxx * fu);
+            // CHECK: Regularization
+            // Qxu = qxu + (fx.transpose() * Vxx * fu);
+            // Quu = quu + (fu.transpose() * Vxx * fu);
+            Qxu = qxu + (fx.transpose() * (Vxx + (Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn) * (std::pow(1.6, regulate) - 1))) * fu);
+            Quu = quu + (fu.transpose() * (Vxx + (Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn) * (std::pow(1.6, regulate) - 1))) * fu);
 
             // Qxx = qxx + (fx.transpose() * Vxx * fx) + tensdot(Vx, fxx);
             // Qxu = qxu + (fx.transpose() * Vxx * fu) + tensdot(Vx, fxu);
@@ -422,11 +425,11 @@ void IPDDP::backwardPass() {
             Vxx += (Qsx.transpose() * Ks_) + (Ks_.transpose() * Qsx) + (Ku_.transpose() * Qsu.transpose() * Ks_) + (Ks_.transpose() * Qsu * Ku_);
             
             ku.col(t) = ku_;
-            Ku.middleCols(t_dim_x, model->dim_x) = Ku_;
+            Ku.middleCols(t_dim_x, model->dim_rn) = Ku_;
             ks.col(t) = ks_;
-            Ks.middleCols(t_dim_x, model->dim_x) = Ks_;
+            Ks.middleCols(t_dim_x, model->dim_rn) = Ks_;
             ky.col(t) = ky_;
-            Ky.middleCols(t_dim_x, model->dim_x) = Ky_;
+            Ky.middleCols(t_dim_x, model->dim_rn) = Ky_;
 
             // std::cout<<"ku_: "<<ku_<<std::endl;
             // std::cout<<"Ku_: "<<Ku_<<std::endl;
@@ -450,6 +453,7 @@ void IPDDP::checkRegulate() {
 }
 
 void IPDDP::forwardPass() {
+    Eigen::VectorXd dx;
     Eigen::MatrixXd X_new(model->dim_x, model->N+1);
     Eigen::MatrixXd U_new(model->dim_u, model->N);
     Eigen::MatrixXd Y_new(model->dim_c, model->N);
@@ -471,30 +475,26 @@ void IPDDP::forwardPass() {
 
         X_new.col(0) = X.col(0);
         for (int t = 0; t < model->N; ++t) {
-            int t_dim_x = t * model->dim_x;
-            Y_new.col(t) = Y.col(t) + (step_size * ky.col(t)) + (Ky.middleCols(t_dim_x, model->dim_x) * (X_new.col(t) - X.col(t)));
-            S_new.col(t) = S.col(t) + (step_size * ks.col(t)) + (Ks.middleCols(t_dim_x, model->dim_x) * (X_new.col(t) - X.col(t)));
-            U_new.col(t) = U.col(t) + (step_size * ku.col(t)) + (Ku.middleCols(t_dim_x, model->dim_x) * (X_new.col(t) - X.col(t)));
+            int t_dim_x = t * model->dim_rn;
+            dx = model->perturb(X_new.col(t), X.col(t));
+            Y_new.col(t) = Y.col(t) + (step_size * ky.col(t)) + Ky.middleCols(t_dim_x, model->dim_rn) * dx;
+            S_new.col(t) = S.col(t) + (step_size * ks.col(t)) + Ks.middleCols(t_dim_x, model->dim_rn) * dx;
+            U_new.col(t) = U.col(t) + (step_size * ku.col(t)) + Ku.middleCols(t_dim_x, model->dim_rn) * dx;
             X_new.col(t+1) = model->f(X_new.col(t), U_new.col(t)).cast<double>();
         }
 
-        // Filter-based approach
         for (int t = 0; t < model->N; ++t) {
             if (model->dim_g) {
                 if ((Y_new.col(t).topRows(model->dim_g).array() < (1 - tau) * Y.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
                 if ((S_new.col(t).topRows(model->dim_g).array() < (1 - tau) * S.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
             }
-            // CHECK: (1-tau)^2?
             for (int i = 0; i < model->dim_hs.size(); ++i) {
-                // if ((Y_new.col(t).row(dim_hs_top[i]).array().pow(2.0) - Y_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum()
-                // < (1 - tau)*(1 - tau) * (Y.col(t).row(dim_hs_top[i]).array().pow(2.0) - Y.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
-                // if ((S_new.col(t).row(dim_hs_top[i]).array().pow(2.0) - S_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum()
-                // < (1 - tau)*(1 - tau) * (S.col(t).row(dim_hs_top[i]).array().pow(2.0) - S.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())).any()) {forward_failed = true; break;}
                 if ((Y_new.col(t).row(dim_hs_top[i]).array() - Y_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm()
                 < (1 - tau) * (Y.col(t).row(dim_hs_top[i]).array() - Y.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm())).any()) {forward_failed = true; break;}
                 if ((S_new.col(t).row(dim_hs_top[i]).array() - S_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm()
                 < (1 - tau) * (S.col(t).row(dim_hs_top[i]).array() - S.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm())).any()) {forward_failed = true; break;}
             }
+            if (forward_failed) {break;}
         }
 
         if (forward_failed) {continue;}
@@ -529,7 +529,7 @@ void IPDDP::forwardPass() {
         Y = Y_new;
         S = S_new;
         C = C_new;
-        // std::cout<<"Y = "<<Y.transpose()<<std::endl;
+        std::cout<<"Y = "<<Y.transpose()<<std::endl;
     }
     else {std::cout<<"Forward Failed"<<std::endl;}
 }

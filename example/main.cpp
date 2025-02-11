@@ -12,12 +12,12 @@
 
 int main() {
     // Load Dynamic Model
-    // auto model = std::make_shared<Rocket2D>();    
-    auto model = std::make_shared<Rocket3D>();    
+    // auto model = std::make_shared<Rocket2D>();
+    auto model = std::make_shared<Rocket3D>();
     
     // Parameter Setting
     Param param;
-    param.tolerance = 1e-2;
+    param.tolerance = 1e-6;
     param.max_iter = 1000;
     param.mu = 0.1;
 
@@ -38,6 +38,9 @@ int main() {
     Eigen::MatrixXd X_result = ipddp.getResX();
     Eigen::MatrixXd U_result = ipddp.getResU();
     std::vector<double> all_cost = ipddp.getAllCost();
+
+    // std::cout<<"X_result = \n"<<X_result.transpose()<<std::endl;
+    // std::cout<<"U_result = \n"<<U_result.transpose()<<std::endl;
 
     // Visualize
     visualize(X_init, U_init, X_result, U_result, all_cost);
