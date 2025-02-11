@@ -244,8 +244,6 @@ void IPDDP::solve() {
             break;
         }
 
-        // CHECK
-        // if (opterror < 10000000*param.mu) {
         if (opterror <= 0.2 * param.mu) {
             param.mu = std::max((param.tolerance / 10), std::min(0.2 * param.mu, std::pow(param.mu, 1.2)));
             resetFilter();

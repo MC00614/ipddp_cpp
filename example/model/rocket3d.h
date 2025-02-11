@@ -134,12 +134,12 @@ Rocket3D::Rocket3D() {
     L_thrust << 0, 0, -l/2;
 
     // Stage Count
-    N = 50;
+    N = 100;
 
     dim_x = 13;
     X_init = Eigen::MatrixXd::Zero(dim_x, N+1);
     X_init(0,0) = 4.0;
-    X_init(1,0) = 6.0;
+    X_init(1,0) = 2.0;
     X_init(2,0) = 8.0;
     // X_init(3,0) = 1.5;
     // X_init(4,0) = -2.0;
@@ -199,16 +199,16 @@ Rocket3D::Rocket3D() {
     // Stage Cost Function
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
         return (2 * 1e-3 * u.squaredNorm());
-                + (1 * 1e-4 * x.segment(6,3).squaredNorm());
+                + (50 * x.segment(3,6).squaredNorm());
         // return (2 * 1e-3 * u.squaredNorm());
     };
 
     // Terminal Cost Function
     p = [this](const VectorXdual2nd& x) -> dual2nd {
-        return 5 * 1e-1 * x.segment(0,3).squaredNorm()
-                + (1 * 1e-4 * x.segment(3,3).squaredNorm())
-                + (1 * 1e-4 * x.segment(6,3).squaredNorm())
-                + (1 * 1e-4 * (Lq(q_desired).transpose() * x.segment(q_idx, q_dim)).segment(1,3).squaredNorm());
+        return 50 * x.segment(0,3).squaredNorm()
+                + (500 * x.segment(3,6).squaredNorm())
+                // + (1 * 1e-0 * x.segment(6,3).squaredNorm())
+                + (1 * 1e-0 * (Lq(q_desired).transpose() * x.segment(q_idx, q_dim)).segment(1,3).squaredNorm());
         // return 5 * 1e-1 * x.segment(0,3).squaredNorm();
     };
 
