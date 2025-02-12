@@ -17,7 +17,7 @@ public:
 
 Rocket2D::Rocket2D() {
     l = 0.7;
-    dt = 0.1;
+    dt = 0.035;
     mass = 10.0;
     I = 3.33;
     gravity.resize(2);
@@ -55,13 +55,12 @@ Rocket2D::Rocket2D() {
 
     // Stage Cost Function
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
-        return (2 * 1e-3 * u.norm()) + (5 * 1e-3 * x.norm());
+        return (5 * 1e-3 * x(0)*x(0)) + (2 * 1e-3 * u.squaredNorm());
     };
 
     // Terminal Cost Function
     p = [this](const VectorXdual2nd& x) -> dual2nd {
-        // return 0;
-        return 5 * 1e-3 * x.norm();
+        return 3000 * x.norm();
     };
 
     // Nonnegative Orthant Constraint Mapping

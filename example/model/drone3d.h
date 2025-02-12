@@ -23,14 +23,11 @@ Drone3D::Drone3D() {
     // Dimensions
     dim_x = 6;
     dim_u = 3;
-    dim_g = 1;
-    dim_h = 3;
-    dim_h2 = 0;
 
     // Status Setting
     X_init = Eigen::MatrixXd::Zero(dim_x, N+1);
-    X_init(0,0) = 3.0;
-    X_init(1,0) = 4.0;
+    X_init(0,0) = 5.0;
+    X_init(1,0) = 5.0;
     X_init(2,0) = 5.0;
 
     U_init = Eigen::MatrixXd::Zero(dim_u, N);
@@ -62,13 +59,22 @@ Drone3D::Drone3D() {
     };
 
     // Nonnegative Orthant Constraint Mapping
+    dim_g = 3;
     g = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        VectorXdual2nd g_n(1);
+        VectorXdual2nd g_n(3);
+        Eigen::Vector3d o1;
+        o1 << 1.0, 1.0, 1.0;
+
         g_n(0) = umax - u.norm();
+        g_n(1) = -x(2);
+
+        g_n(2) = (x.segment(0,3)-o1).squaredNorm() - 1;
+
         return -g_n;
     };
 
     // Connic Constraint Mapping
+    dim_h = 3;
     h = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
         const double input_angmax = tan(20.0 * (M_PI/180.0));
         VectorXdual2nd h_n(3);
@@ -77,14 +83,8 @@ Drone3D::Drone3D() {
         h_n(2) = u(1);
         return -h_n;
     };
-    h2 = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        const double state_angmax = tan(45.0 * (M_PI/180.0));
-        VectorXdual2nd h2_n(3);
-        h2_n(0) = state_angmax * x(2);
-        h2_n(1) = x(0);
-        h2_n(2) = x(1);
-        return -h2_n;
-    };
+    hs.push_back(h);
+    dim_hs.push_back(dim_h);
 }
 
 Drone3D::~Drone3D() {

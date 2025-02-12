@@ -527,7 +527,7 @@ void IPDDP::forwardPass() {
         Y = Y_new;
         S = S_new;
         C = C_new;
-        std::cout<<"Y = "<<Y.transpose()<<std::endl;
+        // std::cout<<"Y = "<<Y.transpose()<<std::endl;
     }
     else {std::cout<<"Forward Failed"<<std::endl;}
 }
