@@ -1,6 +1,7 @@
 #pragma once
 
 #define MAX_STEP 10
+#define slack_eps 1e-4
 
 #include "param.h"
 #include "model_base.h"
@@ -52,6 +53,7 @@ private:
     double cost;
     Param param;
     void initialRoll();
+    void initialSlackProj();
     void resetFilter();
     double logcost;
     double error;
@@ -148,6 +150,7 @@ void IPDDP::init(Param param) {
     this->param = param;
 
     this->initialRoll();
+    if (this->param.proj_slack) {this->initialSlackProj();}
     if (this->param.mu == 0) {this->param.mu = cost / model->N / model->dim_c;} // Auto Select
     this->resetFilter();
     this->resetRegulation();
@@ -164,6 +167,44 @@ void IPDDP::initialRoll() {
         X.col(t+1) = model->f(X.col(t), U.col(t)).cast<double>();
     }
     cost = calculateTotalCost(X, U);
+}
+
+void IPDDP::initialSlackProj() {
+    // Y = Eigen::MatrixXd::Zero(model->dim_c, model->N);
+    if (model->dim_g) {
+        Y.topRows(model->dim_g) = (C.topRows(model->dim_g).array() < -slack_eps).select(-C.topRows(model->dim_g).array(), slack_eps);
+    }
+    for (int i = 0; i < model->dim_hs.size(); ++i) {
+        Eigen::VectorXd S = -(C.row(dim_hs_top[i]).array() - std::sqrt(2)*slack_eps);
+        Eigen::MatrixXd V = -C.middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1);
+        Eigen::VectorXd V2 = V.colwise().norm();
+        for (int j = 0; j < model->N; ++j){
+            if (V2(j) <= S(j)) {
+                Y.col(j).middleRows(dim_hs_top[i], model->dim_hs[i]) = -C.col(j).middleRows(dim_hs_top[i], model->dim_hs[i]);
+            }
+            else if (V2(j) <= -S(j)) {
+                Y(dim_hs_top[i], j) = std::sqrt(2)*slack_eps;
+                Y.col(j).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1) = Eigen::VectorXd::Zero(model->dim_hs[i]);
+            }
+            else {
+                double mul = 0.5 * (1 + S(j) / V2(j));
+                Y(dim_hs_top[i], j) = mul * V2(j) + std::sqrt(2)*slack_eps;
+                Y.col(j).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1) = mul * V.col(j);
+            }
+        }
+        // for (int j = 0; j < model->N; ++j){
+        //     if (V2(j) <= S(j)) {
+        //         Y(dim_hs_top[i], j) = -C(dim_hs_top[i], j) + V2(j)/std::sqrt(2);
+        //     }
+        //     else if (V2(j) <= -S(j)) {
+        //         Y(dim_hs_top[i], j) = std::sqrt(2)*slack_eps;
+        //     }
+        //     else {
+        //         double mul = 0.5 * (1 + S(j) / V2(j));
+        //         Y(dim_hs_top[i], j) = mul * V2(j) + std::sqrt(2)*slack_eps + V2(j)/std::sqrt(2);
+        //     }
+        // }
+    }
 }
 
 void IPDDP::resetFilter() {
