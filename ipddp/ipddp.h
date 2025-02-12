@@ -1,6 +1,6 @@
 #pragma once
 
-#define MAX_STEP 20
+#define MAX_STEP 10
 
 #include "param.h"
 #include "model_base.h"
@@ -364,13 +364,15 @@ void IPDDP::backwardPass() {
             Qx = qx + (Qsx.transpose() * s) + (fx.transpose() * Vx);
             Qu = qu + (Qsu.transpose() * s) + (fu.transpose() * Vx);
 
-            Qxx = qxx + (fx.transpose() * Vxx * fx);
-            // CHECK: Regularization
+            // CHECK: Regularization (Need more Test)
+            // Qxx = qxx + (fx.transpose() * Vxx * fx);
             // Qxu = qxu + (fx.transpose() * Vxx * fu);
             // Quu = quu + (fu.transpose() * Vxx * fu);
+            Qxx = qxx + (fx.transpose() * (Vxx + (Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn) * (std::pow(1.6, regulate) - 1))) * fx);
             Qxu = qxu + (fx.transpose() * (Vxx + (Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn) * (std::pow(1.6, regulate) - 1))) * fu);
             Quu = quu + (fu.transpose() * (Vxx + (Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn) * (std::pow(1.6, regulate) - 1))) * fu);
-
+            
+            // iLQR to DDP
             // Qxx = qxx + (fx.transpose() * Vxx * fx) + tensdot(Vx, fxx);
             // Qxu = qxu + (fx.transpose() * Vxx * fu) + tensdot(Vx, fxu);
             // Quu = quu + (fu.transpose() * Vxx * fu) + tensdot(Vx, fuu);

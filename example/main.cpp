@@ -39,8 +39,8 @@ int main() {
     Eigen::MatrixXd U_result = ipddp.getResU();
     std::vector<double> all_cost = ipddp.getAllCost();
 
-    std::cout<<"X_result = \n"<<X_result.transpose()<<std::endl;
-    std::cout<<"U_result = \n"<<U_result.transpose()<<std::endl;
+    // std::cout<<"X_result = \n"<<X_result.transpose()<<std::endl;
+    // std::cout<<"U_result = \n"<<U_result.transpose()<<std::endl;
 
     // Visualize
     visualize(X_init, U_init, X_result, U_result, all_cost);
