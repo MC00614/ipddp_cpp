@@ -74,7 +74,7 @@ private:
     Eigen::VectorXd e;
 
     double opterror;
-    // Eigen::VectorXd dV;
+    Eigen::VectorXd dV;
 
     std::vector<double> all_cost;
 
@@ -306,7 +306,7 @@ void IPDDP::backwardPass() {
     opterror = 0.0;
 
     // while (true) {
-        // dV = Eigen::VectorXd::Zero(2);
+        dV = Eigen::VectorXd::Zero(2);
 
         checkRegulate();
 
@@ -414,8 +414,8 @@ void IPDDP::backwardPass() {
             ky_ = -rp - Qsu * ku_;
             Ky_ = -Qsx - Qsu * Ku_;
             
-            // dV(0) = dV(0) + (ku_.transpose() * Qu)(0);
-            // dV(1) = dV(1) + (0.5 * ku_.transpose() * Quu * ku_)(0);
+            dV(0) += ku_.transpose() * Qu;
+            dV(1) += 0.5 * ku_.transpose() * Quu * ku_;
 
             Vx = Qx + (Ku_.transpose() * Qu) + (Ku_.transpose() * Quu * ku_) + (Qxu * ku_);
             Vxx = Qxx + (Ku_.transpose() * Qxu.transpose()) + (Qxu * Ku_) + (Ku_.transpose() * Quu * Ku_);
@@ -468,6 +468,9 @@ void IPDDP::forwardPass() {
     double barrier_h_new = 0.0;
     double error_new = 0.0;
 
+    double dV_act;
+    double dV_exp;
+
     for (step = 0; step < MAX_STEP; ++step) {
 
         forward_failed = false;
@@ -512,11 +515,18 @@ void IPDDP::forwardPass() {
         }
         // std::cout<<"barriercost G = "<<barrier_g_new<<std::endl;
         // std::cout<<"barriercost H = "<<barrier_h_new<<std::endl;
+
         // error_new = (C + Y).colwise().lpNorm<1>().sum();
         error_new = std::max(param.tolerance, (C_new + Y_new).lpNorm<1>());
+
+        
+        // Case 1: With Expected Value Decrement
+        // dV_act = logcost - logcost_new;
+        // dV_exp = step * dV(0) + step * step * dV(1);
+        // if ((1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp) && error >= error_new) {break;}
+        // Original
         if (logcost >= logcost_new && error >= error_new) {break;}
-        // if (logcost >= logcost_new && error >= error_new) {std::cout<<"10"<<std::endl;break;}
-        // std::cout<<"error = "<<error<<std::endl;
+        
         forward_failed = true;
     }
 
