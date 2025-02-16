@@ -14,31 +14,49 @@ public:
     int N;
     int dim_x;
     int dim_u;
+    int dim_k = 0;
     int dim_g = 0;
     int dim_h = 0;
     int dim_c = 0;
+
+    int dim_kT = 0;
+    int dim_gT = 0;
+    int dim_hT = 0;
+    int dim_cT = 0;
+
     int dim_rn;
     std::vector<int> dim_hs;
+    std::vector<int> dim_hTs;
     
     Eigen::VectorXd x0;
-    Eigen::MatrixXd X_init;
-    Eigen::MatrixXd U_init;
-    Eigen::MatrixXd Y_init;
-    Eigen::MatrixXd S_init;
+    Eigen::MatrixXd X_init; // State Vector
+    Eigen::MatrixXd U_init; // Input Vector
+    Eigen::MatrixXd M_init; // Equality Lagrangian
+    Eigen::MatrixXd S_init; // Inequality Lagrangianx
+    Eigen::MatrixXd Y_init; // Slack Varible
 
-    // Discrete Time System
-    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> f;
-    // Stage Cost Function
-    std::function<dual2nd(VectorXdual2nd, VectorXdual2nd)> q;
-    // Terminal Cost Function
-    std::function<dual2nd(VectorXdual2nd)> p;
-    // Nonnegative Orthant Constraint Mapping
-    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> g;
-    // Connic Constraint Mapping
-    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> h;
-    std::vector<std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)>> hs;
-    // Constraint Stack
-    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> c;
+    Eigen::VectorXd MT_init; // Equality Lagrangian (Terminal)
+    Eigen::VectorXd ST_init; // Inequality Lagrangian (Terminal)
+    Eigen::VectorXd YT_init; // Slack Varible (Terminal)
+
+    // Dynamics and Cost Function
+    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> f; // Discrete Time System
+    std::function<dual2nd(VectorXdual2nd, VectorXdual2nd)> q; // Stage Cost Function
+
+    // Stage (State and Input)
+    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> k; // Equality Constraint Mapping
+    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> g; // Nonnegative Orthant Constraint Mapping
+    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> h; // Connic Constraint Mapping
+    std::vector<std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)>> hs; // Connic Constraint Stack
+    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> c; // Inequality Constraint Stack
+    
+    // Terminal (State)
+    std::function<dual2nd(VectorXdual2nd)> p; // Cost Function (Terminal)
+    std::function<VectorXdual2nd(VectorXdual2nd)> kT; // Equality Constraint Mapping (Terminal)
+    std::function<VectorXdual2nd(VectorXdual2nd)> gT; // Nonnegative Orthant Constraint Mapping (Terminal)
+    std::function<VectorXdual2nd(VectorXdual2nd)> hT; // Connic Constraint Mapping (Terminal)
+    std::vector<std::function<VectorXdual2nd(VectorXdual2nd)>> hTs; // Connic Constraint Stack (Terminal)
+    std::function<VectorXdual2nd(VectorXdual2nd)> cT; // Inequality Constraint Stack (Terminal)
 
     // Differential Functions
     virtual Eigen::MatrixXd fx(VectorXdual2nd& x, VectorXdual2nd& u) {
@@ -67,6 +85,9 @@ public:
     }
     virtual Eigen::MatrixXd cu(VectorXdual2nd& x, VectorXdual2nd& u) {
         return jacobian(c, wrt(u), at(x, u));
+    }
+    virtual Eigen::MatrixXd cTx(VectorXdual2nd& x) {
+        return jacobian(cT, wrt(x), at(x));
     }
 
     // Operator for Quaternion
