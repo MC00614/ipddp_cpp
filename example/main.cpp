@@ -3,8 +3,8 @@
 
 #include <cmath>
 
-#include "rocket2d.h"
-// #include "rocket3d.h"
+// #include "rocket2d.h"
+#include "rocket3d.h"
 // #include "drone3d.h"
 
 #include "ipddp.h"
@@ -12,8 +12,8 @@
 
 int main() {
     // Load Dynamic Model
-    auto model = std::make_shared<Rocket2D>();
-    // auto model = std::make_shared<Rocket3D>();
+    // auto model = std::make_shared<Rocket2D>();
+    auto model = std::make_shared<Rocket3D>();
     
     // Parameter Setting
     Param param;

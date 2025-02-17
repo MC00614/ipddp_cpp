@@ -68,6 +68,7 @@ private:
     int step; // Step Size Index
     int forward_failed;
 
+    int iter;
     void resetRegulation();
     int regulate;
     bool backward_failed;
@@ -98,6 +99,7 @@ private:
     void checkRegulate();
     void forwardPass();
     double calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U);
+    void logPrint();
 };
 
 template<typename ModelClass>
@@ -272,16 +274,25 @@ double IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd
 }
 
 void IPDDP::solve() {
-    int iter = 0;
+    iter = 0;
 
     clock_t start;
     clock_t finish;
     double duration;
 
-    while (iter++ < this->param.max_iter) {
-        std::cout<< "\niter : " << iter << std::endl;
+    std::cout << std::setw(4) << "iter" 
+    << std::setw(3) << "bp" 
+    << std::setw(3) << "fp" 
+    << std::setw(7) << "mu" 
+    << std::setw(12) << "Cost" 
+    << std::setw(12) << "OptErr" 
+    << std::setw(4) << "Reg" 
+    << std::setw(7) << "Step" << std::endl;
 
-        std::cout<< "Backward Pass" << std::endl;
+    while (iter++ < this->param.max_iter) {
+        // std::cout<< "\niter : " << iter << std::endl;
+
+        // std::cout<< "Backward Pass" << std::endl;
         // start = clock();
         this->backwardPass();
         if (backward_failed && regulate==24){
@@ -289,26 +300,23 @@ void IPDDP::solve() {
             break;
         }
         if (backward_failed) {
-            std::cout<< "Backward Failed" << std::endl;
+            // std::cout<< "Backward Failed" << std::endl;
+            this->logPrint();
             continue;
         }
         // finish = clock();
         // duration = (double)(finish - start) / CLOCKS_PER_SEC;
         // std::cout << duration << "seconds" << std::endl;
         
-        std::cout<< "Forward Pass" << std::endl;
+        // std::cout<< "Forward Pass" << std::endl;
         // start = clock();
         this->forwardPass();
         // finish = clock();
         // duration = (double)(finish - start) / CLOCKS_PER_SEC;
         // std::cout << duration << "seconds" << std::endl;
         
-        std::cout<< "mu : " << param.mu << std::endl;
-        std::cout<< "Cost : " << cost << std::endl;
-        std::cout << std::fixed << std::setprecision(4);
-        std::cout<< "Opt Error : " << opterror << std::endl;
-        std::cout<< "Regulate : " << regulate << std::endl;
-        std::cout<< "Step Size : " << step_list[step] << std::endl;
+        this->logPrint();
+        
         all_cost.push_back(cost);
 
         // CHECK
@@ -720,7 +728,7 @@ void IPDDP::forwardPass() {
         }
         if (model->dim_ecT) {ECT = ECT_new;}
     }
-    else {std::cout<<"Forward Failed"<<std::endl;}
+    // else {std::cout<<"Forward Failed"<<std::endl;}
 }
 
 Eigen::MatrixXd IPDDP::getResX() {
@@ -735,3 +743,14 @@ std::vector<double> IPDDP::getAllCost() {
     return all_cost;
 }
 
+void IPDDP::logPrint() {
+    std::cout << std::fixed << std::setprecision(4);
+    std::cout << std::setw(4) << iter 
+              << std::setw(3) << backward_failed 
+              << std::setw(3) << forward_failed 
+              << std::setw(7) << param.mu 
+              << std::setw(12) << cost 
+              << std::setw(12) << opterror 
+              << std::setw(4) << regulate 
+              << std::setw(7) << step_list[step] << std::endl;
+}
