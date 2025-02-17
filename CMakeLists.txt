@@ -1,36 +1,42 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.12)
 project(ipddp)
 
-find_package(PythonLibs REQUIRED)
-find_package (Eigen3 REQUIRED NO_MODULE)
-
-# set(CMAKE_BUILD_TYPE Debug)
-# set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0 -Wall -Wextra -Wpedantic -DDEBUG")
-# set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address -fno-omit-frame-pointer")
-
-include_directories(
-    ipddp/
-)
+find_package(Python3 COMPONENTS Development REQUIRED)
+find_package(Eigen3 REQUIRED NO_MODULE)
 
 # autodiff requires a c++17 enabled compiler
-set(CMAKE_CXX_STANDARD 17)          # ensure cmake instructs compiler to use C++17
-set(CMAKE_CXX_STANDARD_REQUIRED ON) # ensure the C++ standard given before is actually used
-# set(CMAKE_CXX_EXTENSIONS OFF)       # avoid compile flags of the type -std=gnu++1z added by cmake
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include_directories(
-    eigen/
-    matplotlibcpp/
-    autodiff/
-    ${PYTHON_INCLUDE_DIRS}
-    example/model/
+set(INCLUDE_DIRS
+    ${CMAKE_SOURCE_DIR}/ipddp/
+    ${CMAKE_SOURCE_DIR}/eigen/
+    ${CMAKE_SOURCE_DIR}/matplotlibcpp/
+    ${CMAKE_SOURCE_DIR}/autodiff/
+    ${Python3_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/example/model/
 )
 
-add_executable(${PROJECT_NAME}
-    example/main.cpp
-)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -Wall -Wextra -Wpedantic -DDEBUG -fno-omit-frame-pointer")
+    # fsanitize=address is not compatible with shared pointer
+    # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -Wall -Wextra -Wpedantic -DDEBUG -fsanitize=address -fno-omit-frame-pointer")
+else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
+endif()
 
+# Main Executable
+add_executable(${PROJECT_NAME} example/main.cpp)
+target_include_directories(${PROJECT_NAME} PRIVATE ${INCLUDE_DIRS})
 target_compile_options(${PROJECT_NAME} PRIVATE -O2)
+target_link_libraries(${PROJECT_NAME} PRIVATE ${Python3_LIBRARIES})
 
-target_link_libraries(${PROJECT_NAME}
-    ${PYTHON_LIBRARIES}
-)
+# Examples
+if (BUILD_EXAMPLE)
+    foreach(EXAMPLE rocket2d drone3d)
+        add_executable(${EXAMPLE} example/${EXAMPLE}.cpp)
+        target_include_directories(${EXAMPLE} PRIVATE ${INCLUDE_DIRS})
+        target_compile_options(${EXAMPLE} PRIVATE -O2)
+        target_link_libraries(${EXAMPLE} PRIVATE ${Python3_LIBRARIES})
+    endforeach()
+endif()

@@ -1,10 +1,8 @@
 #pragma once
 
-#define MAX_STEP 10
-
 #include "param.h"
 #include "model_base.h"
-#include "helper_function.h"
+// #include "helper_function.h"
 
 #include <autodiff/forward/dual.hpp>
 #include <autodiff/forward/dual/eigen.hpp>
@@ -211,7 +209,7 @@ void IPDDP::init(Param param) {
     resetFilter();
     resetRegulation();
 
-    for (int i = 0; i <= MAX_STEP; ++i) {
+    for (int i = 0; i <= this->param.max_step_iter; ++i) {
         step_list.push_back(std::pow(2.0, static_cast<double>(-i)));
     }
 }
@@ -594,7 +592,7 @@ void IPDDP::forwardPass() {
     double dV_act;
     double dV_exp;
 
-    for (step = 0; step < MAX_STEP; ++step) {
+    for (step = 0; step < this->param.max_step_iter; ++step) {
 
         forward_failed = false;
         double step_size = step_list[step];

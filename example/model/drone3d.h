@@ -18,7 +18,7 @@ Drone3D::Drone3D() {
     umax = gravity * 1.5;
 
     // Stage Count
-    N = 300;
+    N = 100;
 
     // Dimensions
     dim_x = 6;
@@ -59,17 +59,10 @@ Drone3D::Drone3D() {
     };
 
     // Nonnegative Orthant Constraint Mapping
-    dim_g = 3;
+    dim_g = 1;
     g = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        VectorXdual2nd g_n(3);
-        Eigen::Vector3d o1;
-        o1 << 1.0, 1.0, 1.0;
-
+        VectorXdual2nd g_n(1);
         g_n(0) = umax - u.norm();
-        g_n(1) = -x(2);
-
-        g_n(2) = (x.segment(0,3)-o1).squaredNorm() - 1;
-
         return -g_n;
     };
 
