@@ -1,7 +1,16 @@
-# Connic IPDDP
+# Conic IPDDP
+Conic Interior Point Differential Dynamic Programming
 
 ## Description
-C++ implementation of the Connic IPDDP algorithm, designed for solving connic constrained optimization problems.
+C++ implementation of the Conic IPDDP algorithm, designed for solving connic constrained optimization problems.
+
+## Feature
+- Automatically convert between DDP, IPDDP, Conic IPDDP considering constraints.
+    - DDP: optimization without constraint
+    - IPDDP: optimization with nonnegative orthant constraint
+    - Connic IPDDP: optimization with nonnegative orthant & second order cone constraint
+- Can handle multiple constraints.
+- Provide automatic differentiation
 
 ## Installation
 Follow these steps to install and set up the project:
@@ -45,4 +54,4 @@ make -j$(nproc)
 ./drone3d
 ```
 
-# Result
+## Result
