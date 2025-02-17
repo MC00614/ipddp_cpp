@@ -144,9 +144,9 @@ Rocket3D::Rocket3D() {
     X_init(0,0) = 4.0;
     X_init(1,0) = 2.0;
     X_init(2,0) = 8.0;
-    X_init(3,0) = -1.0;
+    // X_init(3,0) = -1.0;
     // X_init(4,0) = 2.0;
-    X_init(5,0) = -1.0;
+    // X_init(5,0) = -1.0;
 
     // Quaternion
     X_init(9, 0) = 1.0;
