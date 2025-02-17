@@ -25,7 +25,7 @@ Rocket2D::Rocket2D() {
     umax = mass*9.81*1.1;
 
     // Stage Count
-    N = 100;
+    N = 200;
 
     dim_x = 6;
     X_init = Eigen::MatrixXd::Zero(dim_x, N+1);
@@ -95,8 +95,17 @@ Rocket2D::Rocket2D() {
     hs.push_back(h);
     dim_hs.push_back(dim_h);
 
-    // TODO!
     // Terminal State Constraint
+    dim_hT = 2;
+    hT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
+        const double state_angmax = tan(45.0 * (M_PI/180.0));
+        VectorXdual2nd h_n(2);
+        h_n(0) = state_angmax * x(0);
+        h_n(1) = x(1);
+        return -h_n;
+    };
+    hTs.push_back(hT);
+    dim_hTs.push_back(dim_hT);
 }
 
 Rocket2D::~Rocket2D() {

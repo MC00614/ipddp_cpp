@@ -249,7 +249,6 @@ Rocket3D::Rocket3D() {
     hs.push_back(h);
     dim_hs.push_back(dim_h);
 
-    // TODO!
     // Terminal State Constraint
     dim_hT = 3;
     hT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {

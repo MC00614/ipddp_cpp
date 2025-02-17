@@ -11,33 +11,32 @@ public:
     ModelBase();
     ~ModelBase();
 
-    int N;
-    int dim_x;
-    int dim_u;
-    int dim_g = 0;
-    int dim_h = 0;
-    int dim_c = 0;
-    int dim_ec = 0;
+    int N; // Number of Time Steps
+    int dim_x; // State Dimension
+    int dim_u; // Input Dimension
+    int dim_g = 0; // Nonnegative Orthant Constraint Dimension
+    int dim_h = 0; // Connic Constraint Dimension
+    int dim_c = 0; // Inequality Constraint Dimension
+    int dim_ec = 0; // Equality Constraint Dimension
 
-    int dim_gT = 0;
-    int dim_hT = 0;
-    int dim_cT = 0;
-    int dim_ecT = 0;
+    int dim_gT = 0; // Nonnegative Orthant Constraint Dimension (Terminal)
+    int dim_hT = 0; // Connic Constraint Dimension (Terminal)
+    int dim_cT = 0; // Inequality Constraint Dimension (Terminal)
+    int dim_ecT = 0; // Equality Constraint Dimension (Terminal)
 
-    int dim_rn;
-    std::vector<int> dim_hs;
-    std::vector<int> dim_hTs;
+    int dim_rn; // Reduced State Dimension (for Quaternion)
+    std::vector<int> dim_hs; // Connic Constraint Dimension Stack
+    std::vector<int> dim_hTs; // Connic Constraint Dimension Stack (Terminal)
     
-    Eigen::VectorXd x0;
-    Eigen::MatrixXd X_init; // State Vector
-    Eigen::MatrixXd U_init; // Input Vector
-    Eigen::MatrixXd M_init; // Equality Lagrangian
-    Eigen::MatrixXd S_init; // Inequality Lagrangianx
-    Eigen::MatrixXd Y_init; // Slack Varible
+    Eigen::MatrixXd X_init; // State Vector Initial Guess
+    Eigen::MatrixXd U_init; // Input Vector Initial Guess
+    Eigen::MatrixXd M_init; // Equality Lagrangian Initial Guess
+    Eigen::MatrixXd S_init; // Inequality Lagrangianx Initial Guess
+    Eigen::MatrixXd Y_init; // Slack Varible Initial Guess
 
-    Eigen::VectorXd MT_init; // Equality Lagrangian (Terminal)
-    Eigen::VectorXd ST_init; // Inequality Lagrangian (Terminal)
-    Eigen::VectorXd YT_init; // Slack Varible (Terminal)
+    Eigen::VectorXd MT_init; // Equality Lagrangian Initial Guess (Terminal)
+    Eigen::VectorXd ST_init; // Inequality Lagrangian Initial Guess (Terminal)
+    Eigen::VectorXd YT_init; // Slack Varible Initial Guess (Terminal)
 
     // Dynamics and Cost Function
     std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> f; // Discrete Time System
@@ -58,7 +57,6 @@ public:
     std::function<VectorXdual2nd(VectorXdual2nd)> cT; // Inequality Constraint Stack (Terminal)
     std::function<VectorXdual2nd(VectorXdual2nd)> ecT; // Equality Constraint Mapping (Terminal)
 
-    // Differential Functions
     virtual Eigen::MatrixXd fx(VectorXdual2nd& x, VectorXdual2nd& u) {
         return jacobian(f, wrt(x), at(x, u));
     }
@@ -93,7 +91,7 @@ public:
     // Operator for Quaternion
     virtual Eigen::VectorXd perturb(const Eigen::VectorXd& xn, const Eigen::VectorXd& x) {
         return xn - x;
-    } 
+    }
 };
 
 ModelBase::ModelBase() {

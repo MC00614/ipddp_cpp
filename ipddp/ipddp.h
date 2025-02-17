@@ -41,8 +41,8 @@ private:
     std::shared_ptr<ModelBase> model;
 
     // Constraint Stack
-    std::vector<int> dim_hs_top;
-    std::vector<int> dim_hTs_top;
+    std::vector<int> dim_hs_top; // Connic Constraint Head Stack
+    std::vector<int> dim_hTs_top; // Connic Constraint Head Stack (Terminal)
 
     Eigen::MatrixXd X; // State
     Eigen::MatrixXd U; // Input
@@ -66,8 +66,8 @@ private:
     double logcost;
     double error;
     
-    std::vector<double> step_list;
-    int step;
+    std::vector<double> step_list; // Step Size List
+    int step; // Step Size Index
     int forward_failed;
 
     void resetRegulation();
@@ -334,7 +334,7 @@ void IPDDP::solve() {
 }
 
 Eigen::MatrixXd IPDDP::L(const Eigen::VectorXd& x) {
-    Eigen::MatrixXd Lx = (x(0)*Eigen::VectorXd::Ones(x.rows())).asDiagonal();
+    Eigen::MatrixXd Lx = (x(0) * Eigen::VectorXd::Ones(x.rows())).asDiagonal();
     Lx.col(0) = x;
     Lx.row(0) = x.transpose();
     return Lx;
