@@ -4,5 +4,5 @@ log/
 .vscode/
 eigen/
 autodiff/
-matplotlibcpp/
+matplotlib-cpp/
 visual/

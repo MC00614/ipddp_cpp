@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(INCLUDE_DIRS
     ${CMAKE_SOURCE_DIR}/ipddp/
     ${CMAKE_SOURCE_DIR}/eigen/
-    ${CMAKE_SOURCE_DIR}/matplotlibcpp/
+    ${CMAKE_SOURCE_DIR}/matplotlib-cpp/
     ${CMAKE_SOURCE_DIR}/autodiff/
     ${Python3_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/example/model/
