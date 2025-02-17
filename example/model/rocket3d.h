@@ -102,6 +102,9 @@ public:
     virtual Eigen::MatrixXd cx(VectorXdual2nd& x, VectorXdual2nd& u) override{
         return jacobian(c, wrt(x), at(x, u)) * E(x);
     }
+    virtual Eigen::MatrixXd cTx(VectorXdual2nd& x) override{
+        return jacobian(cT, wrt(x), at(x)) * E(x);
+    }
     virtual Eigen::VectorXd perturb(const Eigen::VectorXd& xn, const Eigen::VectorXd& x) override{
         Eigen::VectorXd dx(dim_rn);
         Eigen::VectorXd q_qn = Lq(x.segment(q_idx, q_dim)).cast<double>() * xn.segment(q_idx, q_dim);
@@ -248,6 +251,17 @@ Rocket3D::Rocket3D() {
 
     // TODO!
     // Terminal State Constraint
+    dim_hT = 3;
+    hT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
+        const double state_angmax = tan(45.0 * (M_PI/180.0));
+        VectorXdual2nd h_n(3);
+        h_n(0) = state_angmax * x(2);
+        h_n(1) = x(0);
+        h_n(2) = x(1);
+        return -h_n;
+    };
+    hTs.push_back(hT);
+    dim_hTs.push_back(dim_hT);
 }
 
 Rocket3D::~Rocket3D() {

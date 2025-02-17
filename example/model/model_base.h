@@ -14,15 +14,15 @@ public:
     int N;
     int dim_x;
     int dim_u;
-    int dim_k = 0;
     int dim_g = 0;
     int dim_h = 0;
     int dim_c = 0;
+    int dim_ec = 0;
 
-    int dim_kT = 0;
     int dim_gT = 0;
     int dim_hT = 0;
     int dim_cT = 0;
+    int dim_ecT = 0;
 
     int dim_rn;
     std::vector<int> dim_hs;
@@ -44,19 +44,19 @@ public:
     std::function<dual2nd(VectorXdual2nd, VectorXdual2nd)> q; // Stage Cost Function
 
     // Stage (State and Input)
-    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> k; // Equality Constraint Mapping
     std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> g; // Nonnegative Orthant Constraint Mapping
     std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> h; // Connic Constraint Mapping
     std::vector<std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)>> hs; // Connic Constraint Stack
     std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> c; // Inequality Constraint Stack
+    std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> ec; // Equality Constraint Mapping
     
     // Terminal (State)
     std::function<dual2nd(VectorXdual2nd)> p; // Cost Function (Terminal)
-    std::function<VectorXdual2nd(VectorXdual2nd)> kT; // Equality Constraint Mapping (Terminal)
     std::function<VectorXdual2nd(VectorXdual2nd)> gT; // Nonnegative Orthant Constraint Mapping (Terminal)
     std::function<VectorXdual2nd(VectorXdual2nd)> hT; // Connic Constraint Mapping (Terminal)
     std::vector<std::function<VectorXdual2nd(VectorXdual2nd)>> hTs; // Connic Constraint Stack (Terminal)
     std::function<VectorXdual2nd(VectorXdual2nd)> cT; // Inequality Constraint Stack (Terminal)
+    std::function<VectorXdual2nd(VectorXdual2nd)> ecT; // Equality Constraint Mapping (Terminal)
 
     // Differential Functions
     virtual Eigen::MatrixXd fx(VectorXdual2nd& x, VectorXdual2nd& u) {
