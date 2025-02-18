@@ -295,7 +295,7 @@ void IPDDP::solve() {
         // std::cout<< "Backward Pass" << std::endl;
         // start = clock();
         this->backwardPass();
-        if (backward_failed && regulate==24){
+        if (backward_failed && regulate==param.max_regularization){
             std::cout << "Max regulation (backward_failed)" << std::endl;
             break;
         }
@@ -326,7 +326,7 @@ void IPDDP::solve() {
             break;
         }
 
-        if (forward_failed && regulate==24){
+        if (forward_failed && regulate==param.max_regularization){
             std::cout << "Max regulation (forward_failed)" << std::endl;
             break;
         }
@@ -572,7 +572,7 @@ void IPDDP::checkRegulate() {
     else {--regulate;}
 
     if (regulate < 0) {regulate = 0;}
-    else if (24 < regulate) {regulate = 24;}
+    else if (param.max_regularization < regulate) {regulate = param.max_regularization;}
 }
 
 void IPDDP::forwardPass() {

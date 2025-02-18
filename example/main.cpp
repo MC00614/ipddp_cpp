@@ -21,6 +21,7 @@ int main() {
     param.max_iter = 1000;
     param.mu = 0.1;
     param.max_step_iter = 10;
+    param.max_regularization = 30;
     
     // Solver Setting
     clock_t start = clock();
