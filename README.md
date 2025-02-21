@@ -12,11 +12,7 @@ $$
 $$
 
 $$
--g_t(x_t, u_t) \in K_1
-$$
-
-$$
--h_t(x_t, u_t) \in K_2
+-g_t(x_t, u_t) \in K_1, \quad -h_t(x_t, u_t) \in K_2
 $$
 
 $$
@@ -24,7 +20,12 @@ $$
 $$
 
 $$
-\quad K_1 = ℝ^{m_1}_+, \quad K_2 = L^{m_2}_+
+-g_T(x_T) \in K_1, \quad -h_T(x_T) \in K_2
+$$
+
+
+$$
+\mathrm{where } \quad K_1 = ℝ^{m_1}_+, \quad K_2 = L^{m_2}_+
 $$
 
 
