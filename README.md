@@ -1,28 +1,32 @@
 # Conic IPDDP
-Conic Interior Point Differential Dynamic Programming
 
-## Description
-C++ implementation of the Conic IPDDP algorithm, designed for solving connic constrained optimization problems.
+## Overview
+C++ implementation of the Conic Interior Point Differential Dynamic Programming (Conic IPDDP), designed for solving connic-constrained optimization problems.
 
 ## Feature
-- Automatically convert between DDP, IPDDP, Conic IPDDP considering constraints.
-    - DDP: optimization without constraint
-    - IPDDP: optimization with nonnegative orthant constraint
-    - Connic IPDDP: optimization with nonnegative orthant & second order cone constraint
-- Can handle multiple constraints.
-- Provide automatic differentiation
+- Automatic conversion between different optimization frameworks:
+    - unconstrained DDP
+    - Interior Point DDP
+    - Conic IPDDP
+
+- Supports multiple constraints
+
+- Provides automatic differentiation
+
+- Allows user-defined function overrides
 
 ## Installation
 Follow these steps to install and set up the project:
 
 ```bash
 # Clone the repository
-git clone https://github.com/mczb/ipddp_cpp.git
+git clone https://github.com/MC00614/ipddp_cpp.git
 
 # Navigate to the project directory
 cd ipddp_cpp
 
 # Install dependencies
+
 # 1. Eigen 3.3.9
 wget https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.gz
 tar -xvzf eigen-3.3.9.tar.gz
@@ -38,20 +42,35 @@ git clone https://github.com/lava/matplotlib-cpp.git
 ```
 
 ## Usage
-Here are some examples of how to use the project:
-
+- Include the solver header and compile it together with your project.
+- Define your model by inheriting ModelBase.
+### Build & Run
 ```bash
-# Build example
-mkdir build
-cd build
-cmake .. -DBUILD_EXAMPLE=ON
+# Create and navigate to the build directory
+mkdir build && cd build
+
+# Run CMake and compile the project
+cmake ..
 make -j$(nproc)
 
-# Run rocket2d example
-./rocket2d
-
-# Run drone3d example
-./drone3d
+# Execute the solver
+./ipddp
 ```
 
-## Result
+## Examples
+To build with example cases:
+```bash
+cmake .. -DBUILD_EXAMPLE=ON
+make -j$(nproc)
+```
+### 2D Rocket
+```bash
+# Run 2D Rocket example
+./rocket2d
+```
+
+### 3D Drone
+```bash
+# Run 3D drone example
+./drone3d
+```
