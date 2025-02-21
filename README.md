@@ -3,16 +3,16 @@
 ## Overview
 C++ implementation of the Conic Interior Point Differential Dynamic Programming (Conic IPDDP), designed for solving connic-constrained optimization problems.
 
-\[
+$$
 \min_{u_{0:T-1}} \ell_f(x_T) + \sum_{t=0}^{T-1} \ell_t(x_t, u_t)
-\]
+$$
 
-\[
+$$
 \text{subject to } \quad x_{t+1} = f_t(x_t, u_t), \quad x_0 = x_{\text{init}} \\
 -g_t(x_t, u_t) \in K_1 \\
 -h_t(x_t, u_t) \in K_2 \\
 \text{where } K_1 = \mathbb{R}^{m_1}_+ \text{ and } K_2 = \mathcal{L}^{m_2}_+
-\]
+$$
 
 
 ## Feature
