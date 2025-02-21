@@ -24,7 +24,8 @@ $$
 $$
 
 $$
-\quad K_1 = \mathbb{R}^{m_1}_+, \quad K_2 = \mathcal{L}^{m_2}_+
+\quad K_1 = {R}^{m_1}_+,
+% \quad K_1 = \mathbb{R}^{m_1}_+, \quad K_2 = \mathcal{L}^{m_2}_+
 $$
 
 
