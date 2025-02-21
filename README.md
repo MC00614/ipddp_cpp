@@ -8,10 +8,19 @@ $$
 $$
 
 $$
-\text{subject to } \quad x_{t+1} = f_t(x_t, u_t), \quad x_0 = x_{\text{init}} \\
--g_t(x_t, u_t) \in K_1 \\
--h_t(x_t, u_t) \in K_2 \\
-\text{where } K_1 = \mathbb{R}^{m_1}_+ \text{ and } K_2 = \mathcal{L}^{m_2}_+
+\mathrm{subject to } \quad x_{t+1} = f_t(x_t, u_t), \quad x_0 = x_{\text{init}}
+$$
+
+$$
+-g_t(x_t, u_t) \in K_1
+$$
+
+$$
+-h_t(x_t, u_t) \in K_2
+$$
+
+$$
+\mathrm{where } K_1 = \mathbb{R}^{m_1}_+ \text{ and } K_2 = \mathcal{L}^{m_2}_+
 $$
 
 
