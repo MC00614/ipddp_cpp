@@ -8,7 +8,7 @@ $$
 $$
 
 $$
-\mathrm{subject to } \quad x_{t+1} = f_t(x_t, u_t), \quad x_0 = x_{\text{init}}
+\mathrm{subject \ to } \quad x_{t+1} = f_t(x_t, u_t), \quad x_0 = x_{\text{init}}
 $$
 
 $$
@@ -20,7 +20,11 @@ $$
 $$
 
 $$
-\mathrm{where } K_1 = \mathbb{R}^{m_1}_+ \text{ and } K_2 = \mathcal{L}^{m_2}_+
+\quad t = 0,1,\dots,T-1
+$$
+
+$$
+\mathrm{where } \quad K_1 = \mathbb{R}^{m_1}_+ \text{ and } K_2 = \mathcal{L}^{m_2}_+
 $$
 
 
