@@ -16,16 +16,15 @@ $$
 $$
 
 $$
+-g_T(x_T) \in K_1, \quad -h_T(x_T) \in K_2
+$$
+
+$$
 \quad t = 0,1,\dots,T-1
 $$
 
 $$
--g_T(x_T) \in K_1, \quad -h_T(x_T) \in K_2
-$$
-
-
-$$
-\mathrm{where } \quad K_1 = ℝ^{m_1}_+, \quad K_2 = L^{m_2}_+
+\quad K_1 = ℝ^{m_1}_+, \quad K_2 = L^{m_2}_+
 $$
 
 
