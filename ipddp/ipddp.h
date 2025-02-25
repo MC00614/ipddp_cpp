@@ -2,6 +2,7 @@
 
 #include "param.h"
 #include "model_base.h"
+#include "quat_model_base.h"
 // #include "helper_function.h"
 
 #include <autodiff/forward/dual.hpp>
@@ -105,7 +106,10 @@ private:
 template<typename ModelClass>
 IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
     static_assert(std::is_base_of<ModelBase, ModelClass>::value, "ModelClass must be derived from ModelBase");
-    if (!model->dim_rn) {model->dim_rn = model->dim_x;}
+    if (std::is_base_of<QuatModelBase, ModelClass>::value) {
+        model->dim_rn = model->dim_x - 1;
+    }
+    // if (!model->dim_rn) {model->dim_rn = model->dim_x;}
 
     // Inequality Constraint Stack (TODO: Move to Model)
     model->dim_c = model->dim_g + accumulate(model->dim_hs.begin(), model->dim_hs.end(), 0);
