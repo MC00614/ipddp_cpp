@@ -109,6 +109,7 @@ IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
     if (std::is_base_of<QuatModelBase, ModelClass>::value) {
         model->dim_rn = model->dim_x - 1;
     }
+    else {model->dim_rn = model->dim_x;}
     // if (!model->dim_rn) {model->dim_rn = model->dim_x;}
 
     // Inequality Constraint Stack (TODO: Move to Model)
