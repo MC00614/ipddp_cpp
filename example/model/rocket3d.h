@@ -107,7 +107,7 @@ public:
     }
     virtual Eigen::VectorXd perturb(const Eigen::VectorXd& xn, const Eigen::VectorXd& x) override{
         Eigen::VectorXd dx(dim_rn);
-        Eigen::VectorXd q_qn = Lq(x.segment(q_idx, q_dim)).cast<double>() * xn.segment(q_idx, q_dim);
+        Eigen::VectorXd q_qn = Lq(x.segment(q_idx, q_dim)).cast<double>().transpose() * xn.segment(q_idx, q_dim);
         dx << xn.segment(0,q_idx) - x.segment(0,q_idx),
             q_qn.segment(1,3)/q_qn(0);
         return dx;
