@@ -29,8 +29,8 @@ Rocket2D::Rocket2D() {
 
     dim_x = 6;
     X_init = Eigen::MatrixXd::Zero(dim_x, N+1);
-    X_init(0,0) = 8.0;
-    X_init(1,0) = 6.0;
+    X_init(0,0) = 20.0;
+    X_init(1,0) = 10.0;
 
     dim_u = 2;
     U_init = Eigen::MatrixXd::Zero(dim_u, N);
@@ -55,15 +55,12 @@ Rocket2D::Rocket2D() {
 
     // Stage Cost Function
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
-        // return 0;
-        return (2 * 1e-3 * u.squaredNorm());
-        // return (5 * 1e-3 * x(0)*x(0)) + (2 * 1e-3 * u.squaredNorm());
+        return 1e-6 * u.squaredNorm();
     };
 
-    // Terminal Cos t Function
+    // Terminal Cost Function
     p = [this](const VectorXdual2nd& x) -> dual2nd {
         return 0;
-        // return 3000 * x.norm();
     };
 
     // Nonnegative Orthant Constraint Mapping
@@ -98,24 +95,28 @@ Rocket2D::Rocket2D() {
     hs.push_back(h);
     dim_hs.push_back(dim_h);
 
-    // // Terminal State Constraint
-    // dim_hT = 2;
-    // hT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
-    //     const double state_angmax = tan(45.0 * (M_PI/180.0));
-    //     VectorXdual2nd h_n(2);
-    //     h_n(0) = state_angmax * x(0);
-    //     h_n(1) = x(1);
-    //     return -h_n;
-    // };
-    // hTs.push_back(hT);
-    // dim_hTs.push_back(dim_hT);
+    // Terminal State Constraint
+    dim_hT = 2;
+    hT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
+        const double state_angmax = tan(45.0 * (M_PI/180.0));
+        VectorXdual2nd h_n(2);
+        h_n(0) = state_angmax * x(0);
+        h_n(1) = x(1);
+        return -h_n;
+    };
+    hTs.push_back(hT);
+    dim_hTs.push_back(dim_hT);
 
     // Terminal State Constraint
-    dim_ecT = 2;
+    dim_ecT = 6;
     ecT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
-        VectorXdual2nd ecT_n(2);
-        ecT_n(0) = x(0)-3.0;
-        ecT_n(1) = x(1)-1.0;
+        VectorXdual2nd ecT_n(6);
+        ecT_n(0) = x(0) - 1.0;
+        ecT_n(1) = x(1);
+        ecT_n(2) = x(2);
+        ecT_n(3) = x(3);
+        ecT_n(4) = x(4);
+        ecT_n(5) = x(5);
         return ecT_n;
     };
 }

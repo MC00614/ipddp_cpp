@@ -72,6 +72,7 @@ private:
     int forward_failed;
 
     int iter;
+    int inner_iter;
     void resetRegulation();
     int regulate;
     bool backward_failed;
@@ -323,74 +324,76 @@ double IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd
 
 void IPDDP::solve() {
     iter = 0;
-
+    
     clock_t start;
     clock_t finish;
     double duration;
 
-    std::cout << std::setw(4) << "iter"
+    std::cout << std::setw(4) << "o_it"
+    << std::setw(4) << "i_it"
     << std::setw(3) << "bp"
     << std::setw(3) << "fp"
     << std::setw(7) << "mu"
-    << std::setw(13) << "rho"
+    << std::setw(16) << "rho"
     << std::setw(16) << "Cost"
     << std::setw(16) << "OptError"
     << std::setw(13) << "Error"
     << std::setw(4) << "Reg"
     << std::setw(7) << "Step" << std::endl;
 
-    while (iter++ < this->param.max_iter) {
-        // std::cout<< "\niter : " << iter << std::endl;
+    // Outer Loop (Augmented Lagrangian & Iterior Point Method)
+    while (true) {
+        inner_iter = 0;
+        // Inner Loop (Differential Dynamic Programming)
+        while (inner_iter++ < this->param.max_inner_iter) {
+            if (param.max_iter < ++iter) {break;} 
 
-        // std::cout<< "Backward Pass" << std::endl;
-        // start = clock();
-        this->backwardPass();
-        if (backward_failed && regulate==param.max_regularization){
-            std::cout << "Max regulation (backward_failed)" << std::endl;
-            break;
-        }
-        if (backward_failed) {
-            // std::cout<< "Backward Failed" << std::endl;
+            this->backwardPass();
+
+            if (backward_failed) {
+                this->logPrint();
+                if (regulate==param.max_regularization) {break;}
+                else {continue;}
+            }
+            
+            this->forwardPass();
+            
             this->logPrint();
-            continue;
+            
+            all_cost.push_back(cost);
+    
+            // CHECK
+            if (opterror <= param.tolerance) {
+            // if (std::max(opterror, param.mu) <= param.tolerance) {
+                std::cout << "Optimal Solution" << std::endl;
+                return;
+                // break;
+            }
+    
+            if (forward_failed && regulate==param.max_regularization) {
+                // std::cout << "Max regulation (forward_failed)" << std::endl;
+                break;
+            }
+    
+            if ((opterror <= std::max(10.0 * param.mu, param.tolerance))) {
+                break;
+            }
         }
-        // finish = clock();
-        // duration = (double)(finish - start) / CLOCKS_PER_SEC;
-        // std::cout << duration << "seconds" << std::endl;
-        
-        // std::cout<< "Forward Pass" << std::endl;
-        // start = clock();
-        this->forwardPass();
-        // finish = clock();
-        // duration = (double)(finish - start) / CLOCKS_PER_SEC;
-        // std::cout << duration << "seconds" << std::endl;
-        
-        this->logPrint();
-        
-        all_cost.push_back(cost);
+        if (param.max_iter < iter) {break;}
 
         // CHECK
-        if (opterror <= param.tolerance) {
-        // if (std::max(opterror, param.mu) <= param.tolerance) {
-            std::cout << "Optimal Solution" << std::endl;
-            break;
-        }
+        if (param.mu <= param.tolerance / 10) {break;}
+        if (1e7 <= param.rho) {break;}
 
-        if (forward_failed && regulate==param.max_regularization){
-            std::cout << "Max regulation (forward_failed)" << std::endl;
-            break;
-        }
-
-        if ((opterror <= std::max(10.0 * param.mu, param.tolerance)) || iter % 50 == 0) {
-            // if (opterror <= std::max(10.0 * param.mu, param.tolerance)) {
-            param.mu = std::max((param.tolerance / 10), std::min(0.2 * param.mu, std::pow(param.mu, 1.2)));
-            // CHECK (code vs paper)
-            param.lambdaT = param.lambdaT + param.rho * RT;
-            // param.lambdaT = param.lambdaT + param.rho * ECT;
-            param.rho = std::min(1e7, std::max(10.0 * param.rho, 1.0 / param.mu));
-            resetFilter();
-            resetRegulation();
-        }
+        // Update Outer Loop Parameters
+        param.mu = std::max((param.tolerance / 10), std::min(0.2 * param.mu, std::pow(param.mu, 1.2)));
+        // CHECK (code)
+        param.lambdaT = param.lambdaT + param.rho * RT;
+        // CHECK (paper)
+        // param.lambdaT = param.lambdaT + param.rho * ECT;
+        param.rho = std::min(1e7, std::max(10.0 * param.rho, 1.0 / param.mu));
+        resetFilter();
+        resetRegulation();
     }
 }
 
@@ -841,10 +844,11 @@ std::vector<double> IPDDP::getAllCost() {
 void IPDDP::logPrint() {
     std::cout << std::fixed << std::setprecision(4);
     std::cout << std::setw(4) << iter
+              << std::setw(4) << inner_iter
               << std::setw(3) << backward_failed
               << std::setw(3) << forward_failed
               << std::setw(7) << param.mu
-              << std::setw(13) << param.rho
+              << std::setw(16) << param.rho
               << std::setw(16) << cost
               << std::setw(16) << opterror
               << std::setw(13) << error

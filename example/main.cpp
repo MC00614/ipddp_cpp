@@ -20,10 +20,11 @@ int main() {
     Param param;
     param.tolerance = 1e-3;
     param.max_iter = 1000;
+    param.max_inner_iter = 100;
     param.mu = 1.0;
     param.rho = 1.0;
     param.max_step_iter = 10;
-    param.max_regularization = 30;
+    param.max_regularization = 20;
     
     // Solver Setting
     clock_t start = clock();
