@@ -328,14 +328,15 @@ void IPDDP::solve() {
     clock_t finish;
     double duration;
 
-    std::cout << std::setw(4) << "iter" 
-    << std::setw(3) << "bp" 
-    << std::setw(3) << "fp" 
-    << std::setw(7) << "mu" 
-    << std::setw(16) << "Cost" 
-    << std::setw(16) << "OptErr"
-    << std::setw(13) << "Err"
-    << std::setw(4) << "Reg" 
+    std::cout << std::setw(4) << "iter"
+    << std::setw(3) << "bp"
+    << std::setw(3) << "fp"
+    << std::setw(7) << "mu"
+    << std::setw(13) << "rho"
+    << std::setw(16) << "Cost"
+    << std::setw(16) << "OptError"
+    << std::setw(13) << "Error"
+    << std::setw(4) << "Reg"
     << std::setw(7) << "Step" << std::endl;
 
     while (iter++ < this->param.max_iter) {
@@ -380,9 +381,12 @@ void IPDDP::solve() {
             break;
         }
 
-        if (opterror <= std::max(10.0 * param.mu, param.tolerance)) {
+        if ((opterror <= std::max(10.0 * param.mu, param.tolerance)) || iter % 50 == 0) {
+            // if (opterror <= std::max(10.0 * param.mu, param.tolerance)) {
             param.mu = std::max((param.tolerance / 10), std::min(0.2 * param.mu, std::pow(param.mu, 1.2)));
-            param.lambdaT = param.lambdaT + param.rho * ECT;
+            // CHECK (code vs paper)
+            param.lambdaT = param.lambdaT + param.rho * RT;
+            // param.lambdaT = param.lambdaT + param.rho * ECT;
             param.rho = std::min(1e7, std::max(10.0 * param.rho, 1.0 / param.mu));
             resetFilter();
             resetRegulation();
@@ -836,13 +840,14 @@ std::vector<double> IPDDP::getAllCost() {
 
 void IPDDP::logPrint() {
     std::cout << std::fixed << std::setprecision(4);
-    std::cout << std::setw(4) << iter 
-              << std::setw(3) << backward_failed 
-              << std::setw(3) << forward_failed 
-              << std::setw(7) << param.mu 
-              << std::setw(16) << cost 
-              << std::setw(16) << opterror 
+    std::cout << std::setw(4) << iter
+              << std::setw(3) << backward_failed
+              << std::setw(3) << forward_failed
+              << std::setw(7) << param.mu
+              << std::setw(13) << param.rho
+              << std::setw(16) << cost
+              << std::setw(16) << opterror
               << std::setw(13) << error
-              << std::setw(4) << regulate 
+              << std::setw(4) << regulate
               << std::setw(7) << step_list[step] << std::endl;
 }
