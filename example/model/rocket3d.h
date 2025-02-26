@@ -19,7 +19,7 @@ public:
     // Eigen::Vector4d q_desired;
 };
 
-Rocket3D::Rocket3D() : QuatModelBase(9, 4) { // q_idx = 9, q_dim = 4
+Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
     // q_desired << 1, 0, 0, 0;
 
     r = 0.4;

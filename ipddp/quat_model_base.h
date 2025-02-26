@@ -4,11 +4,11 @@
 
 class QuatModelBase : public ModelBase {
 public:
-    QuatModelBase(int q_idx, int q_dim);
+    QuatModelBase(int q_idx);
     ~QuatModelBase();
 
     int q_idx;
-    int q_dim;
+    int q_dim = 4;
     Eigen::Matrix<double, 4, 3> H;
 
     Vector4dual2nd Phi(Vector3dual2nd w) {
@@ -28,30 +28,28 @@ public:
     };
 
     inline Eigen::MatrixXd GG(const VectorXdual2nd& x, const VectorXdual2nd& u) {
-        return Lq(f(x,u).segment(q_idx, q_dim)).cast<double>() * H;
+        return Lq(f(x,u).segment(q_idx, 4)).cast<double>() * H;
     }
 
     inline Eigen::MatrixXd G(const VectorXdual2nd& x) {
-        return Lq(x.segment(q_idx, q_dim)).cast<double>() * H;
+        return Lq(x.segment(q_idx, 4)).cast<double>() * H;
     }
 
     inline Eigen::MatrixXd EE(const VectorXdual2nd& x, const VectorXdual2nd& u) {
-        Eigen::MatrixXd ee = Eigen::MatrixXd::Zero(dim_x, dim_rn);
-        ee.topLeftCorner(9, 9) = Eigen::MatrixXd::Identity(9, 9);
-        ee.bottomRightCorner(q_dim, 3) = GG(x,u);
+        Eigen::MatrixXd ee = Eigen::MatrixXd::Identity(dim_x, dim_rn);
+        ee.block(q_idx, q_idx, 4, 3) = GG(x,u);
         return ee;
     }
 
     inline Eigen::MatrixXd E(const VectorXdual2nd& x) {
-        Eigen::MatrixXd ee = Eigen::MatrixXd::Zero(dim_x, dim_rn);
-        ee.topLeftCorner(9, 9) = Eigen::MatrixXd::Identity(9, 9);
-        ee.bottomRightCorner(q_dim, 3) = G(x);
+        Eigen::MatrixXd ee = Eigen::MatrixXd::Identity(dim_x, dim_rn);
+        ee.block(q_idx, q_idx, 4, 3) = G(x);
         return ee;
     }
 
     inline Eigen::MatrixXd Id(const VectorXdual2nd& x, const double &fq_q) {
         Eigen::MatrixXd id = Eigen::MatrixXd::Zero(dim_rn, dim_rn);
-        id.bottomRightCorner(3, 3) = fq_q * Eigen::MatrixXd::Identity(3,3);
+        id.block(q_idx, q_idx, 3, 3) = fq_q * Eigen::MatrixXd::Identity(3,3);
         return id;
     }
 
@@ -97,11 +95,11 @@ public:
     }
 };
 
-QuatModelBase::QuatModelBase(int q_idx, int q_dim) : q_idx(q_idx), q_dim(q_dim) {
+QuatModelBase::QuatModelBase(int q_idx) : q_idx(q_idx) {
     H << 0, 0, 0,
-    1, 0, 0,
-    0, 1, 0,
-    0, 0, 1;
+        1, 0, 0,
+        0, 1, 0,
+        0, 0, 1;
 }
 
 QuatModelBase::~QuatModelBase() {
