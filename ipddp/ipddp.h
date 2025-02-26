@@ -46,13 +46,15 @@ private:
     Eigen::MatrixXd X; // State
     Eigen::MatrixXd U; // Input
     
-    Eigen::MatrixXd M; // Equality Lagrangian Multiplier
+    Eigen::MatrixXd Z; // Equality Lagrangian Multiplier
+    Eigen::MatrixXd R; // Equality Slack
     Eigen::MatrixXd S; // Inequality Lagrangian Multiplier
     Eigen::MatrixXd Y; // Inequality Slack
     Eigen::MatrixXd C; // Inequality Constraint
     Eigen::MatrixXd EC; // Equality Constraint
 
-    Eigen::VectorXd MT; // Equality Lagrangian Multiplier (Terminal)
+    Eigen::VectorXd ZT; // Equality Lagrangian Multiplier (Terminal)
+    Eigen::VectorXd RT; // Equality Slack (Terminal)
     Eigen::VectorXd ST; // Inequality Lagrangian Multiplier (Terminal)
     Eigen::VectorXd YT; // Inequality Slack (Terminal)
     Eigen::VectorXd CT; // Inequality Constraint (Terminal)
@@ -75,11 +77,21 @@ private:
     bool backward_failed;
 
     Eigen::MatrixXd ku; // Input Feedforward Gain 
+    Eigen::MatrixXd kr; // Equality Slack Feedforward Gain
+    Eigen::MatrixXd kz; // Equality Lagrangian Multiplier Feedforward Gain
     Eigen::MatrixXd ky; // Inequality Slack Feedforward Gain
     Eigen::MatrixXd ks; // Inequality Lagrangian Multiplier Feedforward Gain
+    
     Eigen::MatrixXd Ku; // Input Feedback Gain
+    Eigen::MatrixXd Kr; // Equality Slack Feedback Gain
+    Eigen::MatrixXd Kz; // Equality Lagrangian Multiplier Feedback Gain
     Eigen::MatrixXd Ky; // Inequality Slack Feedback Gain
     Eigen::MatrixXd Ks; // Inequality Lagrangian Multiplier Feedback Gain
+
+    Eigen::VectorXd krT; // Equality Slack Feedforward Gain (Terminal)
+    Eigen::VectorXd kzT; // Equality Lagrangian Multiplier Feedforward Gain (Terminal)
+    Eigen::MatrixXd KrT; // Equality Slack Feedback Gain (Terminal)
+    Eigen::MatrixXd KzT; // Equality Lagrangian Multiplier Feedback Gain (Terminal)
 
     Eigen::VectorXd kyT; // Inequality Slack Feedforward Gain (Terminal)
     Eigen::VectorXd ksT; // Inequality Lagrangian Multiplier Feedforward Gain (Terminal)
@@ -153,8 +165,13 @@ IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
     if (model->U_init.size()) {U = model->U_init;}
     else {U = Eigen::MatrixXd::Zero(model->dim_u, model->N);}
 
-    if (model->M_init.size()) {M = model->M_init;}
-    else {M = Eigen::MatrixXd::Ones(model->dim_ec, model->N);}
+    // CHECK!!!
+    if (model->Z_init.size()) {Z = model->Z_init;}
+    else {Z = Eigen::MatrixXd::Ones(model->dim_ec, model->N);}
+    if (model->R_init.size()) {R = model->R_init;}
+    else {R = Eigen::MatrixXd::Ones(model->dim_ec, model->N);}
+
+
     if (model->Y_init.size()) {Y = model->Y_init;}
     else {
         Y = Eigen::MatrixXd::Zero(model->dim_c, model->N);
@@ -168,30 +185,41 @@ IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
         for (auto dim_h_top : dim_hs_top) {S.row(dim_h_top) = 0.01*Eigen::VectorXd::Ones(model->N);}
     }
 
-    if (model->MT_init.size()) {MT = model->MT_init;}
-    else {MT = 0.01*Eigen::VectorXd::Ones(model->dim_ecT);}
+    if (model->RT_init.size()) {RT = model->RT_init;}
+    else {RT = Eigen::VectorXd::Zero(model->dim_ecT);}
+    if (model->ZT_init.size()) {ZT = model->ZT_init;}
+    else {ZT = Eigen::VectorXd::Ones(model->dim_ecT);}
+
     if (model->YT_init.size()) {YT = model->YT_init;}
     else {
         YT = Eigen::VectorXd::Zero(model->dim_cT);
-        if (model->dim_gT) {Y.topRows(model->dim_gT) = Eigen::VectorXd::Ones(model->dim_gT);}
+        if (model->dim_gT) {YT.topRows(model->dim_gT) = Eigen::VectorXd::Ones(model->dim_gT);}
         for (auto dim_hT_top : dim_hTs_top) {YT(dim_hT_top) = 1.0;}
     }
     if (model->ST_init.size()) {ST = model->ST_init;}
     else {
         ST = Eigen::VectorXd::Zero(model->dim_cT);
-        if (model->dim_gT) {S.topRows(model->dim_g) = 0.01*Eigen::VectorXd::Ones(model->dim_gT);}
+        if (model->dim_gT) {ST.topRows(model->dim_g) = 0.01*Eigen::VectorXd::Ones(model->dim_gT);}
         for (auto dim_hT_top : dim_hTs_top) {ST(dim_hT_top) = 0.01;}
     }
 
     ku.resize(model->dim_u, model->N);
+    kr.resize(model->dim_ec, model->N);
+    kz.resize(model->dim_ec, model->N);
     ky.resize(model->dim_c, model->N);
     ks.resize(model->dim_c, model->N);
     Ku.resize(model->dim_u, model->dim_rn * model->N);
+    Kr.resize(model->dim_ec, model->dim_rn * model->N);
+    Kz.resize(model->dim_ec, model->dim_rn * model->N);
     Ky.resize(model->dim_c, model->dim_rn * model->N);
     Ks.resize(model->dim_c, model->dim_rn * model->N);
 
+    krT.resize(model->dim_ecT);
+    kzT.resize(model->dim_ecT);
     kyT.resize(model->dim_cT);
     ksT.resize(model->dim_cT);
+    KrT.resize(model->dim_ecT, model->dim_rn);
+    KzT.resize(model->dim_ecT, model->dim_rn);
     KyT.resize(model->dim_cT, model->dim_rn);
     KsT.resize(model->dim_cT, model->dim_rn);
 
@@ -210,6 +238,9 @@ IPDDP::~IPDDP() {
 
 void IPDDP::init(Param param) {
     this->param = param;
+
+    if (!this->param.lambda.size()) {this->param.lambda = Eigen::VectorXd::Zero(model->dim_ec);}
+    if (!this->param.lambdaT.size()) {this->param.lambdaT = Eigen::VectorXd::Zero(model->dim_ecT);}
 
     initialRoll();
     if (this->param.mu == 0) {this->param.mu = cost / model->N / model->dim_c;} // Auto Select
@@ -239,26 +270,38 @@ void IPDDP::initialRoll() {
     }
     if (model->dim_cT) {CT = model->cT(X.col(model->N)).cast<double>();}
     if (model->dim_ecT) {ECT = model->ecT(X.col(model->N)).cast<double>();}
+
+    // CHECK!!
+    if (model->dim_ecT) {RT = -ECT;}
+
     cost = calculateTotalCost(X, U);
 }
 
 void IPDDP::resetFilter() {
     double barriercost = 0.0;
-    double barriercostTerminal = 0.0;
+    double barriercostT = 0.0;
+    double alcost = 0.0;
+    double alcostT = 0.0;
+
     if (model->dim_g) {barriercost += Y.topRows(model->dim_g).array().log().sum();}
     for (int i = 0; i < model->dim_hs.size(); ++i) {barriercost += log(Y.row(dim_hs_top[i]).array().pow(2.0).sum() - Y.middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())/2;}
-    if (model->dim_gT) {barriercostTerminal += YT.topRows(model->dim_gT).array().log().sum();}
-    for (int i = 0; i < model->dim_hTs.size(); ++i) {barriercostTerminal += log(YT.row(dim_hTs_top[i]).array().pow(2.0).sum() - YT.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).array().pow(2.0).sum())/2;}
-    logcost = cost - param.mu * (barriercost + barriercostTerminal);
+    if (model->dim_gT) {barriercostT += YT.topRows(model->dim_gT).array().log().sum();}
+    for (int i = 0; i < model->dim_hTs.size(); ++i) {barriercostT += log(YT.row(dim_hTs_top[i]).array().pow(2.0).sum() - YT.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).array().pow(2.0).sum())/2;}
+
+    // CHECK
+    if (model->dim_ec) {alcost += (param.lambda.transpose() * R).sum() + (0.5 * param.rho * R.squaredNorm());}
+    if (model->dim_ecT) {alcostT += (param.lambdaT.transpose() * RT) + (0.5 * param.rho * RT.squaredNorm());}
+
+    logcost = cost - param.mu * (barriercost + barriercostT) + (alcost + alcostT);
 
     error = 0.0;
-    if (model->dim_ec) {error += EC.colwise().lpNorm<1>().sum();}
+    if (model->dim_ec) {error += (EC + R).colwise().lpNorm<1>().sum();}
     if (model->dim_c) {error += (C + Y).colwise().lpNorm<1>().sum();}
-    if (model->dim_ecT) {error += ECT.lpNorm<1>();}
+    if (model->dim_ecT) {error += (ECT + RT).lpNorm<1>();}
     if (model->dim_cT) {error += (CT + YT).lpNorm<1>();}
     error = std::max(param.tolerance, error);
     
-    if (error < param.tolerance) {error = 0;}
+    // if (error < param.tolerance) {error = 0;}
 
     step = 0;
     forward_failed = false;
@@ -289,8 +332,9 @@ void IPDDP::solve() {
     << std::setw(3) << "bp" 
     << std::setw(3) << "fp" 
     << std::setw(7) << "mu" 
-    << std::setw(12) << "Cost" 
-    << std::setw(12) << "OptErr" 
+    << std::setw(16) << "Cost" 
+    << std::setw(16) << "OptErr"
+    << std::setw(13) << "Err"
     << std::setw(4) << "Reg" 
     << std::setw(7) << "Step" << std::endl;
 
@@ -336,8 +380,10 @@ void IPDDP::solve() {
             break;
         }
 
-        if (opterror <= 0.2 * param.mu) {
+        if (opterror <= std::max(10.0 * param.mu, param.tolerance)) {
             param.mu = std::max((param.tolerance / 10), std::min(0.2 * param.mu, std::pow(param.mu, 1.2)));
+            param.lambdaT = param.lambdaT + param.rho * ECT;
+            param.rho = std::min(1e7, std::max(10.0 * param.rho, 1.0 / param.mu));
             resetFilter();
             resetRegulation();
         }
@@ -366,6 +412,8 @@ void IPDDP::backwardPass() {
 
     Eigen::MatrixXd fx(model->dim_rn,model->dim_rn), fu(model->dim_rn,model->dim_u);
     Eigen::MatrixXd Qsx(model->dim_c,model->dim_rn), Qsu(model->dim_c,model->dim_u);
+    Eigen::MatrixXd Qzx(model->dim_ec,model->dim_rn), Qzu(model->dim_ec,model->dim_u);
+
     // Eigen::Tensor<double, 3> fxx(model->dim_rn,model->dim_rn,model->dim_rn);
     // Eigen::Tensor<double, 3> fxu(model->dim_rn,model->dim_rn,model->dim_u);
     // Eigen::Tensor<double, 3> fuu(model->dim_rn,model->dim_u,model->dim_u);
@@ -389,9 +437,13 @@ void IPDDP::backwardPass() {
     Eigen::MatrixXd R;
 
     Eigen::VectorXd ku_(model->dim_u);
+    Eigen::VectorXd kr_(model->dim_ec);
+    Eigen::VectorXd kz_(model->dim_ec);
     Eigen::VectorXd ky_(model->dim_c);
     Eigen::VectorXd ks_(model->dim_c);
     Eigen::MatrixXd Ku_(model->dim_u, model->dim_rn);
+    Eigen::MatrixXd Kr_(model->dim_ec, model->dim_rn);
+    Eigen::MatrixXd Kz_(model->dim_ec, model->dim_rn);
     Eigen::MatrixXd Ky_(model->dim_c, model->dim_rn);
     Eigen::MatrixXd Ks_(model->dim_c, model->dim_rn);
 
@@ -410,8 +462,8 @@ void IPDDP::backwardPass() {
         Eigen::MatrixXd YT_ = Eigen::MatrixXd::Zero(model->dim_cT, model->dim_cT);
         Eigen::MatrixXd ST_ = Eigen::MatrixXd::Zero(model->dim_cT, model->dim_cT);
         if (model->dim_gT) {
-            YT_.topLeftCorner(model->dim_gT, model->dim_gT) = y.topRows(model->dim_gT).asDiagonal();
-            ST_.topLeftCorner(model->dim_gT, model->dim_gT) = s.topRows(model->dim_gT).asDiagonal();
+            YT_.topLeftCorner(model->dim_gT, model->dim_gT) = YT.topRows(model->dim_gT).asDiagonal();
+            ST_.topLeftCorner(model->dim_gT, model->dim_gT) = ST.topRows(model->dim_gT).asDiagonal();
         }
         for (int i = 0; i < model->dim_hTs.size(); ++i) {
             YT_.block(dim_hTs_top[i], dim_hTs_top[i], model->dim_hTs[i], model->dim_hTs[i]) = L(YT.middleRows(dim_hTs_top[i], model->dim_hTs[i]));
@@ -433,12 +485,31 @@ void IPDDP::backwardPass() {
 
         Vx += KsT.transpose() * CT + QsxT.transpose() * ksT;
         Vxx += QsxT.transpose() * KsT + KsT.transpose() * QsxT;
+
+        opterror = std::max({rpT.lpNorm<Eigen::Infinity>(), rdT.lpNorm<Eigen::Infinity>(), opterror});
     }
 
     // TODO: Equality Terminal Constraint
-    // if (model->dim_ecT) {
+    if (model->dim_ecT) {
+        Eigen::VectorXd RT_ = RT;
+        Eigen::VectorXd ZT_ = ZT;
 
-    // }
+        Eigen::MatrixXd QzxT = model->ecTx(x);
+
+        Eigen::VectorXd rpT = ECT + RT;
+        Eigen::VectorXd rdT = ZT + param.lambdaT + (param.rho * RT);
+        Eigen::VectorXd rT = param.rho*rpT - rdT;
+
+        krT = - rpT;
+        KrT = - QzxT;
+        kzT = rT;
+        KzT = param.rho * QzxT;
+
+        Vx += KzT.transpose() * ECT + QzxT.transpose() * kzT;
+        Vxx += QzxT.transpose() * KzT + KzT.transpose() * QzxT;
+
+        opterror = std::max({rpT.lpNorm<Eigen::Infinity>(), rdT.lpNorm<Eigen::Infinity>(), opterror});
+    }
 
 
     backward_failed = false;
@@ -587,11 +658,16 @@ void IPDDP::forwardPass() {
     Eigen::MatrixXd Y_new(model->dim_c, model->N);
     Eigen::MatrixXd S_new(model->dim_c, model->N);
     Eigen::MatrixXd C_new(model->dim_c, model->N);
+    Eigen::MatrixXd R_new(model->dim_ec, model->N);
+    Eigen::MatrixXd Z_new(model->dim_ec, model->N);
     Eigen::MatrixXd EC_new(model->dim_ec, model->N);
 
+    Eigen::VectorXd dxT;
     Eigen::VectorXd YT_new(model->dim_cT);
     Eigen::VectorXd ST_new(model->dim_cT);
     Eigen::VectorXd CT_new(model->dim_cT);
+    Eigen::VectorXd RT_new(model->dim_ecT);
+    Eigen::VectorXd ZT_new(model->dim_ecT);
     Eigen::VectorXd ECT_new(model->dim_ecT);
 
     double tau = std::max(0.99, 1.0 - param.mu);
@@ -599,7 +675,9 @@ void IPDDP::forwardPass() {
     double cost_new = 0.0;
     double logcost_new = 0.0;
     double barriercost_new = 0.0;
-    double barriercostTerminal_new = 0.0;
+    double barriercostT_new = 0.0;
+    double alcost_new = 0.0;
+    double alcostT_new = 0.0;
     double error_new = 0.0;
 
     double dV_act;
@@ -625,20 +703,25 @@ void IPDDP::forwardPass() {
                 S_new.col(t) = S.col(t) + (step_size * ks.col(t)) + Ks.middleCols(t_dim_x, model->dim_rn) * dx;
             }
         }
-        // TODO
-        // if (model->dim_ec) {
-
-        // }
-        if (model->dim_cT) {
-            Eigen::VectorXd dxT = model->perturb(X_new.col(model->N), X.col(model->N));
-            YT_new = YT + (step_size * kyT) + KyT * dx;
-            ST_new = ST + (step_size * ksT) + KsT * dx;
+        if (model->dim_ec) {
+            for (int t = 0; t < model->N; ++t) {
+                int t_dim_x = t * model->dim_rn;
+                dx = model->perturb(X_new.col(t), X.col(t));
+                R_new.col(t) = R.col(t) + (step_size * kr.col(t)) + Kr.middleCols(t_dim_x, model->dim_rn) * dx;
+                Z_new.col(t) = Z.col(t) + (step_size * kz.col(t)) + Kz.middleCols(t_dim_x, model->dim_rn) * dx;
+            }
         }
-        // TODO
-        // if (model->dim_ecT) {
+        dxT = model->perturb(X_new.col(model->N), X.col(model->N));
+        if (model->dim_cT) {
+            YT_new = YT + (step_size * kyT) + KyT * dxT;
+            ST_new = ST + (step_size * ksT) + KsT * dxT;
+        }
+        if (model->dim_ecT) {
+            RT_new = RT + (step_size * krT) + KrT * dxT;
+            ZT_new = ZT + (step_size * kzT) + KzT * dxT;
+        }
 
-        // }
-
+        // Fraction to boundary
         for (int t = 0; t < model->N; ++t) {
             if (model->dim_g) {
                 if ((Y_new.col(t).topRows(model->dim_g).array() < (1 - tau) * Y.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
@@ -652,10 +735,6 @@ void IPDDP::forwardPass() {
             }
             if (forward_failed) {break;}
         }
-        // TODO
-        // if (model->dim_ec) {
-
-        // }
         if (model->dim_cT) {
             if (model->dim_gT) {
                 if ((YT_new.topRows(model->dim_gT).array() < (1 - tau) * YT.topRows(model->dim_gT).array()).any()) {forward_failed = true; break;}
@@ -668,10 +747,6 @@ void IPDDP::forwardPass() {
                 < (1 - tau) * (ST.row(dim_hTs_top[i]).array() - ST.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).norm())).any()) {forward_failed = true; break;}
             }
         }
-        // TODO
-        // if (model->dim_ecT) {
-
-        // }
         
         if (forward_failed) {continue;}
 
@@ -679,9 +754,12 @@ void IPDDP::forwardPass() {
         cost_new = calculateTotalCost(X_new, U_new);
         if (model->dim_g) {barriercost_new += Y_new.topRows(model->dim_g).array().log().sum();}
         for (int i = 0; i < model->dim_hs.size(); ++i) {barriercost_new += log(Y_new.row(dim_hs_top[i]).array().pow(2.0).sum() - Y_new.middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())/2;}
-        if (model->dim_gT) {barriercostTerminal_new += YT_new.topRows(model->dim_gT).array().log().sum();}
-        for (int i = 0; i < model->dim_hTs.size(); ++i) {barriercostTerminal_new += log(YT_new.row(dim_hTs_top[i]).array().pow(2.0).sum() - YT_new.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).array().pow(2.0).sum())/2;}
-        logcost_new = cost_new - param.mu * (barriercost_new + barriercostTerminal_new);
+        if (model->dim_gT) {barriercostT_new += YT_new.topRows(model->dim_gT).array().log().sum();}
+        for (int i = 0; i < model->dim_hTs.size(); ++i) {barriercostT_new += log(YT_new.row(dim_hTs_top[i]).array().pow(2.0).sum() - YT_new.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).array().pow(2.0).sum())/2;}
+
+        if (model->dim_ec) {alcost_new += (param.lambda.transpose() * R_new).sum() + (0.5 * param.rho * R_new.squaredNorm());}
+        if (model->dim_ecT) {alcostT_new += (param.lambdaT.transpose() * RT_new) + (0.5 * param.rho * RT_new.squaredNorm());}
+        logcost_new = cost_new - param.mu * (barriercost_new + barriercostT_new) + (alcost_new + alcostT_new);
         
         // Error
         if (model->dim_c) {
@@ -694,13 +772,13 @@ void IPDDP::forwardPass() {
                 EC_new.col(t) = model->ec(X_new.col(t), U_new.col(t)).cast<double>();
             }
         }
-        if (model->dim_cT) {CT_new = model->cT(X.col(model->N)).cast<double>();}
-        if (model->dim_ecT) {ECT_new = model->ecT(X.col(model->N)).cast<double>();}
+        if (model->dim_cT) {CT_new = model->cT(X_new.col(model->N)).cast<double>();}
+        if (model->dim_ecT) {ECT_new = model->ecT(X_new.col(model->N)).cast<double>();}
         
         error_new = 0.0;
-        if (model->dim_ec) {error_new += EC_new.colwise().lpNorm<1>().sum();}
+        if (model->dim_ec) {error_new += (EC_new + R_new).colwise().lpNorm<1>().sum();}
         if (model->dim_c) {error_new += (C_new + Y_new).colwise().lpNorm<1>().sum();}
-        if (model->dim_ecT) {error_new += ECT_new.lpNorm<1>();}
+        if (model->dim_ecT) {error_new += (ECT_new + RT_new).lpNorm<1>();}
         if (model->dim_cT) {error_new += (CT_new + YT_new).lpNorm<1>();}
         error_new = std::max(param.tolerance, error_new);
 
@@ -725,13 +803,21 @@ void IPDDP::forwardPass() {
             S = S_new;
             C = C_new;
         }
-        if (model->dim_ec) {EC = EC_new;}
+        if (model->dim_ec) {
+            R = R_new;
+            Z = Z_new;
+            EC = EC_new;
+        }
         if (model->dim_cT) {
             YT = YT_new;
             ST = ST_new;
             CT = CT_new;
         }
-        if (model->dim_ecT) {ECT = ECT_new;}
+        if (model->dim_ecT) {
+            RT = RT_new;
+            ZT = ZT_new;
+            ECT = ECT_new;
+        }
     }
     // else {std::cout<<"Forward Failed"<<std::endl;}
 }
@@ -754,8 +840,9 @@ void IPDDP::logPrint() {
               << std::setw(3) << backward_failed 
               << std::setw(3) << forward_failed 
               << std::setw(7) << param.mu 
-              << std::setw(12) << cost 
-              << std::setw(12) << opterror 
+              << std::setw(16) << cost 
+              << std::setw(16) << opterror 
+              << std::setw(13) << error
               << std::setw(4) << regulate 
               << std::setw(7) << step_list[step] << std::endl;
 }

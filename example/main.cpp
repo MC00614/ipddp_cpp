@@ -3,8 +3,9 @@
 
 #include <cmath>
 
+#include "rocket2d_eq_st.h"
 // #include "rocket2d.h"
-#include "rocket3d.h"
+// #include "rocket3d.h"
 // #include "drone3d.h"
 
 #include "ipddp.h"
@@ -12,14 +13,15 @@
 
 int main() {
     // Load Dynamic Model
-    // auto model = std::make_shared<Rocket2D>();
-    auto model = std::make_shared<Rocket3D>();
+    auto model = std::make_shared<Rocket2D>();
+    // auto model = std::make_shared<Rocket3D>();
     
     // Parameter Setting
     Param param;
-    param.tolerance = 1e-6;
+    param.tolerance = 1e-3;
     param.max_iter = 1000;
-    param.mu = 0.1;
+    param.mu = 1.0;
+    param.rho = 1.0;
     param.max_step_iter = 10;
     param.max_regularization = 30;
     
