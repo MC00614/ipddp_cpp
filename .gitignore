@@ -5,4 +5,5 @@ log/
 eigen/
 autodiff/
 matplotlib-cpp/
+matplotlibcpp/
 visual/
