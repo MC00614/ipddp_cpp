@@ -46,7 +46,9 @@ int main() {
 
     // std::cout<<"X_result = \n"<<X_result.transpose()<<std::endl;
     // std::cout<<"U_result = \n"<<U_result.transpose()<<std::endl;
+    std::cout<<"X_0 = \n"<<X_result.col(0).transpose()<<std::endl;
     std::cout<<"X_T = \n"<<X_result.col(model->N).transpose()<<std::endl;
+    std::cout<<"U_T = \n"<<U_result.col(model->N-1).transpose()<<std::endl;
 
     // Visualize
     visualize(X_init, U_init, X_result, U_result, all_cost);

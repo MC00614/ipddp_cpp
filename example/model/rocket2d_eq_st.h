@@ -12,6 +12,7 @@ public:
     double I;
     Eigen::VectorXd gravity;
     double umax;
+    double umin;
     Eigen::MatrixXd U;
 };
 
@@ -23,14 +24,15 @@ Rocket2D::Rocket2D() {
     gravity.resize(2);
     gravity << -9.81, 0.0;
     umax = mass*9.81*1.1;
+    umin = mass*9.81*0.5;
 
     // Stage Count
-    N = 200;
+    N = 300;
 
     dim_x = 6;
     X_init = Eigen::MatrixXd::Zero(dim_x, N+1);
-    X_init(0,0) = 20.0;
-    X_init(1,0) = 10.0;
+    X_init(0,0) = 10.0;
+    X_init(1,0) = 6.0;
 
     dim_u = 2;
     U_init = Eigen::MatrixXd::Zero(dim_u, N);
@@ -55,19 +57,21 @@ Rocket2D::Rocket2D() {
 
     // Stage Cost Function
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
-        return 1e-6 * u.squaredNorm();
+        // return u.squaredNorm();
+        return 1e-6 * u.squaredNorm() + 1e-4 * x.segment(2,4).squaredNorm();
     };
 
     // Terminal Cost Function
     p = [this](const VectorXdual2nd& x) -> dual2nd {
-        return 0;
+        return 10 * x.segment(2,4).squaredNorm();
     };
 
     // Nonnegative Orthant Constraint Mapping
-    dim_g = 1;
+    dim_g = 2;
     g = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        VectorXdual2nd g_n(1);
+        VectorXdual2nd g_n(2);
         g_n(0) = umax - u.norm();
+        g_n(1) = u.norm() - umin;
         return -g_n;
     };
 
@@ -95,7 +99,7 @@ Rocket2D::Rocket2D() {
     hs.push_back(h);
     dim_hs.push_back(dim_h);
 
-    // Terminal State Constraint
+    // Terminal State Conic Constraint
     dim_hT = 2;
     hT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
         const double state_angmax = tan(45.0 * (M_PI/180.0));
@@ -107,16 +111,18 @@ Rocket2D::Rocket2D() {
     hTs.push_back(hT);
     dim_hTs.push_back(dim_hT);
 
-    // Terminal State Constraint
-    dim_ecT = 6;
+    // Terminal State Equality Constraint
+    dim_ecT = 2;
+    // dim_ecT = 6;
     ecT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
-        VectorXdual2nd ecT_n(6);
+        VectorXdual2nd ecT_n(2);
+        // VectorXdual2nd ecT_n(6);
         ecT_n(0) = x(0) - 1.0;
         ecT_n(1) = x(1);
-        ecT_n(2) = x(2);
-        ecT_n(3) = x(3);
-        ecT_n(4) = x(4);
-        ecT_n(5) = x(5);
+        // ecT_n(2) = x(2);
+        // ecT_n(3) = x(3);
+        // ecT_n(4) = x(4);
+        // ecT_n(5) = x(5);
         return ecT_n;
     };
 }

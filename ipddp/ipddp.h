@@ -335,8 +335,8 @@ void IPDDP::solve() {
     << std::setw(3) << "fp"
     << std::setw(7) << "mu"
     << std::setw(16) << "rho"
-    << std::setw(16) << "Cost"
-    << std::setw(16) << "OptError"
+    << std::setw(16) << "LogCost"
+    << std::setw(22) << "OptError"
     << std::setw(13) << "Error"
     << std::setw(4) << "Reg"
     << std::setw(7) << "Step" << std::endl;
@@ -382,8 +382,7 @@ void IPDDP::solve() {
         if (param.max_iter < iter) {break;}
 
         // CHECK
-        if (param.mu <= param.tolerance / 10) {break;}
-        if (1e7 <= param.rho) {break;}
+        if ((param.mu <= param.tolerance / 10) && (1e7 <= param.rho)) {break;}
 
         // Update Outer Loop Parameters
         param.mu = std::max((param.tolerance / 10), std::min(0.2 * param.mu, std::pow(param.mu, 1.2)));
@@ -758,6 +757,10 @@ void IPDDP::forwardPass() {
         if (forward_failed) {continue;}
 
         // Cost
+        barriercost_new = 0.0;
+        barriercostT_new = 0.0;
+        alcost_new = 0.0;
+        alcostT_new = 0.0;
         cost_new = calculateTotalCost(X_new, U_new);
         if (model->dim_g) {barriercost_new += Y_new.topRows(model->dim_g).array().log().sum();}
         for (int i = 0; i < model->dim_hs.size(); ++i) {barriercost_new += log(Y_new.row(dim_hs_top[i]).array().pow(2.0).sum() - Y_new.middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())/2;}
@@ -849,8 +852,8 @@ void IPDDP::logPrint() {
               << std::setw(3) << forward_failed
               << std::setw(7) << param.mu
               << std::setw(16) << param.rho
-              << std::setw(16) << cost
-              << std::setw(16) << opterror
+              << std::setw(16) << logcost
+              << std::setw(22) << opterror
               << std::setw(13) << error
               << std::setw(4) << regulate
               << std::setw(7) << step_list[step] << std::endl;
