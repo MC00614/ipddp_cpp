@@ -272,9 +272,6 @@ void IPDDP::initialRoll() {
     if (model->dim_cT) {CT = model->cT(X.col(model->N)).cast<double>();}
     if (model->dim_ecT) {ECT = model->ecT(X.col(model->N)).cast<double>();}
 
-    // CHECK!!
-    if (model->dim_ecT) {RT = -ECT;}
-
     cost = calculateTotalCost(X, U);
 }
 
@@ -302,8 +299,6 @@ void IPDDP::resetFilter() {
     if (model->dim_cT) {error += (CT + YT).lpNorm<1>();}
     error = std::max(param.tolerance, error);
     
-    // if (error < param.tolerance) {error = 0;}
-
     step = 0;
     forward_failed = false;
 }
@@ -387,6 +382,7 @@ void IPDDP::solve() {
         // Update Outer Loop Parameters
         param.mu = std::max((param.tolerance / 10), std::min(0.2 * param.mu, std::pow(param.mu, 1.2)));
         param.lambdaT = param.lambdaT + param.rho * RT;
+        // param.lambdaT = 2 * (param.lambdaT + param.rho * RT) - ZT;
         param.rho = std::min(1e7, std::max(10.0 * param.rho, 1.0 / param.mu));
         resetFilter();
         resetRegulation();
@@ -510,7 +506,7 @@ void IPDDP::backwardPass() {
 
         Vx += KzT.transpose() * ECT + QzxT.transpose() * kzT;
         Vxx += QzxT.transpose() * KzT + KzT.transpose() * QzxT;
-
+        
         opterror = std::max({rpT.lpNorm<Eigen::Infinity>(), rdT.lpNorm<Eigen::Infinity>(), opterror});
     }
 
@@ -789,12 +785,12 @@ void IPDDP::forwardPass() {
         if (model->dim_cT) {error_new += (CT_new + YT_new).lpNorm<1>();}
         error_new = std::max(param.tolerance, error_new);
 
-        // With Expected Value Decrement
-        // dV_act = logcost - logcost_new;
-        // dV_exp = step * dV(0) + step * step * dV(1);
-        // if ((1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp) && error >= error_new) {break;}
-        // Original
-        if (logcost >= logcost_new && error >= error_new) {break;}
+        // 1. With Expected Value Decrement
+        dV_act = logcost - logcost_new;
+        dV_exp = step * dV(0) + step * step * dV(1);
+        if ((1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp) && error >= error_new) {break;}
+        // 2. Only Value Decrement
+        // if (logcost >= logcost_new && error >= error_new) {break;}
         
         forward_failed = true;
     }

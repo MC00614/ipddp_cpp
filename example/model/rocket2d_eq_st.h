@@ -24,7 +24,7 @@ Rocket2D::Rocket2D() {
     gravity.resize(2);
     gravity << -9.81, 0.0;
     umax = mass*9.81*1.1;
-    umin = mass*9.81*0.5;
+    umin = mass*9.81*0.6;
 
     // Stage Count
     N = 300;
@@ -57,13 +57,12 @@ Rocket2D::Rocket2D() {
 
     // Stage Cost Function
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
-        // return u.squaredNorm();
-        return 1e-6 * u.squaredNorm() + 1e-4 * x.segment(2,4).squaredNorm();
+        return 1e-6 * u.squaredNorm() + 1e-3 * x.segment(2,4).squaredNorm();
     };
 
     // Terminal Cost Function
     p = [this](const VectorXdual2nd& x) -> dual2nd {
-        return 10 * x.segment(2,4).squaredNorm();
+        return 0;
     };
 
     // Nonnegative Orthant Constraint Mapping
@@ -111,18 +110,16 @@ Rocket2D::Rocket2D() {
     hTs.push_back(hT);
     dim_hTs.push_back(dim_hT);
 
-    // Terminal State Equality Constraint
-    dim_ecT = 2;
-    // dim_ecT = 6;
+    // Terminal State Equality Constraint (Full State)
+    dim_ecT = 6;
     ecT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
-        VectorXdual2nd ecT_n(2);
-        // VectorXdual2nd ecT_n(6);
+        VectorXdual2nd ecT_n(6);
         ecT_n(0) = x(0) - 1.0;
         ecT_n(1) = x(1);
-        // ecT_n(2) = x(2);
-        // ecT_n(3) = x(3);
-        // ecT_n(4) = x(4);
-        // ecT_n(5) = x(5);
+        ecT_n(2) = x(2);
+        ecT_n(3) = x(3);
+        ecT_n(4) = x(4);
+        ecT_n(5) = x(5);
         return ecT_n;
     };
 }
