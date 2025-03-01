@@ -12,22 +12,22 @@ public:
     double mass;
     Eigen::Vector3d gravity;
     double umax;
+    double umin;
     Eigen::MatrixXd U;
     Eigen::Matrix3d J_B;
     Eigen::Matrix3d J_B_inv;
     Eigen::Vector3d L_thrust;
-    // Eigen::Vector4d q_desired;
+    Eigen::Vector4d q_desired;
 };
 
 Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
-    // q_desired << 1, 0, 0, 0;
-
     r = 0.4;
     l = 1.4;
     dt = 0.1;
     mass = 10.0;
     gravity << 0.0, 0.0, -9.81;
     umax = mass*9.81*1.1;
+    // umin = mass*9.81*0.1;
     J_B << (1.0/12.0) * mass * (3 * r * r + l * l), 0, 0,
            0, (1.0/12.0) * mass * (3 * r * r + l * l), 0,
            0, 0, 0.5 * mass * r * r;
@@ -106,6 +106,7 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
     g = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
         VectorXdual2nd g_n(1);
         g_n(0) = umax - u.norm();
+        // g_n(1) = u.norm() - umin;
         return -g_n;
     };
 
@@ -149,6 +150,7 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
     dim_hTs.push_back(dim_hT);
 
     // Terminal State Equality Constraint (Full State)
+    q_desired << 1, 0, 0, 0;
     dim_ecT = 10;
     ecT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
         VectorXdual2nd ecT_n(10);
@@ -161,8 +163,7 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
         ecT_n(6) = x(6);
         ecT_n(7) = x(7);
         ecT_n(8) = x(8);
-        // CHECK
-        ecT_n(9) = x(9) - 1.0;
+        ecT_n(9) = 1.0 - abs((q_desired.transpose() * x.middleRows(9, 4))(0));
         return ecT_n;
     };
 }

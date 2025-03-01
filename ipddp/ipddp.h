@@ -118,47 +118,49 @@ private:
 
 template<typename ModelClass>
 IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
-    static_assert(std::is_base_of<ModelBase, ModelClass>::value, "ModelClass must be derived from ModelBase");
-    if (std::is_base_of<QuatModelBase, ModelClass>::value) {
-        model->dim_rn = model->dim_x - 1;
-    }
-    else {model->dim_rn = model->dim_x;}
-    // if (!model->dim_rn) {model->dim_rn = model->dim_x;}
+    { // TODO: Move to Model
+        static_assert(std::is_base_of<ModelBase, ModelClass>::value, "ModelClass must be derived from ModelBase");
+        if (std::is_base_of<QuatModelBase, ModelClass>::value) {
+            model->dim_rn = model->dim_x - 1;
+        }
+        else {model->dim_rn = model->dim_x;}
 
-    // Inequality Constraint Stack (TODO: Move to Model)
-    model->dim_c = model->dim_g + accumulate(model->dim_hs.begin(), model->dim_hs.end(), 0);
-    int dim_h_top = model->dim_g;
-    for (auto dim_h : model->dim_hs) {
-        dim_hs_top.push_back(dim_h_top);
-        dim_h_top += dim_h;
-    }
-    model->c = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        VectorXdual2nd c_n(model->dim_c);
-        if (model->dim_g) {
-            c_n.topRows(model->dim_g) = model->g(x, u);
+        // Inequality Constraint Stack
+        model->dim_c = model->dim_g + accumulate(model->dim_hs.begin(), model->dim_hs.end(), 0);
+        int dim_h_top = model->dim_g;
+        for (auto dim_h : model->dim_hs) {
+            dim_hs_top.push_back(dim_h_top);
+            dim_h_top += dim_h;
         }
-        for (int i = 0; i < model->dim_hs.size(); ++i) {
-            c_n.middleRows(dim_hs_top[i], model->dim_hs[i]) = model->hs[i](x, u);
+        model->c = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
+            VectorXdual2nd c_n(model->dim_c);
+            if (model->dim_g) {
+                c_n.topRows(model->dim_g) = model->g(x, u);
+            }
+            for (int i = 0; i < model->dim_hs.size(); ++i) {
+                c_n.middleRows(dim_hs_top[i], model->dim_hs[i]) = model->hs[i](x, u);
+            }
+            return c_n;
+        };
+        // Inequality Constraint Stack (Terminal)
+        model->dim_cT = model->dim_gT + accumulate(model->dim_hTs.begin(), model->dim_hTs.end(), 0);
+        int dim_hT_top = model->dim_gT;
+        for (auto dim_hT : model->dim_hTs) {
+            dim_hTs_top.push_back(dim_hT_top);
+            dim_hT_top += dim_hT;
         }
-        return c_n;
-    };
-    // Inequality Constraint Stack (Terminal) (TODO: Move to Model)
-    model->dim_cT = model->dim_gT + accumulate(model->dim_hTs.begin(), model->dim_hTs.end(), 0);
-    int dim_hT_top = model->dim_gT;
-    for (auto dim_hT : model->dim_hTs) {
-        dim_hTs_top.push_back(dim_hT_top);
-        dim_hT_top += dim_hT;
-    }
-    model->cT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
-        VectorXdual2nd cT_n(model->dim_cT);
-        if (model->dim_gT) {
-            cT_n.topRows(model->dim_gT) = model->gT(x);
-        }
-        for (int i = 0; i < model->dim_hTs.size(); ++i) {
-            cT_n.middleRows(dim_hTs_top[i], model->dim_hTs[i]) = model->hTs[i](x);
-        }
-        return cT_n;
-    };
+        model->cT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
+            VectorXdual2nd cT_n(model->dim_cT);
+            if (model->dim_gT) {
+                cT_n.topRows(model->dim_gT) = model->gT(x);
+            }
+            for (int i = 0; i < model->dim_hTs.size(); ++i) {
+                cT_n.middleRows(dim_hTs_top[i], model->dim_hTs[i]) = model->hTs[i](x);
+            }
+            return cT_n;
+        };
+    } // TODO: Move to Model
+
 
     // Initialization
     if (model->X_init.size()) {X = model->X_init;}
@@ -167,10 +169,10 @@ IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
     else {U = Eigen::MatrixXd::Zero(model->dim_u, model->N);}
 
     // CHECK!!!
+    if (model->R_init.size()) {R = model->R_init;}
+    else {R = Eigen::MatrixXd::Zero(model->dim_ec, model->N);}
     if (model->Z_init.size()) {Z = model->Z_init;}
     else {Z = Eigen::MatrixXd::Ones(model->dim_ec, model->N);}
-    if (model->R_init.size()) {R = model->R_init;}
-    else {R = Eigen::MatrixXd::Ones(model->dim_ec, model->N);}
 
 
     if (model->Y_init.size()) {Y = model->Y_init;}
@@ -182,8 +184,8 @@ IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
     if (model->S_init.size()) {S = model->S_init;}
     else {
         S = Eigen::MatrixXd::Zero(model->dim_c, model->N);
-        if (model->dim_g) {S.topRows(model->dim_g) = 0.01*Eigen::MatrixXd::Ones(model->dim_g, model->N);}
-        for (auto dim_h_top : dim_hs_top) {S.row(dim_h_top) = 0.01*Eigen::VectorXd::Ones(model->N);}
+        if (model->dim_g) {S.topRows(model->dim_g) = Eigen::MatrixXd::Ones(model->dim_g, model->N);}
+        for (auto dim_h_top : dim_hs_top) {S.row(dim_h_top) = Eigen::VectorXd::Ones(model->N);}
     }
 
     if (model->RT_init.size()) {RT = model->RT_init;}
@@ -200,8 +202,8 @@ IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
     if (model->ST_init.size()) {ST = model->ST_init;}
     else {
         ST = Eigen::VectorXd::Zero(model->dim_cT);
-        if (model->dim_gT) {ST.topRows(model->dim_g) = 0.01*Eigen::VectorXd::Ones(model->dim_gT);}
-        for (auto dim_hT_top : dim_hTs_top) {ST(dim_hT_top) = 0.01;}
+        if (model->dim_gT) {ST.topRows(model->dim_g) = Eigen::VectorXd::Ones(model->dim_gT);}
+        for (auto dim_hT_top : dim_hTs_top) {ST(dim_hT_top) = 1.0;}
     }
 
     ku.resize(model->dim_u, model->N);
@@ -357,16 +359,13 @@ void IPDDP::solve() {
             
             all_cost.push_back(cost);
     
-            // CHECK
-            if (opterror <= param.tolerance) {
-            // if (std::max(opterror, param.mu) <= param.tolerance) {
+            if (std::max(opterror, param.mu) <= param.tolerance) {
+                // if (opterror <= param.tolerance) {
                 std::cout << "Optimal Solution" << std::endl;
                 return;
-                // break;
             }
     
             if (forward_failed && regulate==param.max_regularization) {
-                // std::cout << "Max regulation (forward_failed)" << std::endl;
                 break;
             }
     
@@ -374,16 +373,23 @@ void IPDDP::solve() {
                 break;
             }
         }
-        if (param.max_iter < iter) {break;}
+        if (param.max_iter < iter) {
+            std::cout << "Max Iteration" << std::endl;
+            return;
+        }
 
         // CHECK
-        if ((param.mu <= param.tolerance / 10) && (1e7 <= param.rho)) {break;}
+        if ((param.mu <= param.mu_min) && (param.rho_max <= param.rho)) {
+            std::cout << "Outer Max/Min" << std::endl;
+            return;
+        }
 
         // Update Outer Loop Parameters
-        param.mu = std::max((param.tolerance / 10), std::min(0.2 * param.mu, std::pow(param.mu, 1.2)));
+        param.mu = std::max((param.mu_min), std::min(param.mu_mul * param.mu, std::pow(param.mu, param.mu_exp)));
         param.lambdaT = param.lambdaT + param.rho * RT;
+        // CHECK
         // param.lambdaT = 2 * (param.lambdaT + param.rho * RT) - ZT;
-        param.rho = std::min(1e7, std::max(10.0 * param.rho, 1.0 / param.mu));
+        param.rho = std::min(param.rho_max, std::max(param.rho_mul * param.rho, 1.0 / param.mu));
         resetFilter();
         resetRegulation();
     }
@@ -456,7 +462,7 @@ void IPDDP::backwardPass() {
     Vx = model->px(x);
     Vxx = model->pxx(x);
 
-    // CHECK: Inequality Terminal Constraint
+    // Inequality Terminal Constraint
     if (model->dim_cT) {
         Eigen::MatrixXd YT_ = Eigen::MatrixXd::Zero(model->dim_cT, model->dim_cT);
         Eigen::MatrixXd ST_ = Eigen::MatrixXd::Zero(model->dim_cT, model->dim_cT);
@@ -488,7 +494,7 @@ void IPDDP::backwardPass() {
         opterror = std::max({rpT.lpNorm<Eigen::Infinity>(), rdT.lpNorm<Eigen::Infinity>(), opterror});
     }
 
-    // TODO: Equality Terminal Constraint
+    // Equality Terminal Constraint
     if (model->dim_ecT) {
         Eigen::VectorXd RT_ = RT;
         Eigen::VectorXd ZT_ = ZT;
@@ -525,10 +531,6 @@ void IPDDP::backwardPass() {
         Qsx = model->cx(x,u);
         Qsu = model->cu(x,u);
 
-        // vectorHessian(fxx, model->f, fs, x, u, "xx");
-        // vectorHessian(fxu, model->f, fs, x, u, "xu");
-        // vectorHessian(fuu, model->f, fs, x, u, "uu");
-
         qx = model->qx(x,u);
         qu = model->qu(x,u);
 
@@ -553,10 +555,14 @@ void IPDDP::backwardPass() {
         Quu += Eigen::MatrixXd::Identity(model->dim_u, model->dim_u) * (std::pow(1.6, regulate) - 1);
         
         // iLQR to DDP (TODO: Vector-Hessian Product)
+        // vectorHessian(fxx, model->f, fs, x, u, "xx");
+        // vectorHessian(fxu, model->f, fs, x, u, "xu");
+        // vectorHessian(fuu, model->f, fs, x, u, "uu");
         // Qxx = qxx + (fx.transpose() * Vxx * fx) + tensdot(Vx, fxx);
         // Qxu = qxu + (fx.transpose() * Vxx * fu) + tensdot(Vx, fxu);
         // Quu = quu + (fu.transpose() * Vxx * fu) + tensdot(Vx, fuu);
 
+        // Inequality Constraint
         if (model->dim_c) {
             y = Y.col(t);
             s = S.col(t);
@@ -588,6 +594,7 @@ void IPDDP::backwardPass() {
         }
 
         // TODO
+        // Equality Constraint
         // if (model->dim_ec) {
 
         // }
@@ -615,7 +622,7 @@ void IPDDP::backwardPass() {
 
         opterror = std::max({Qu.lpNorm<Eigen::Infinity>(), opterror});
 
-        // CHECK: Value Update with Lagrangian (s / Typo in Paper (transpose K and R))
+        // Inequality Constraint
         if (model->dim_c) {
             ks_ = (Yinv * r) + (SYinv * Qsu * ku_);
             Ks_ = SYinv * (Qsx + Qsu * Ku_);
@@ -634,6 +641,7 @@ void IPDDP::backwardPass() {
         }
 
         // TODO
+        // Equality Constraint
         // if (model->dim_ec) {
 
         // }
