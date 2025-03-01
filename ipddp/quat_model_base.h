@@ -83,8 +83,14 @@ public:
     virtual Eigen::MatrixXd cx(VectorXdual2nd& x, VectorXdual2nd& u) override{
         return jacobian(c, wrt(x), at(x, u)) * E(x);
     }
+    virtual Eigen::MatrixXd ecx(VectorXdual2nd& x, VectorXdual2nd& u) override{
+        return jacobian(ec, wrt(x), at(x, u)) * E(x);
+    }
     virtual Eigen::MatrixXd cTx(VectorXdual2nd& x) override{
         return jacobian(cT, wrt(x), at(x)) * E(x);
+    }
+    virtual Eigen::MatrixXd ecTx(VectorXdual2nd& x) override{
+        return jacobian(ecT, wrt(x), at(x)) * E(x);
     }
     virtual Eigen::VectorXd perturb(const Eigen::VectorXd& xn, const Eigen::VectorXd& x) override{
         Eigen::VectorXd dx(dim_rn);

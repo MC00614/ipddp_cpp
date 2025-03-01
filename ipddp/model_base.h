@@ -86,6 +86,12 @@ public:
     virtual Eigen::MatrixXd cu(VectorXdual2nd& x, VectorXdual2nd& u) {
         return jacobian(c, wrt(u), at(x, u));
     }
+    virtual Eigen::MatrixXd ecx(VectorXdual2nd& x, VectorXdual2nd& u) {
+        return jacobian(ec, wrt(x), at(x, u));
+    }
+    virtual Eigen::MatrixXd ecu(VectorXdual2nd& x, VectorXdual2nd& u) {
+        return jacobian(ec, wrt(u), at(x, u));
+    }
     virtual Eigen::MatrixXd cTx(VectorXdual2nd& x) {
         return jacobian(cT, wrt(x), at(x));
     }
