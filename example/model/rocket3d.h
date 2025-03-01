@@ -40,7 +40,7 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
     dim_x = 13;
     X_init = Eigen::MatrixXd::Zero(dim_x, N+1);
     X_init(0,0) = 4.0;
-    X_init(1,0) = 2.0;
+    X_init(1,0) = 6.0;
     X_init(2,0) = 8.0;
     // X_init(3,0) = -1.0;
     // X_init(4,0) = 2.0;
@@ -149,9 +149,9 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
     dim_hTs.push_back(dim_hT);
 
     // Terminal State Equality Constraint (Full State)
-    dim_ecT = 9;
+    dim_ecT = 10;
     ecT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
-        VectorXdual2nd ecT_n(9);
+        VectorXdual2nd ecT_n(10);
         ecT_n(0) = x(0);
         ecT_n(1) = x(1);
         ecT_n(2) = x(2) - 1.0;
@@ -161,6 +161,8 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
         ecT_n(6) = x(6);
         ecT_n(7) = x(7);
         ecT_n(8) = x(8);
+        // CHECK
+        ecT_n(9) = x(9) - 1.0;
         return ecT_n;
     };
 }
