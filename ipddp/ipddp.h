@@ -386,10 +386,7 @@ void IPDDP::solve() {
 
         // Update Outer Loop Parameters
         param.mu = std::max((param.tolerance / 10), std::min(0.2 * param.mu, std::pow(param.mu, 1.2)));
-        // CHECK (code)
         param.lambdaT = param.lambdaT + param.rho * RT;
-        // CHECK (paper)
-        // param.lambdaT = param.lambdaT + param.rho * ECT;
         param.rho = std::min(1e7, std::max(10.0 * param.rho, 1.0 / param.mu));
         resetFilter();
         resetRegulation();
