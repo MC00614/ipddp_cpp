@@ -488,6 +488,9 @@ void IPDDP::backwardPass() {
         ksT = YTinv * rT;
         KsT = STYTinv * QsxT;
 
+        // CHECK: New Value Decrement
+        // dV(0) += ksT.transpose() * rpT;
+
         Vx += KsT.transpose() * CT + QsxT.transpose() * ksT;
         Vxx += QsxT.transpose() * KsT + KsT.transpose() * QsxT;
 
@@ -496,9 +499,6 @@ void IPDDP::backwardPass() {
 
     // Equality Terminal Constraint
     if (model->dim_ecT) {
-        Eigen::VectorXd RT_ = RT;
-        Eigen::VectorXd ZT_ = ZT;
-
         Eigen::MatrixXd QzxT = model->ecTx(x);
 
         Eigen::VectorXd rpT = ECT + RT;
@@ -509,6 +509,9 @@ void IPDDP::backwardPass() {
         KrT = - QzxT;
         kzT = rT;
         KzT = param.rho * QzxT;
+
+        // CHECK: New Value Decrement
+        // dV(0) += kzT.transpose() * rpT;
 
         Vx += KzT.transpose() * ECT + QzxT.transpose() * kzT;
         Vxx += QzxT.transpose() * KzT + KzT.transpose() * QzxT;
@@ -528,9 +531,6 @@ void IPDDP::backwardPass() {
         fx = model->fx(x,u);
         fu = model->fu(x,u);
 
-        Qsx = model->cx(x,u);
-        Qsu = model->cu(x,u);
-
         qx = model->qx(x,u);
         qu = model->qu(x,u);
 
@@ -542,32 +542,25 @@ void IPDDP::backwardPass() {
         Qx = qx + (Qsx.transpose() * s) + (fx.transpose() * Vx);
         Qu = qu + (Qsu.transpose() * s) + (fu.transpose() * Vx);
         
-        // Regularization
-        // Qxx = qxx + (fx.transpose() * Vxx * fx);
-        // Qxu = qxu + (fx.transpose() * Vxx * fu);
-        // Quu = quu + (fu.transpose() * Vxx * fu);
-        Qxx = qxx + (fx.transpose() * Vxx * fx);
-        // Step 1
-        Qxu = qxu + (fx.transpose() * (Vxx + (Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn) * (std::pow(1.6, regulate) - 1))) * fu);
-        Quu = quu + (fu.transpose() * (Vxx + (Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn) * (std::pow(1.6, regulate) - 1))) * fu);
-        // Step 2
-        Qxx += Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn) * (std::pow(1.6, regulate) - 1);
-        Quu += Eigen::MatrixXd::Identity(model->dim_u, model->dim_u) * (std::pow(1.6, regulate) - 1);
-        
-        // iLQR to DDP (TODO: Vector-Hessian Product)
+        // DDP (TODO: Vector-Hessian Product)
         // vectorHessian(fxx, model->f, fs, x, u, "xx");
         // vectorHessian(fxu, model->f, fs, x, u, "xu");
         // vectorHessian(fuu, model->f, fs, x, u, "uu");
         // Qxx = qxx + (fx.transpose() * Vxx * fx) + tensdot(Vx, fxx);
         // Qxu = qxu + (fx.transpose() * Vxx * fu) + tensdot(Vx, fxu);
         // Quu = quu + (fu.transpose() * Vxx * fu) + tensdot(Vx, fuu);
+        
+        // iLQR
+        Qxx = qxx + (fx.transpose() * Vxx * fx);
+        Qxu = qxu + (fx.transpose() * Vxx * fu);
+        Quu = quu + (fu.transpose() * Vxx * fu);
 
         // Inequality Constraint
         if (model->dim_c) {
             y = Y.col(t);
             s = S.col(t);
             c_v = C.col(t);
-    
+            
             Y_ = Eigen::MatrixXd::Zero(model->dim_c, model->dim_c);
             S_ = Eigen::MatrixXd::Zero(model->dim_c, model->dim_c);
             if (model->dim_g) {
@@ -581,18 +574,26 @@ void IPDDP::backwardPass() {
             Yinv = Y_.inverse();
             SYinv = Yinv * S_;
             
+            Qsx = model->cx(x,u);
+            Qsu = model->cu(x,u);
+            
             rp = c_v + y;
             rd = Y_*s - param.mu*e;
             r = S_*rp - rd;
-
+            
             Qx += Qsx.transpose() * (Yinv * r);
             Qu += Qsu.transpose() * (Yinv * r);
-    
-            Quu += Qsu.transpose() * SYinv * Qsu;
-            Qxu += Qsx.transpose() * SYinv * Qsu;
+            
             Qxx += Qsx.transpose() * SYinv * Qsx;
+            Qxu += Qsx.transpose() * SYinv * Qsu;
+            Quu += Qsu.transpose() * SYinv * Qsu;
         }
-
+        
+        // Regularization
+        Qxx += Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn) * (std::pow(1.6, regulate) - 1);
+        Qxu += fx.transpose() * (Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn) * (std::pow(1.6, regulate) - 1)) * fu;
+        Quu += fu.transpose() * (Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn) * (std::pow(1.6, regulate) - 1)) * fu + Eigen::MatrixXd::Identity(model->dim_u, model->dim_u) * (std::pow(1.6, regulate) - 1);
+        
         // TODO
         // Equality Constraint
         // if (model->dim_ec) {
@@ -628,6 +629,10 @@ void IPDDP::backwardPass() {
             Ks_ = SYinv * (Qsx + Qsu * Ku_);
             ky_ = -rp - Qsu * ku_;
             Ky_ = -Qsx - Qsu * Ku_;
+
+            // CHECK: New Value Decrement    
+            // dV(0) += -ks_.transpose() * rp;
+            // dV(1) += ku_.transpose() * Qsu.transpose() * ks_;
 
             Vx += (Ks_.transpose() * c_v) + (Qsx.transpose() * ks_) + (Ku_.transpose() * Qsu.transpose() * ks_) + (Ks_.transpose() * Qsu * ku_);
             Vxx += (Qsx.transpose() * Ks_) + (Ks_.transpose() * Qsx) + (Ku_.transpose() * Qsu.transpose() * Ks_) + (Ks_.transpose() * Qsu * Ku_);
@@ -796,6 +801,9 @@ void IPDDP::forwardPass() {
         // 1. With Expected Value Decrement
         dV_act = logcost - logcost_new;
         dV_exp = step * dV(0) + step * step * dV(1);
+        // std::cout << dV(0) << " " << dV(1) << std::endl;
+        // std::cout << dV_act << " " << dV_exp << std::endl;
+        // std::cout << logcost << " " << logcost_new << std::endl;
         if ((1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp) && error >= error_new) {break;}
         // 2. Only Value Decrement
         // if (logcost >= logcost_new && error >= error_new) {break;}
