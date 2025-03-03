@@ -70,12 +70,30 @@ private:
     std::vector<double> step_list; // Step Size List
     int step; // Step Size Index
     int forward_failed;
+    bool is_diff_calculated;
 
     int iter;
     int inner_iter;
     void resetRegulation();
     int regulate;
     bool backward_failed;
+
+    Eigen::MatrixXd fx_all;
+    Eigen::MatrixXd fu_all;
+    // Eigen::MatrixXd fxx_all;
+    // Eigen::MatrixXd fxu_all;
+    // Eigen::MatrixXd fuu_all;
+    Eigen::VectorXd px_all;
+    Eigen::MatrixXd pxx_all;
+    Eigen::MatrixXd qx_all;
+    Eigen::MatrixXd qu_all;
+    Eigen::MatrixXd qdd_all;
+    Eigen::MatrixXd cx_all;
+    Eigen::MatrixXd cu_all;
+    Eigen::MatrixXd ecx_all;
+    Eigen::MatrixXd ecu_all;
+    Eigen::MatrixXd cTx_all;
+    Eigen::MatrixXd ecTx_all;
 
     Eigen::MatrixXd ku; // Input Feedforward Gain 
     Eigen::MatrixXd kr; // Equality Slack Feedforward Gain
@@ -109,6 +127,7 @@ private:
 
     // Algorithm
     Eigen::MatrixXd L(const Eigen::VectorXd& x);
+    void calculateAllDiff();
     void backwardPass();
     void checkRegulate();
     void forwardPass();
@@ -205,6 +224,29 @@ IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
         if (model->dim_gT) {ST.topRows(model->dim_g) = Eigen::VectorXd::Ones(model->dim_gT);}
         for (auto dim_hT_top : dim_hTs_top) {ST(dim_hT_top) = 1.0;}
     }
+
+    fx_all.resize(model->dim_rn, model->dim_rn * model->N);
+    fu_all.resize(model->dim_rn, model->dim_u * model->N);
+    px_all.resize(model->dim_rn);
+    pxx_all.resize(model->dim_rn, model->dim_rn);
+    qx_all.resize(model->dim_rn, model->N);
+    qu_all.resize(model->dim_u, model->N);
+    qdd_all.resize(model->dim_rn + model->dim_u, (model->dim_rn + model->dim_u) * model->N);
+    // if (DDP) {
+    //     fxx_all.resize(model->dim_rn, model->dim_rn * model->dim_rn * model->N);
+    //     fxu_all.resize(model->dim_rn, model->dim_rn * model->dim_u * model->N);
+    //     fuu_all.resize(model->dim_rn, model->dim_u * model->dim_u * model->N);
+    // }
+    if (model->dim_c) {
+        cx_all.resize(model->dim_c, model->dim_rn * model->N);
+        cu_all.resize(model->dim_c, model->dim_u * model->N);
+    }
+    if (model->dim_ec) {
+        ecx_all.resize(model->dim_ec, model->dim_rn * model->N);
+        ecu_all.resize(model->dim_ec, model->dim_u * model->N);
+    }
+    if (model->dim_cT) {cTx_all.resize(model->dim_cT, model->dim_rn);}
+    if (model->dim_ecT) {ecTx_all.resize(model->dim_ecT, model->dim_rn);}
 
     ku.resize(model->dim_u, model->N);
     kr.resize(model->dim_ec, model->N);
@@ -321,6 +363,7 @@ double IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd
 
 void IPDDP::solve() {
     iter = 0;
+    is_diff_calculated = false;
     
     clock_t start;
     clock_t finish;
@@ -343,7 +386,12 @@ void IPDDP::solve() {
         inner_iter = 0;
         // Inner Loop (Differential Dynamic Programming)
         while (inner_iter++ < this->param.max_inner_iter) {
-            if (param.max_iter < ++iter) {break;} 
+            if (param.max_iter < ++iter) {break;}
+
+            if (!is_diff_calculated) {
+                this->calculateAllDiff();
+                is_diff_calculated = true;
+            }
 
             this->backwardPass();
 
@@ -354,6 +402,9 @@ void IPDDP::solve() {
             }
             
             this->forwardPass();
+            if (!forward_failed) {
+                is_diff_calculated = false;
+            }
             
             this->logPrint();
             
@@ -400,6 +451,42 @@ Eigen::MatrixXd IPDDP::L(const Eigen::VectorXd& x) {
     Lx.col(0) = x;
     Lx.row(0) = x.transpose();
     return Lx;
+}
+
+void IPDDP::calculateAllDiff() {
+    // CHECK: Multithreading (TODO: with CUDA)
+    // CHECK 1: Making branch in for loop is fine for parallelization?
+    // CHECK 2: Move to Model to make solver only consider Eigen (not autodiff::dual)
+
+    // #pragma omp parallel for
+    for (int t = 0; t < model->N; ++t) {
+        VectorXdual2nd x = X.col(t).cast<dual2nd>();
+        VectorXdual2nd u = U.col(t).cast<dual2nd>(); 
+
+        fx_all.middleCols(t*model->dim_rn, model->dim_rn) = model->fx(x,u);
+        fu_all.middleCols(t*model->dim_u, model->dim_u) = model->fu(x,u);
+        qx_all.col(t) = model->qx(x,u);
+        qu_all.col(t) = model->qu(x,u);
+        qdd_all.middleCols(t*(model->dim_rn+model->dim_u), model->dim_rn+model->dim_u) = model->qdd(x,u);
+        // if (DDP) {
+        //     fxx_all.middleCols(t*model->dim_rn*model->dim_rn, model->dim_rn*model->dim_rn) = model->fxx(x,u);
+        //     fxu_all.middleCols(t*model->dim_rn*model->dim_u, model->dim_rn*model->dim_u) = model->fxu(x,u);
+        //     fuu_all.middleCols(t*model->dim_u*model->dim_u, model->dim_u*model->dim_u) = model->fuu(x,u);
+        // }        
+        if (model->dim_c) {
+            cx_all.middleCols(t*model->dim_rn, model->dim_rn) = model->cx(x,u);
+            cu_all.middleCols(t*model->dim_u, model->dim_u) = model->cu(x,u);
+        }
+        if (model->dim_ec) {
+            ecx_all.middleCols(t*model->dim_rn, model->dim_rn) = model->ecx(x,u);
+            ecu_all.middleCols(t*model->dim_u, model->dim_u) = model->ecu(x,u);
+        }
+    }
+    VectorXdual2nd xT = X.col(model->N).cast<dual2nd>();
+    px_all = model->px(xT);
+    pxx_all = model->pxx(xT);
+    if (model->dim_cT) {cTx_all = model->cTx(xT);}
+    if (model->dim_ecT) {ecTx_all = model->ecTx(xT);}
 }
 
 void IPDDP::backwardPass() {
@@ -459,8 +546,8 @@ void IPDDP::backwardPass() {
     checkRegulate();
 
     x = X.col(model->N).cast<dual2nd>();
-    Vx = model->px(x);
-    Vxx = model->pxx(x);
+    Vx = px_all;
+    Vxx = pxx_all;
 
     // Inequality Terminal Constraint
     if (model->dim_cT) {
@@ -477,7 +564,7 @@ void IPDDP::backwardPass() {
         Eigen::MatrixXd YTinv = YT_.inverse();
         Eigen::MatrixXd STYTinv = YTinv * ST_;
 
-        Eigen::MatrixXd QsxT = model->cTx(x);
+        Eigen::MatrixXd QsxT = cTx_all;
         
         Eigen::VectorXd rpT = CT + YT;
         Eigen::VectorXd rdT = YT_*ST - param.mu*eT;
@@ -499,7 +586,7 @@ void IPDDP::backwardPass() {
 
     // Equality Terminal Constraint
     if (model->dim_ecT) {
-        Eigen::MatrixXd QzxT = model->ecTx(x);
+        Eigen::MatrixXd QzxT = ecTx_all;
 
         Eigen::VectorXd rpT = ECT + RT;
         Eigen::VectorXd rdT = ZT + param.lambdaT + (param.rho * RT);
@@ -524,17 +611,18 @@ void IPDDP::backwardPass() {
 
     for (int t = model->N - 1; t >= 0; --t) {
         int t_dim_x = t * model->dim_rn;
+        int t_dim_u = t * model->dim_u;
 
         x = X.col(t).cast<dual2nd>();
         u = U.col(t).cast<dual2nd>();
 
-        fx = model->fx(x,u);
-        fu = model->fu(x,u);
+        fx = fx_all.middleCols(t_dim_x, model->dim_rn);
+        fu = fu_all.middleCols(t_dim_u, model->dim_u);
 
-        qx = model->qx(x,u);
-        qu = model->qu(x,u);
+        qx = qx_all.col(t);
+        qu = qu_all.col(t);
 
-        qdd = model->qdd(x,u);
+        qdd = qdd_all.middleCols(t*(model->dim_rn+model->dim_u), model->dim_rn+model->dim_u);
         qxx = qdd.topLeftCorner(model->dim_rn, model->dim_rn);
         qxu = qdd.block(0, model->dim_rn, model->dim_rn, model->dim_u);
         quu = qdd.bottomRightCorner(model->dim_u, model->dim_u);
@@ -574,8 +662,8 @@ void IPDDP::backwardPass() {
             Yinv = Y_.inverse();
             SYinv = Yinv * S_;
             
-            Qsx = model->cx(x,u);
-            Qsu = model->cu(x,u);
+            Qsx = cx_all.middleCols(t_dim_x, model->dim_rn);
+            Qsu = cu_all.middleCols(t_dim_u, model->dim_u);
             
             rp = c_v + y;
             rd = Y_*s - param.mu*e;
