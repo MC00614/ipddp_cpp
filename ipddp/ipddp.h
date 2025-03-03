@@ -473,13 +473,13 @@ void IPDDP::calculateAllDiff() {
         //     fxu_all.middleCols(t*model->dim_rn*model->dim_u, model->dim_rn*model->dim_u) = model->fxu(x,u);
         //     fuu_all.middleCols(t*model->dim_u*model->dim_u, model->dim_u*model->dim_u) = model->fuu(x,u);
         // }
-    if (model->dim_c) {
+        if (model->dim_c) {
             cx_all.middleCols(t*model->dim_rn, model->dim_rn) = model->cx(x,u);
             cu_all.middleCols(t*model->dim_u, model->dim_u) = model->cu(x,u);
-    }
-    if (model->dim_ec) {
-                ecx_all.middleCols(t*model->dim_rn, model->dim_rn) = model->ecx(x,u);
-                ecu_all.middleCols(t*model->dim_u, model->dim_u) = model->ecu(x,u);
+        }
+        if (model->dim_ec) {
+            ecx_all.middleCols(t*model->dim_rn, model->dim_rn) = model->ecx(x,u);
+            ecu_all.middleCols(t*model->dim_u, model->dim_u) = model->ecu(x,u);
         }
     }
     VectorXdual2nd xT = X.col(model->N).cast<dual2nd>();
