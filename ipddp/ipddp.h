@@ -581,12 +581,16 @@ void IPDDP::backwardPass() {
             rd = Y_*s - param.mu*e;
             r = S_*rp - rd;
             
-            Qx += Qsx.transpose() * s + Qsx.transpose() * (Yinv * r);
-            Qu += Qsu.transpose() * s + Qsu.transpose() * (Yinv * r);
+            Qx += Qsx.transpose() * s;
+            Qu += Qsu.transpose() * s;
+
+            // CHECK (Orignal IPDDP)
+            // Qx += Qsx.transpose() * s + Qsx.transpose() * (Yinv * r);
+            // Qu += Qsu.transpose() * s + Qsu.transpose() * (Yinv * r);
             
-            Qxx += Qsx.transpose() * SYinv * Qsx;
-            Qxu += Qsx.transpose() * SYinv * Qsu;
-            Quu += Qsu.transpose() * SYinv * Qsu;
+            // Qxx += Qsx.transpose() * SYinv * Qsx;
+            // Qxu += Qsx.transpose() * SYinv * Qsu;
+            // Quu += Qsu.transpose() * SYinv * Qsu;
         }
         
         // Regularization
