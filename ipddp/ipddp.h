@@ -461,7 +461,7 @@ void IPDDP::calculateAllDiff() {
     // #pragma omp parallel for
     for (int t = 0; t < model->N; ++t) {
         VectorXdual2nd x = X.col(t).cast<dual2nd>();
-        VectorXdual2nd u = U.col(t).cast<dual2nd>(); 
+        VectorXdual2nd u = U.col(t).cast<dual2nd>();
 
         fx_all.middleCols(t*model->dim_rn, model->dim_rn) = model->fx(x,u);
         fu_all.middleCols(t*model->dim_u, model->dim_u) = model->fu(x,u);
@@ -472,14 +472,14 @@ void IPDDP::calculateAllDiff() {
         //     fxx_all.middleCols(t*model->dim_rn*model->dim_rn, model->dim_rn*model->dim_rn) = model->fxx(x,u);
         //     fxu_all.middleCols(t*model->dim_rn*model->dim_u, model->dim_rn*model->dim_u) = model->fxu(x,u);
         //     fuu_all.middleCols(t*model->dim_u*model->dim_u, model->dim_u*model->dim_u) = model->fuu(x,u);
-        // }        
-        if (model->dim_c) {
+        // }
+    if (model->dim_c) {
             cx_all.middleCols(t*model->dim_rn, model->dim_rn) = model->cx(x,u);
             cu_all.middleCols(t*model->dim_u, model->dim_u) = model->cu(x,u);
-        }
-        if (model->dim_ec) {
-            ecx_all.middleCols(t*model->dim_rn, model->dim_rn) = model->ecx(x,u);
-            ecu_all.middleCols(t*model->dim_u, model->dim_u) = model->ecu(x,u);
+    }
+    if (model->dim_ec) {
+                ecx_all.middleCols(t*model->dim_rn, model->dim_rn) = model->ecx(x,u);
+                ecu_all.middleCols(t*model->dim_u, model->dim_u) = model->ecu(x,u);
         }
     }
     VectorXdual2nd xT = X.col(model->N).cast<dual2nd>();
@@ -490,8 +490,6 @@ void IPDDP::calculateAllDiff() {
 }
 
 void IPDDP::backwardPass() {
-    VectorXdual2nd x(model->dim_x);
-    VectorXdual2nd u(model->dim_u);
     Eigen::VectorXd y(model->dim_c);
     Eigen::VectorXd s(model->dim_c);
     Eigen::VectorXd c_v(model->dim_c);
@@ -545,7 +543,6 @@ void IPDDP::backwardPass() {
 
     checkRegulate();
 
-    x = X.col(model->N).cast<dual2nd>();
     Vx = px_all;
     Vxx = pxx_all;
 
@@ -612,9 +609,6 @@ void IPDDP::backwardPass() {
     for (int t = model->N - 1; t >= 0; --t) {
         int t_dim_x = t * model->dim_rn;
         int t_dim_u = t * model->dim_u;
-
-        x = X.col(t).cast<dual2nd>();
-        u = U.col(t).cast<dual2nd>();
 
         fx = fx_all.middleCols(t_dim_x, model->dim_rn);
         fu = fu_all.middleCols(t_dim_u, model->dim_u);
