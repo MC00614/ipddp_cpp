@@ -539,8 +539,8 @@ void IPDDP::backwardPass() {
         qxu = qdd.block(0, model->dim_rn, model->dim_rn, model->dim_u);
         quu = qdd.bottomRightCorner(model->dim_u, model->dim_u);
 
-        Qx = qx + (Qsx.transpose() * s) + (fx.transpose() * Vx);
-        Qu = qu + (Qsu.transpose() * s) + (fu.transpose() * Vx);
+        Qx = qx + (fx.transpose() * Vx);
+        Qu = qu + (fu.transpose() * Vx);
         
         // DDP (TODO: Vector-Hessian Product)
         // vectorHessian(fxx, model->f, fs, x, u, "xx");
@@ -581,8 +581,8 @@ void IPDDP::backwardPass() {
             rd = Y_*s - param.mu*e;
             r = S_*rp - rd;
             
-            Qx += Qsx.transpose() * (Yinv * r);
-            Qu += Qsu.transpose() * (Yinv * r);
+            Qx += Qsx.transpose() * s + Qsx.transpose() * (Yinv * r);
+            Qu += Qsu.transpose() * s + Qsu.transpose() * (Yinv * r);
             
             Qxx += Qsx.transpose() * SYinv * Qsx;
             Qxu += Qsx.transpose() * SYinv * Qsu;
@@ -631,7 +631,7 @@ void IPDDP::backwardPass() {
             Ky_ = -Qsx - Qsu * Ku_;
 
             // CHECK: New Value Decrement    
-            // dV(0) += -ks_.transpose() * rp;
+            // dV(0) += ks_.transpose() * c_v;
             // dV(1) += ku_.transpose() * Qsu.transpose() * ks_;
 
             Vx += (Ks_.transpose() * c_v) + (Qsx.transpose() * ks_) + (Ku_.transpose() * Qsu.transpose() * ks_) + (Ks_.transpose() * Qsu * ku_);
