@@ -518,6 +518,7 @@ void IPDDP::backwardPass() {
 
     Eigen::VectorXd Qx(model->dim_rn), Qu(model->dim_u);
     Eigen::MatrixXd Qxx(model->dim_rn,model->dim_rn), Qxu(model->dim_rn,model->dim_u), Quu(model->dim_u,model->dim_u);
+    Eigen::MatrixXd Qxu_reg(model->dim_rn,model->dim_u), Quu_reg(model->dim_u,model->dim_u);
     Eigen::MatrixXd Quu_sim(model->dim_u,model->dim_u);
 
     Eigen::MatrixXd Yinv;
@@ -683,11 +684,9 @@ void IPDDP::backwardPass() {
         }
         
         // Regularization
-        Qxu += fx.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fu;
-        Quu += fu.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fu;
-
-        Qxx += reg2_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn);
-        Quu += reg2_mu * Eigen::MatrixXd::Identity(model->dim_u, model->dim_u);
+        Qxu_reg = Qxu + fx.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fu;
+        Quu_reg = Quu + fu.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fu;
+        Quu_reg += reg2_mu * Eigen::MatrixXd::Identity(model->dim_u, model->dim_u);
         
         // TODO
         // Equality Constraint
@@ -695,20 +694,20 @@ void IPDDP::backwardPass() {
 
         // }
 
-        Quu_sim = 0.5*(Quu + Quu.transpose());
-        Quu = Quu_sim;
-        Quu_llt = Eigen::LLT<Eigen::MatrixXd>(Quu);
-        if (!Quu.isApprox(Quu.transpose()) || Quu_llt.info() == Eigen::NumericalIssue) {
+        Quu_sim = 0.5*(Quu_reg + Quu_reg.transpose());
+        Quu_reg = Quu_sim;
+        Quu_llt = Eigen::LLT<Eigen::MatrixXd>(Quu_reg);
+        if (!Quu_reg.isApprox(Quu_reg.transpose()) || Quu_llt.info() == Eigen::NumericalIssue) {
             backward_failed = true;
             break;
         }
         R = Quu_llt.matrixU();
 
         ku_ = -R.inverse() * (R.transpose().inverse() * Qu);
-        Ku_ = -R.inverse() * (R.transpose().inverse() * Qxu.transpose());
+        Ku_ = -R.inverse() * (R.transpose().inverse() * Qxu_reg.transpose());
         
         dV(0) += ku_.transpose() * Qu;
-        dV(1) += 0.5 * ku_.transpose() * Quu * ku_;
+        dV(1) += 0.5 * ku_.transpose() * Quu_reg * ku_;
         
         Vx = Qx + (Ku_.transpose() * Qu) + (Ku_.transpose() * Quu * ku_) + (Qxu * ku_);
         Vxx = Qxx + (Ku_.transpose() * Qxu.transpose()) + (Qxu * Ku_) + (Ku_.transpose() * Quu * Ku_);
