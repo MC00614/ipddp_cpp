@@ -316,6 +316,9 @@ void IPDDP::initialRoll() {
     if (model->dim_cT) {CT = model->cT(X.col(model->N)).cast<double>();}
     if (model->dim_ecT) {ECT = model->ecT(X.col(model->N)).cast<double>();}
 
+    if (model->dim_ec) {R = -EC;}
+    if (model->dim_ecT) {RT = -ECT;}
+
     cost = calculateTotalCost(X, U);
 }
 
@@ -577,7 +580,7 @@ void IPDDP::backwardPass() {
         KsT = STYTinv * QsxT;
 
         // CHECK: New Value Decrement
-        // dV(0) += ksT.transpose() * rpT;
+        dV(0) += ksT.transpose() * rpT;
 
         Vx += KsT.transpose() * CT + QsxT.transpose() * ksT;
         Vxx += QsxT.transpose() * KsT + KsT.transpose() * QsxT;
@@ -599,7 +602,7 @@ void IPDDP::backwardPass() {
         KzT = param.rho * QzxT;
 
         // CHECK: New Value Decrement
-        // dV(0) += kzT.transpose() * rpT;
+        dV(0) += kzT.transpose() * rpT;
 
         Vx += KzT.transpose() * ECT + QzxT.transpose() * kzT;
         Vxx += QzxT.transpose() * KzT + KzT.transpose() * QzxT;
@@ -722,9 +725,9 @@ void IPDDP::backwardPass() {
             ky_ = -rp - Qsu * ku_;
             Ky_ = -Qsx - Qsu * Ku_;
 
-            // CHECK: New Value Decrement    
-            // dV(0) += ks_.transpose() * c_v;
-            // dV(1) += ku_.transpose() * Qsu.transpose() * ks_;
+            // CHECK: New Value Decrement
+            dV(0) += ks_.transpose() * rp;
+            dV(1) += ku_.transpose() * Qsu.transpose() * ks_;
 
             Vx += (Ks_.transpose() * c_v) + (Qsx.transpose() * ks_) + (Ku_.transpose() * Qsu.transpose() * ks_) + (Ks_.transpose() * Qsu * ku_);
             Vxx += (Qsx.transpose() * Ks_) + (Ks_.transpose() * Qsx) + (Ku_.transpose() * Qsu.transpose() * Ks_) + (Ks_.transpose() * Qsu * Ku_);
