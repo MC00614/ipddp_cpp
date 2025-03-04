@@ -316,6 +316,7 @@ void IPDDP::initialRoll() {
     if (model->dim_cT) {CT = model->cT(X.col(model->N)).cast<double>();}
     if (model->dim_ecT) {ECT = model->ecT(X.col(model->N)).cast<double>();}
 
+    // CHECK
     if (model->dim_ec) {R = -EC;}
     if (model->dim_ecT) {RT = -ECT;}
 
@@ -687,6 +688,11 @@ void IPDDP::backwardPass() {
         Qxu_reg = Qxu + fx.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fu;
         Quu_reg = Quu + fu.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fu;
         Quu_reg += reg2_mu * Eigen::MatrixXd::Identity(model->dim_u, model->dim_u);
+
+        // CHECK: TESTING
+        // Quu = Quu_reg;
+        // Qxu = Qxu_reg;
+        // Qxx += reg2_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn);
         
         // TODO
         // Equality Constraint
