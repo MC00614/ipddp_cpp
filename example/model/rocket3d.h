@@ -26,8 +26,8 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
     dt = 0.1;
     mass = 10.0;
     gravity << 0.0, 0.0, -9.81;
-    umax = mass*9.81*1.1;
-    // umin = mass*9.81*0.1;
+    umax = mass * 9.81 * 1.1;
+    umin = mass * 9.81 * 0.6;
     J_B << (1.0/12.0) * mass * (3 * r * r + l * l), 0, 0,
            0, (1.0/12.0) * mass * (3 * r * r + l * l), 0,
            0, 0, 0.5 * mass * r * r;
@@ -102,11 +102,11 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
     };
 
     // Nonnegative Orthant Constraint Mapping
-    dim_g = 1;
+    dim_g = 2;
     g = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        VectorXdual2nd g_n(1);
+        VectorXdual2nd g_n(2);
         g_n(0) = umax - u.norm();
-        // g_n(1) = u.norm() - umin;
+        g_n(1) = u.norm() - umin;
         return -g_n;
     };
 
