@@ -385,7 +385,7 @@ void IPDDP::solve() {
     while (true) {
         inner_iter = 0;
         // Inner Loop (Differential Dynamic Programming)
-        while (inner_iter++ < this->param.max_inner_iter) {
+        while (inner_iter < this->param.max_inner_iter) {
             if (param.max_iter < ++iter) {break;}
 
             if (!is_diff_calculated) {
@@ -404,6 +404,7 @@ void IPDDP::solve() {
             this->forwardPass();
             if (!forward_failed) {
                 is_diff_calculated = false;
+                inner_iter++;
             }
             
             this->logPrint();
