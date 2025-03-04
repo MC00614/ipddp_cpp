@@ -543,6 +543,9 @@ void IPDDP::backwardPass() {
 
     checkRegulate();
 
+    double reg1_mu = param.reg1_min * (std::pow(param.reg1_exp, regulate));
+    double reg2_mu = param.reg2_min * (std::pow(param.reg2_exp, regulate));
+
     Vx = px_all;
     Vxx = pxx_all;
 
@@ -666,7 +669,7 @@ void IPDDP::backwardPass() {
             Qx += Qsx.transpose() * s;
             Qu += Qsu.transpose() * s;
 
-            // CHECK (Orignal IPDDP)
+            // CHECK (Orignal IPDDP for Value Update)
             // Qx += Qsx.transpose() * s + Qsx.transpose() * (Yinv * r);
             // Qu += Qsu.transpose() * s + Qsu.transpose() * (Yinv * r);
             
@@ -676,9 +679,11 @@ void IPDDP::backwardPass() {
         }
         
         // Regularization
-        Qxx += Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn) * (std::pow(1.6, regulate) - 1);
-        Qxu += fx.transpose() * (Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn) * (std::pow(1.6, regulate) - 1)) * fu;
-        Quu += fu.transpose() * (Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn) * (std::pow(1.6, regulate) - 1)) * fu + Eigen::MatrixXd::Identity(model->dim_u, model->dim_u) * (std::pow(1.6, regulate) - 1);
+        Qxu += fx.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fu;
+        Quu += fu.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fu;
+
+        Qxx += reg2_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn);
+        Quu += reg2_mu * Eigen::MatrixXd::Identity(model->dim_u, model->dim_u);
         
         // TODO
         // Equality Constraint
