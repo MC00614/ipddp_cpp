@@ -93,7 +93,7 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
 
     // Stage Cost Function
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
-        return 1e-6 * u.squaredNorm() + 1e-3 * x.segment(3,6).squaredNorm() + 1e-2 * (1.0 - abs((q_desired.transpose() * x.middleRows(9, 4))(0)));
+        return 1e-6 * u.squaredNorm() + 1e-3 * x.segment(3,6).squaredNorm();
     };
 
     // Terminal Cost Function
@@ -151,9 +151,9 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
 
     // Terminal State Equality Constraint (Full State)
     q_desired << 1, 0, 0, 0;
-    dim_ecT = 10;
+    dim_ecT = 13;
     ecT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
-        VectorXdual2nd ecT_n(10);
+        VectorXdual2nd ecT_n(13);
         ecT_n(0) = x(0);
         ecT_n(1) = x(1);
         ecT_n(2) = x(2) - 1.0;
@@ -163,7 +163,13 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
         ecT_n(6) = x(6);
         ecT_n(7) = x(7);
         ecT_n(8) = x(8);
-        ecT_n(9) = 1.0 - abs((q_desired.transpose() * x.middleRows(9, 4))(0));
+        VectorXdual2nd dq = Lq(x.segment(9, 4)).transpose() * q_desired;
+        ecT_n(9) = 1.0 - abs(dq(0));
+        ecT_n(10) = dq(1);
+        ecT_n(11) = dq(2);
+        ecT_n(12) = dq(3);
+
+        // ecT_n(9) = 1.0 - abs((q_desired.transpose() * x.middleRows(9, 4))(0));
         return ecT_n;
     };
 }
