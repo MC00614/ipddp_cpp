@@ -93,7 +93,7 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
 
     // Stage Cost Function
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
-        return 1e-6 * u.squaredNorm() + 1e-3 * x.segment(3,6).squaredNorm();
+        return 1e-6 * u.squaredNorm() + 1e-3 * x.segment(3,6).squaredNorm() + 1e-2 * (1.0 - abs((q_desired.transpose() * x.middleRows(9, 4))(0)));
     };
 
     // Terminal Cost Function
