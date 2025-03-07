@@ -21,7 +21,7 @@ int main() {
     Param param;
     param.tolerance = 1e-3;
     param.max_iter = 500;
-    param.max_inner_iter = 50;
+    param.max_inner_iter = 20;
     param.mu = 1.0;
     param.rho = 1.0;
     param.max_step_iter = 10;

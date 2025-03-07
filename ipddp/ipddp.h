@@ -806,6 +806,8 @@ void IPDDP::forwardPass() {
             U_new.col(t) = U.col(t) + (step_size * ku.col(t)) + Ku.middleCols(t_dim_x, model->dim_rn) * dx;
             X_new.col(t+1) = model->f(X_new.col(t), U_new.col(t)).cast<double>();
         }
+        dxT = model->perturb(X_new.col(model->N), X.col(model->N));
+        
         if (model->dim_c) {
             for (int t = 0; t < model->N; ++t) {
                 int t_dim_x = t * model->dim_rn;
@@ -813,40 +815,25 @@ void IPDDP::forwardPass() {
                 Y_new.col(t) = Y.col(t) + (step_size * ky.col(t)) + Ky.middleCols(t_dim_x, model->dim_rn) * dx;
                 S_new.col(t) = S.col(t) + (step_size * ks.col(t)) + Ks.middleCols(t_dim_x, model->dim_rn) * dx;
             }
-        }
-        if (model->dim_ec) {
             for (int t = 0; t < model->N; ++t) {
-                int t_dim_x = t * model->dim_rn;
-                dx = model->perturb(X_new.col(t), X.col(t));
-                R_new.col(t) = R.col(t) + (step_size * kr.col(t)) + Kr.middleCols(t_dim_x, model->dim_rn) * dx;
-                Z_new.col(t) = Z.col(t) + (step_size * kz.col(t)) + Kz.middleCols(t_dim_x, model->dim_rn) * dx;
-            }
+                if (model->dim_g) {
+                    if ((Y_new.col(t).topRows(model->dim_g).array() < (1 - tau) * Y.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
+                    if ((S_new.col(t).topRows(model->dim_g).array() < (1 - tau) * S.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
+                }
+                for (int i = 0; i < model->dim_hs.size(); ++i) {
+                    if ((Y_new.col(t).row(dim_hs_top[i]).array() - Y_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm()
+                    < (1 - tau) * (Y.col(t).row(dim_hs_top[i]).array() - Y.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm())).any()) {forward_failed = true; break;}
+                    if ((S_new.col(t).row(dim_hs_top[i]).array() - S_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm()
+                    < (1 - tau) * (S.col(t).row(dim_hs_top[i]).array() - S.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm())).any()) {forward_failed = true; break;}
+                }
+                if (forward_failed) {break;}
+            }    
         }
-        dxT = model->perturb(X_new.col(model->N), X.col(model->N));
+        if (forward_failed) {continue;}
+        
         if (model->dim_cT) {
             YT_new = YT + (step_size * kyT) + KyT * dxT;
             ST_new = ST + (step_size * ksT) + KsT * dxT;
-        }
-        if (model->dim_ecT) {
-            RT_new = RT + (step_size * krT) + KrT * dxT;
-            ZT_new = ZT + (step_size * kzT) + KzT * dxT;
-        }
-
-        // Fraction to boundary
-        for (int t = 0; t < model->N; ++t) {
-            if (model->dim_g) {
-                if ((Y_new.col(t).topRows(model->dim_g).array() < (1 - tau) * Y.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
-                if ((S_new.col(t).topRows(model->dim_g).array() < (1 - tau) * S.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
-            }
-            for (int i = 0; i < model->dim_hs.size(); ++i) {
-                if ((Y_new.col(t).row(dim_hs_top[i]).array() - Y_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm()
-                < (1 - tau) * (Y.col(t).row(dim_hs_top[i]).array() - Y.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm())).any()) {forward_failed = true; break;}
-                if ((S_new.col(t).row(dim_hs_top[i]).array() - S_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm()
-                < (1 - tau) * (S.col(t).row(dim_hs_top[i]).array() - S.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm())).any()) {forward_failed = true; break;}
-            }
-            if (forward_failed) {break;}
-        }
-        if (model->dim_cT) {
             if (model->dim_gT) {
                 if ((YT_new.topRows(model->dim_gT).array() < (1 - tau) * YT.topRows(model->dim_gT).array()).any()) {forward_failed = true; break;}
                 if ((ST_new.topRows(model->dim_gT).array() < (1 - tau) * ST.topRows(model->dim_gT).array()).any()) {forward_failed = true; break;}
@@ -858,8 +845,21 @@ void IPDDP::forwardPass() {
                 < (1 - tau) * (ST.row(dim_hTs_top[i]).array() - ST.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).norm())).any()) {forward_failed = true; break;}
             }
         }
-        
         if (forward_failed) {continue;}
+
+        if (model->dim_ec) {
+            for (int t = 0; t < model->N; ++t) {
+                int t_dim_x = t * model->dim_rn;
+                dx = model->perturb(X_new.col(t), X.col(t));
+                R_new.col(t) = R.col(t) + (step_size * kr.col(t)) + Kr.middleCols(t_dim_x, model->dim_rn) * dx;
+                Z_new.col(t) = Z.col(t) + (step_size * kz.col(t)) + Kz.middleCols(t_dim_x, model->dim_rn) * dx;
+            }
+        }
+
+        if (model->dim_ecT) {
+            RT_new = RT + (step_size * krT) + KrT * dxT;
+            ZT_new = ZT + (step_size * kzT) + KzT * dxT;
+        }
         
         // Error
         if (model->dim_c) {
