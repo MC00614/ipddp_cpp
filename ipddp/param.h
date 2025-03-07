@@ -1,3 +1,6 @@
+#pragma once
+#include <Eigen/Dense>
+
 struct Param {
     int max_iter = 500; // maximum iteration
     int max_inner_iter = 100; // maximum iteration for inner loop
