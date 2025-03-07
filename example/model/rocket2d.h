@@ -25,7 +25,7 @@ Rocket2D::Rocket2D() {
     umax = mass*9.81*1.1;
 
     // Stage Count
-    N = 200;
+    N = 300;
 
     dim_x = 6;
     X_init = Eigen::MatrixXd::Zero(dim_x, N+1);
@@ -55,12 +55,12 @@ Rocket2D::Rocket2D() {
 
     // Stage Cost Function
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
-        return (5 * 1e-3 * x(0)*x(0)) + (2 * 1e-3 * u.squaredNorm());
+        return 1e-6 * u.squaredNorm() + 1e-3 * (x.segment(2,2).squaredNorm() + x.segment(5,1).squaredNorm());
     };
 
     // Terminal Cost Function
     p = [this](const VectorXdual2nd& x) -> dual2nd {
-        return 3000 * x.norm();
+        return x.squaredNorm();
     };
 
     // Nonnegative Orthant Constraint Mapping

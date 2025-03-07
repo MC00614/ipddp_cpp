@@ -795,6 +795,10 @@ void IPDDP::forwardPass() {
         forward_failed = false;
         double step_size = step_list[step];
 
+        dV_exp = -(step_size * dV(0) + step_size * step_size * dV(1));
+        // CHECK: Using Expected Value Decrement -> For fast Termination
+        if (dV_exp > 0) {forward_failed = true; continue;}
+
         X_new.col(0) = X.col(0);
         for (int t = 0; t < model->N; ++t) {
             int t_dim_x = t * model->dim_rn;
@@ -893,15 +897,12 @@ void IPDDP::forwardPass() {
         if (model->dim_ecT) {alcostT_new += (param.lambdaT.transpose() * RT_new) + (0.5 * param.rho * RT_new.squaredNorm());}
         logcost_new = cost_new - param.mu * (barriercost_new + barriercostT_new) + (alcost_new + alcostT_new);
 
-        // 1. With Expected Value Decrement
         dV_act = logcost - logcost_new;
-        dV_exp = step * dV(0) + step * step * dV(1);
-        // std::cout << dV(0) << " " << dV(1) << std::endl;
-        // std::cout << dV_act << " " << dV_exp << std::endl;
-        // std::cout << logcost << " " << logcost_new << std::endl;
+
+        // 1. With Expected Value Decrement
         // if ((1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp) && error >= error_new) {break;}
         // 2. Only Value Decrement
-        if (logcost >= logcost_new && error >= error_new) {break;}
+        if (dV_act >= 0.0 && error >= error_new) {break;}
         
         forward_failed = true;
     }
