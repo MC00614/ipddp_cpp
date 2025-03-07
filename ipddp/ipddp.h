@@ -72,6 +72,7 @@ private:
     int forward_failed;
     bool is_diff_calculated;
 
+    int update_counter;
     int iter;
     int inner_iter;
     void resetRegulation();
@@ -366,6 +367,7 @@ double IPDDP::calculateTotalCost(const Eigen::MatrixXd& X, const Eigen::MatrixXd
 }
 
 void IPDDP::solve() {
+    update_counter = 0;
     iter = 0;
     is_diff_calculated = false;
     
@@ -383,7 +385,8 @@ void IPDDP::solve() {
     << std::setw(22) << "OptError"
     << std::setw(13) << "Error"
     << std::setw(4) << "Reg"
-    << std::setw(7) << "Step" << std::endl;
+    << std::setw(7) << "Step"
+    << std::setw(5) << "Upt" << std::endl;
 
     // Outer Loop (Augmented Lagrangian & Iterior Point Method)
     while (true) {
@@ -409,6 +412,7 @@ void IPDDP::solve() {
             if (!forward_failed) {
                 is_diff_calculated = false;
                 inner_iter++;
+                update_counter++;
             }
             
             this->logPrint();
@@ -796,7 +800,7 @@ void IPDDP::forwardPass() {
         double step_size = step_list[step];
 
         dV_exp = -(step_size * dV(0) + step_size * step_size * dV(1));
-        // CHECK: Using Expected Value Decrement -> For fast Termination
+        // CHECK: Using Expected Value Decrement -> For Early Termination
         if (dV_exp > 0) {forward_failed = true; continue;}
 
         X_new.col(0) = X.col(0);
@@ -881,6 +885,8 @@ void IPDDP::forwardPass() {
         if (model->dim_ecT) {error_new += (ECT_new + RT_new).lpNorm<1>();}
         if (model->dim_cT) {error_new += (CT_new + YT_new).lpNorm<1>();}
         error_new = std::max(param.tolerance, error_new);
+        if (error >= error_new) {break;}
+
 
         // Cost
         barriercost_new = 0.0;
@@ -900,9 +906,9 @@ void IPDDP::forwardPass() {
         dV_act = logcost - logcost_new;
 
         // 1. With Expected Value Decrement
-        // if ((1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp) && error >= error_new) {break;}
+        // if (1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp) {break;}
         // 2. Only Value Decrement
-        if (dV_act >= 0.0 && error >= error_new) {break;}
+        if (dV_act >= 0.0) {break;}
         
         forward_failed = true;
     }
@@ -961,5 +967,6 @@ void IPDDP::logPrint() {
               << std::setw(22) << opterror
               << std::setw(13) << error
               << std::setw(4) << regulate
-              << std::setw(7) << step_list[step] << std::endl;
+              << std::setw(7) << step_list[step]
+              << std::setw(5) << update_counter << std::endl;
 }
