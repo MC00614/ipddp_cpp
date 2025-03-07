@@ -582,7 +582,7 @@ void IPDDP::backwardPass() {
         KsT = STYTinv * QsxT;
 
         // CHECK: New Value Decrement
-        dV(0) += ksT.transpose() * rpT;
+        dV(0) += ksT.transpose() * CT;
 
         Vx += KsT.transpose() * CT + QsxT.transpose() * ksT;
         Vxx += QsxT.transpose() * KsT + KsT.transpose() * QsxT;
@@ -604,7 +604,7 @@ void IPDDP::backwardPass() {
         KzT = param.rho * QzxT;
 
         // CHECK: New Value Decrement
-        dV(0) += kzT.transpose() * rpT;
+        dV(0) += kzT.transpose() * ECT;
 
         Vx += KzT.transpose() * ECT + QzxT.transpose() * kzT;
         Vxx += QzxT.transpose() * KzT + KzT.transpose() * QzxT;
@@ -731,7 +731,7 @@ void IPDDP::backwardPass() {
             Ky_ = -Qsx - Qsu * Ku_;
 
             // CHECK: New Value Decrement
-            dV(0) += ks_.transpose() * rp;
+            dV(0) += ks_.transpose() * c_v;
             dV(1) += ku_.transpose() * Qsu.transpose() * ks_;
 
             Vx += (Ks_.transpose() * c_v) + (Qsx.transpose() * ks_) + (Ku_.transpose() * Qsu.transpose() * ks_) + (Ks_.transpose() * Qsu * ku_);
