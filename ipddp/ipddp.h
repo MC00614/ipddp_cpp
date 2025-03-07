@@ -861,21 +861,6 @@ void IPDDP::forwardPass() {
         }
         
         if (forward_failed) {continue;}
-
-        // Cost
-        barriercost_new = 0.0;
-        barriercostT_new = 0.0;
-        alcost_new = 0.0;
-        alcostT_new = 0.0;
-        cost_new = calculateTotalCost(X_new, U_new);
-        if (model->dim_g) {barriercost_new += Y_new.topRows(model->dim_g).array().log().sum();}
-        for (int i = 0; i < model->dim_hs.size(); ++i) {barriercost_new += log(Y_new.row(dim_hs_top[i]).array().pow(2.0).sum() - Y_new.middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())/2;}
-        if (model->dim_gT) {barriercostT_new += YT_new.topRows(model->dim_gT).array().log().sum();}
-        for (int i = 0; i < model->dim_hTs.size(); ++i) {barriercostT_new += log(YT_new.row(dim_hTs_top[i]).array().pow(2.0).sum() - YT_new.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).array().pow(2.0).sum())/2;}
-
-        if (model->dim_ec) {alcost_new += (param.lambda.transpose() * R_new).sum() + (0.5 * param.rho * R_new.squaredNorm());}
-        if (model->dim_ecT) {alcostT_new += (param.lambdaT.transpose() * RT_new) + (0.5 * param.rho * RT_new.squaredNorm());}
-        logcost_new = cost_new - param.mu * (barriercost_new + barriercostT_new) + (alcost_new + alcostT_new);
         
         // Error
         if (model->dim_c) {
@@ -897,6 +882,21 @@ void IPDDP::forwardPass() {
         if (model->dim_ecT) {error_new += (ECT_new + RT_new).lpNorm<1>();}
         if (model->dim_cT) {error_new += (CT_new + YT_new).lpNorm<1>();}
         error_new = std::max(param.tolerance, error_new);
+
+        // Cost
+        barriercost_new = 0.0;
+        barriercostT_new = 0.0;
+        alcost_new = 0.0;
+        alcostT_new = 0.0;
+        cost_new = calculateTotalCost(X_new, U_new);
+        if (model->dim_g) {barriercost_new += Y_new.topRows(model->dim_g).array().log().sum();}
+        for (int i = 0; i < model->dim_hs.size(); ++i) {barriercost_new += log(Y_new.row(dim_hs_top[i]).array().pow(2.0).sum() - Y_new.middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).array().pow(2.0).sum())/2;}
+        if (model->dim_gT) {barriercostT_new += YT_new.topRows(model->dim_gT).array().log().sum();}
+        for (int i = 0; i < model->dim_hTs.size(); ++i) {barriercostT_new += log(YT_new.row(dim_hTs_top[i]).array().pow(2.0).sum() - YT_new.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).array().pow(2.0).sum())/2;}
+
+        if (model->dim_ec) {alcost_new += (param.lambda.transpose() * R_new).sum() + (0.5 * param.rho * R_new.squaredNorm());}
+        if (model->dim_ecT) {alcostT_new += (param.lambdaT.transpose() * RT_new) + (0.5 * param.rho * RT_new.squaredNorm());}
+        logcost_new = cost_new - param.mu * (barriercost_new + barriercostT_new) + (alcost_new + alcostT_new);
 
         // 1. With Expected Value Decrement
         dV_act = logcost - logcost_new;
