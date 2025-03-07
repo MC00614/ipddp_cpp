@@ -35,16 +35,16 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
     L_thrust << 0, 0, -l/2;
 
     // Stage Count
-    N = 100;
+    N = 200;
 
     dim_x = 13;
     X_init = Eigen::MatrixXd::Zero(dim_x, N+1);
     X_init(0,0) = 4.0;
     X_init(1,0) = 6.0;
     X_init(2,0) = 8.0;
-    // X_init(3,0) = -1.0;
-    // X_init(4,0) = 2.0;
-    // X_init(5,0) = -1.0;
+    X_init(3,0) = -2.0;
+    X_init(4,0) = -2.0;
+    X_init(5,0) = 3.0;
 
     // Quaternion
     X_init(9, 0) = 1.0;

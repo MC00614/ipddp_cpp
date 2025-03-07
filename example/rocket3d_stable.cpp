@@ -4,7 +4,7 @@
 #include <cmath>
 #include <chrono>
 
-#include "rocket3d_move.h"
+#include "rocket3d_stable.h"
 
 #include "ipddp.h"
 #include "visualize.h"
@@ -41,11 +41,11 @@ int main() {
     Eigen::MatrixXd U_result = ipddp.getResU();
     std::vector<double> all_cost = ipddp.getAllCost();
 
-    std::cout<<"X_result = \n"<<X_result.transpose()<<std::endl;
-    std::cout<<"U_result = \n"<<U_result.transpose()<<std::endl;
-    // std::cout<<"X_0 = \n"<<X_result.col(0).transpose()<<std::endl;
-    // std::cout<<"X_T = \n"<<X_result.col(model->N).transpose()<<std::endl;
-    // std::cout<<"U_T = \n"<<U_result.col(model->N-1).transpose()<<std::endl;
+    // std::cout<<"X_result = \n"<<X_result.transpose()<<std::endl;
+    // std::cout<<"U_result = \n"<<U_result.transpose()<<std::endl;
+    std::cout<<"X_0 = \n"<<X_result.col(0).transpose()<<std::endl;
+    std::cout<<"X_T = \n"<<X_result.col(model->N).transpose()<<std::endl;
+    std::cout<<"U_T = \n"<<U_result.col(model->N-1).transpose()<<std::endl;
 
     // Visualize
     visualize(X_init, U_init, X_result, U_result, all_cost);
