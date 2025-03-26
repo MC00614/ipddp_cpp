@@ -419,6 +419,7 @@ void IPDDP::solve() {
             
             all_cost.push_back(cost);
     
+            // CHECK
             if (std::max(opterror, param.mu) <= param.tolerance) {
                 // if (opterror <= param.tolerance) {
                 std::cout << "Optimal Solution" << std::endl;
@@ -439,17 +440,19 @@ void IPDDP::solve() {
         }
 
         // CHECK
-        if ((param.mu <= param.mu_min) && (param.rho_max <= param.rho)) {
+        if ((!(model->dim_c || model->dim_cT) || param.mu <= param.mu_min)
+        && (!(model->dim_ec || model->dim_ecT) || (param.rho_max <= param.rho))
+        && (model->dim_c || model->dim_cT || model->dim_ec || model->dim_ecT)) {
             std::cout << "Outer Max/Min" << std::endl;
             return;
         }
 
         // Update Outer Loop Parameters
-        param.mu = std::max((param.mu_min), std::min(param.mu_mul * param.mu, std::pow(param.mu, param.mu_exp)));
-        param.lambdaT = param.lambdaT + param.rho * RT;
+        if (model->dim_c || model->dim_cT) {param.mu = std::max((param.mu_min), std::min(param.mu_mul * param.mu, std::pow(param.mu, param.mu_exp)));}
+        // param.lambdaT = param.lambdaT + param.rho * RT;
         // CHECK
-        // param.lambdaT = 2 * (param.lambdaT + param.rho * RT) - ZT;
-        param.rho = std::min(param.rho_max, std::max(param.rho_mul * param.rho, 1.0 / param.mu));
+        if (model->dim_ecT) {param.lambdaT = 2 * (param.lambdaT + param.rho * RT) - ZT;}
+        if (model->dim_ec || model->dim_ecT) {param.rho = std::min(param.rho_max, std::max(param.rho_mul * param.rho, 1.0 / param.mu));}
         resetFilter();
         resetRegulation();
     }
@@ -796,12 +799,12 @@ void IPDDP::forwardPass() {
 
     for (step = 0; step < this->param.max_step_iter; ++step) {
 
-        forward_failed = false;
+        forward_failed = 0;
         double step_size = step_list[step];
 
         dV_exp = -(step_size * dV(0) + step_size * step_size * dV(1));
         // CHECK: Using Expected Value Decrement -> For Early Termination
-        if (dV_exp > 0) {forward_failed = true; continue;}
+        // if (dV_exp > 0) {forward_failed = 3; continue;}
 
         X_new.col(0) = X.col(0);
         for (int t = 0; t < model->N; ++t) {
@@ -821,14 +824,14 @@ void IPDDP::forwardPass() {
             }
             for (int t = 0; t < model->N; ++t) {
                 if (model->dim_g) {
-                    if ((Y_new.col(t).topRows(model->dim_g).array() < (1 - tau) * Y.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
-                    if ((S_new.col(t).topRows(model->dim_g).array() < (1 - tau) * S.col(t).topRows(model->dim_g).array()).any()) {forward_failed = true; break;}
+                    if ((Y_new.col(t).topRows(model->dim_g).array() < (1 - tau) * Y.col(t).topRows(model->dim_g).array()).any()) {forward_failed = 11; break;}
+                    if ((S_new.col(t).topRows(model->dim_g).array() < (1 - tau) * S.col(t).topRows(model->dim_g).array()).any()) {forward_failed = 12; break;}
                 }
                 for (int i = 0; i < model->dim_hs.size(); ++i) {
                     if ((Y_new.col(t).row(dim_hs_top[i]).array() - Y_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm()
-                    < (1 - tau) * (Y.col(t).row(dim_hs_top[i]).array() - Y.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm())).any()) {forward_failed = true; break;}
+                    < (1 - tau) * (Y.col(t).row(dim_hs_top[i]).array() - Y.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm())).any()) {forward_failed = 13; break;}
                     if ((S_new.col(t).row(dim_hs_top[i]).array() - S_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm()
-                    < (1 - tau) * (S.col(t).row(dim_hs_top[i]).array() - S.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm())).any()) {forward_failed = true; break;}
+                    < (1 - tau) * (S.col(t).row(dim_hs_top[i]).array() - S.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm())).any()) {forward_failed = 14; break;}
                 }
                 if (forward_failed) {break;}
             }    
@@ -839,14 +842,14 @@ void IPDDP::forwardPass() {
             YT_new = YT + (step_size * kyT) + KyT * dxT;
             ST_new = ST + (step_size * ksT) + KsT * dxT;
             if (model->dim_gT) {
-                if ((YT_new.topRows(model->dim_gT).array() < (1 - tau) * YT.topRows(model->dim_gT).array()).any()) {forward_failed = true; break;}
-                if ((ST_new.topRows(model->dim_gT).array() < (1 - tau) * ST.topRows(model->dim_gT).array()).any()) {forward_failed = true; break;}
+                if ((YT_new.topRows(model->dim_gT).array() < (1 - tau) * YT.topRows(model->dim_gT).array()).any()) {forward_failed = 21; break;}
+                if ((ST_new.topRows(model->dim_gT).array() < (1 - tau) * ST.topRows(model->dim_gT).array()).any()) {forward_failed = 22; break;}
             }
             for (int i = 0; i < model->dim_hTs.size(); ++i) {
                 if ((YT_new.row(dim_hTs_top[i]).array() - YT_new.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).norm()
-                < (1 - tau) * (YT.row(dim_hTs_top[i]).array() - YT.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).norm())).any()) {forward_failed = true; break;}
+                < (1 - tau) * (YT.row(dim_hTs_top[i]).array() - YT.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).norm())).any()) {forward_failed = 23; break;}
                 if ((ST_new.row(dim_hTs_top[i]).array() - ST_new.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).norm()
-                < (1 - tau) * (ST.row(dim_hTs_top[i]).array() - ST.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).norm())).any()) {forward_failed = true; break;}
+                < (1 - tau) * (ST.row(dim_hTs_top[i]).array() - ST.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).norm())).any()) {forward_failed = 24; break;}
             }
         }
         if (forward_failed) {continue;}
@@ -885,7 +888,7 @@ void IPDDP::forwardPass() {
         if (model->dim_ecT) {error_new += (ECT_new + RT_new).lpNorm<1>();}
         if (model->dim_cT) {error_new += (CT_new + YT_new).lpNorm<1>();}
         error_new = std::max(param.tolerance, error_new);
-        if (error <= error_new) {forward_failed = true; continue;}
+        if (error < error_new) {forward_failed = 1; continue;}
 
         // Cost
         barriercost_new = 0.0;
@@ -907,7 +910,7 @@ void IPDDP::forwardPass() {
         // 1. With Expected Value Decrement
         // if (1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp) {break;}
         // 2. Only Value Decrement
-        if (dV_act < 0.0) {forward_failed = true; continue;}
+        if (dV_act < 0.0) {forward_failed = 2; continue;}
 
         if (!forward_failed) {break;}
     }
