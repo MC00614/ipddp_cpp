@@ -908,6 +908,8 @@ void IPDDP::forwardPass() {
         // if (1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp) {break;}
         // 2. Only Value Decrement
         if (dV_act < 0.0) {forward_failed = true; continue;}
+
+        if (!forward_failed) {break;}
     }
 
     if (!forward_failed) {
