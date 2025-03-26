@@ -885,8 +885,7 @@ void IPDDP::forwardPass() {
         if (model->dim_ecT) {error_new += (ECT_new + RT_new).lpNorm<1>();}
         if (model->dim_cT) {error_new += (CT_new + YT_new).lpNorm<1>();}
         error_new = std::max(param.tolerance, error_new);
-        if (error >= error_new) {break;}
-
+        if (error <= error_new) {forward_failed = true; continue;}
 
         // Cost
         barriercost_new = 0.0;
@@ -908,9 +907,7 @@ void IPDDP::forwardPass() {
         // 1. With Expected Value Decrement
         // if (1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp) {break;}
         // 2. Only Value Decrement
-        if (dV_act >= 0.0) {break;}
-        
-        forward_failed = true;
+        if (dV_act < 0.0) {forward_failed = true; continue;}
     }
 
     if (!forward_failed) {
