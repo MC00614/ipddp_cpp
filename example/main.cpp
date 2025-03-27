@@ -5,13 +5,14 @@
 #include <chrono>
 
 #include "rocket3d_move.h"
+#include "rpo.h"
 
 #include "ipddp.h"
 #include "visualize.h"
 
 int main() {
     // Load Dynamic Model
-    auto model = std::make_shared<Rocket3D>();
+    auto model = std::make_shared<RPO>();
     
     // Parameter Setting
     Param param;
@@ -22,7 +23,10 @@ int main() {
     param.rho = 1.0;
     param.max_step_iter = 10;
     param.max_regularization = 10;
-    
+    param.auto_init_noc = true;
+    // param.auto_init_cc = true;
+    // param.auto_init_ccT = true;
+
     // Solver Setting
     auto start = std::chrono::steady_clock::now();
 
@@ -43,9 +47,10 @@ int main() {
 
     std::cout<<"X_result = \n"<<X_result.transpose()<<std::endl;
     std::cout<<"U_result = \n"<<U_result.transpose()<<std::endl;
-    // std::cout<<"X_0 = \n"<<X_result.col(0).transpose()<<std::endl;
-    // std::cout<<"X_T = \n"<<X_result.col(model->N).transpose()<<std::endl;
-    // std::cout<<"U_T = \n"<<U_result.col(model->N-1).transpose()<<std::endl;
+    std::cout<<"X_0 = \n"<<X_result.col(0).transpose()<<std::endl;
+    std::cout<<"X_T = \n"<<X_result.col(model->N).transpose()<<std::endl;
+    std::cout<<"U_0 = \n"<<U_result.col(0).transpose()<<std::endl;
+    std::cout<<"U_T = \n"<<U_result.col(model->N-1).transpose()<<std::endl;
 
     // Visualize
     visualize(X_init, U_init, X_result, U_result, all_cost);
