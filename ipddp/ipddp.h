@@ -60,9 +60,16 @@ private:
     Eigen::VectorXd CT; // Inequality Constraint (Terminal)
     Eigen::VectorXd ECT; // Equality Constraint (Terminal)
 
+    Eigen::VectorXd scale_ec;
+    Eigen::VectorXd scale_c;
+    Eigen::VectorXd scale_ecT;
+    Eigen::VectorXd scale_cT;
+    
     double cost;
     Param param;
     void initialRoll();
+    void initAdditionalVariables();
+    void initConstraintScaling();
     void resetFilter();
     double logcost;
     double error;
@@ -241,13 +248,21 @@ IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
     if (model->dim_c) {
         cx_all.resize(model->dim_c, model->dim_rn * model->N);
         cu_all.resize(model->dim_c, model->dim_u * model->N);
+        scale_c = Eigen::VectorXd::Ones(model->dim_c);
     }
     if (model->dim_ec) {
         ecx_all.resize(model->dim_ec, model->dim_rn * model->N);
         ecu_all.resize(model->dim_ec, model->dim_u * model->N);
+        scale_ec = Eigen::VectorXd::Ones(model->dim_ec);
     }
-    if (model->dim_cT) {cTx_all.resize(model->dim_cT, model->dim_rn);}
-    if (model->dim_ecT) {ecTx_all.resize(model->dim_ecT, model->dim_rn);}
+    if (model->dim_cT) {
+        cTx_all.resize(model->dim_cT, model->dim_rn);
+        scale_cT = Eigen::VectorXd::Ones(model->dim_cT);
+    }
+    if (model->dim_ecT) {
+        ecTx_all.resize(model->dim_ecT, model->dim_rn);
+        scale_ecT = Eigen::VectorXd::Ones(model->dim_ecT);
+    }
 
     ku.resize(model->dim_u, model->N);
     kr.resize(model->dim_ec, model->N);
@@ -317,11 +332,48 @@ void IPDDP::initialRoll() {
     if (model->dim_cT) {CT = model->cT(X.col(model->N)).cast<double>();}
     if (model->dim_ecT) {ECT = model->ecT(X.col(model->N)).cast<double>();}
 
-    // CHECK
-    if (model->dim_ec) {R = -EC;}
-    if (model->dim_ecT) {RT = -ECT;}
-
     cost = calculateTotalCost(X, U);
+
+    if (param.auto_scale) {initAutoConstraintScaling();}
+    if (param.auto_init) {initAdditionalVariables();}
+}
+
+void IPDDP::initAdditionalVariables() {
+    // Equality Constraint (TODO: CHECK: Init Lagrangian)
+    if (model->dim_ec && param.auto_init_ec) {R = -EC;}
+    if (model->dim_ecT && param.auto_init_ecT) {RT = -ECT;}
+    
+    // CHECK (Just Parameter)
+    double eps = std::max(param.tolerance, param.mu);
+    
+    // Nonnegative Orthant Constraint
+    if (model->dim_g && param.auto_init_noc) {
+        Y.topRows(model->dim_g) = (-C.topRows(model->dim_g).array()).max(eps);
+        S.topRows(model->dim_g) = (param.mu / -C.topRows(model->dim_g).array()).max(eps);
+    }
+    if (model->dim_gT && param.auto_init_nocT) {
+        YT.topRows(model->dim_gT) = (-CT.topRows(model->dim_gT).array()).max(eps);
+        ST.topRows(model->dim_gT) = (param.mu / -CT.topRows(model->dim_gT).array()).max(eps);
+    }
+
+    // Conic Constraint (CHECK: Langrange & Vector Part)
+    if (param.auto_init_cc) {
+        for (int i = 0; i < model->dim_hs.size(); ++i) {
+            Y.row(dim_hs_top[i]) = (-C.row(dim_hs_top[i]).array()).max(eps);
+            S.row(dim_hs_top[i]) = (param.mu / -C.row(dim_hs_top[i]).array()).max(eps);
+        }
+    }
+    if (param.auto_init_ccT) {
+        for (int i = 0; i < model->dim_hTs.size(); ++i) {
+            YT.row(dim_hTs_top[i]) = (-CT.row(dim_hTs_top[i]).array()).max(eps);
+            ST.row(dim_hTs_top[i]) = (param.mu / -CT.row(dim_hTs_top[i]).array()).max(eps);
+        }
+    }
+}
+
+void IPDDP::initAutoConstraintScaling() {
+    // TODO: AutoScale & Multiply to Calculation Result
+    if (model->dim_ec && param.auto_scale_ec) {scale_ec = EC.colwise().lpNorm<1>();}
 }
 
 void IPDDP::resetFilter() {
@@ -804,7 +856,7 @@ void IPDDP::forwardPass() {
 
         dV_exp = -(step_size * dV(0) + step_size * step_size * dV(1));
         // CHECK: Using Expected Value Decrement -> For Early Termination
-        // if (dV_exp > 0) {forward_failed = 3; continue;}
+        if (dV_exp > 0) {forward_failed = 3; continue;}
 
         X_new.col(0) = X.col(0);
         for (int t = 0; t < model->N; ++t) {

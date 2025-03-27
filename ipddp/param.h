@@ -20,4 +20,22 @@ struct Param {
     double reg2_exp = 10.0; // exponent for regularization update
     double reg2_min = 1.0; // minimum regularization
     int max_regularization = 10; // maximum regularization for backward pass
+
+    // Automatic Initialization of Slack and Lagrange
+    bool auto_init = true; // Master Button for all constraints
+    bool auto_init_ec = true; // for equality constraints)
+    bool auto_init_ecT = true; // for terminal equality constraints)
+    bool auto_init_noc = false; // for inequality constraints
+    bool auto_init_cc = false; // for conic constraints
+    bool auto_init_nocT = false; // for terminal inequality constraints
+    bool auto_init_ccT = false; // for terminal conic constraints
+
+    // Automatic Scaling of Constraints
+    bool auto_scale = false; // Master Button for all constraints
+    bool auto_scale_ec = false; // for equality constraints
+    bool auto_scale_ecT = false; // for terminal equality constraints
+    bool auto_scale_noc = false; // for inequality constraints
+    bool auto_scale_cc = false; // for conic constraints
+    bool auto_scale_nocT = false; // for terminal inequality constraints
+    bool auto_scale_ccT = false; // for terminal conic constraints
 };
