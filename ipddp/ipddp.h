@@ -69,7 +69,7 @@ private:
     Param param;
     void initialRoll();
     void initAdditionalVariables();
-    void initConstraintScaling();
+    void initAutoConstraintScaling();
     void resetFilter();
     double logcost;
     double error;
