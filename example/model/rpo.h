@@ -42,8 +42,9 @@ RPO::RPO() {
     double a = 6971100.0;        // Semi-major axis of orbit (meters)
     double n = std::sqrt(mu / (a*a*a));  // Mean motion (rad/s)
 
-    obstacle_center = Eigen::Vector3d(0.0, -4.0, 3.05);
-    obstacle_radius = 1.0;
+    obstacle_center = Eigen::Vector3d(-2.0, -4.0, 1.05);
+    // obstacle_center = Eigen::Vector3d(0.0, -4.0, 3.05);
+    obstacle_radius = 2.0;
     spacecraft_radius = 1.0;
     min_dist_2 = (obstacle_radius + spacecraft_radius) * (obstacle_radius + spacecraft_radius);
 
@@ -122,7 +123,7 @@ RPO::RPO() {
       VectorXdual2nd vel_error = x.tail(3) - xg.tail(3).cast<dual2nd>();
 
       // Very high weight on final position error (100x), moderate on velocity
-      dual2nd pos_cost = 1.0 * pos_error.squaredNorm();
+      dual2nd pos_cost = 2.0 * pos_error.squaredNorm();
       dual2nd vel_cost = 1.0 * vel_error.squaredNorm();
 
       return 0.5 * (pos_cost + vel_cost);
