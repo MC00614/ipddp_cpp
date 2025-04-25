@@ -836,8 +836,8 @@ void IPDDP::forwardPass() {
     Eigen::VectorXd ZT_new(model->dim_ecT);
     Eigen::VectorXd ECT_new(model->dim_ecT);
 
-    double tau = std::min(0.99, 1.0 - param.mu);
-    // double tau = 0.9;
+    // double tau = std::min(0.99, 1.0 - param.mu);
+    double tau = 0.9;
     
     double cost_new = 0.0;
     double logcost_new = 0.0;
