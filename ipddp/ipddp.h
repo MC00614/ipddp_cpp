@@ -433,9 +433,9 @@ void IPDDP::solve() {
     << std::setw(3) << "fp"
     << std::setw(7) << "mu"
     << std::setw(16) << "rho"
-    << std::setw(16) << "LogCost"
+    << std::setw(25) << "LogCost"
     << std::setw(22) << "OptError"
-    << std::setw(13) << "Error"
+    << std::setw(18) << "Error"
     << std::setw(4) << "Reg"
     << std::setw(7) << "Step"
     << std::setw(5) << "Upt" << std::endl;
@@ -503,7 +503,7 @@ void IPDDP::solve() {
         if (model->dim_c || model->dim_cT) {param.mu = std::max((param.mu_min), std::min(param.mu_mul * param.mu, std::pow(param.mu, param.mu_exp)));}
         // param.lambdaT = param.lambdaT + param.rho * RT;
         // CHECK
-        if (model->dim_ecT) {param.lambdaT = 2 * (param.lambdaT + param.rho * RT) - ZT;}
+        if (model->dim_ecT) {param.lambdaT = param.lambdaT + param.rho * RT;}
         if (model->dim_ec || model->dim_ecT) {param.rho = std::min(param.rho_max, std::max(param.rho_mul * param.rho, 1.0 / param.mu));}
         resetFilter();
         resetRegulation();
@@ -837,6 +837,7 @@ void IPDDP::forwardPass() {
     Eigen::VectorXd ECT_new(model->dim_ecT);
 
     double tau = std::max(0.99, 1.0 - param.mu);
+    // double tau = 0.99;
     
     double cost_new = 0.0;
     double logcost_new = 0.0;
@@ -1017,9 +1018,9 @@ void IPDDP::logPrint() {
               << std::setw(3) << forward_failed
               << std::setw(7) << param.mu
               << std::setw(16) << param.rho
-              << std::setw(16) << logcost
+              << std::setw(25) << logcost
               << std::setw(22) << opterror
-              << std::setw(13) << error
+              << std::setw(18) << error
               << std::setw(4) << regulate
               << std::setw(7) << step_list[step]
               << std::setw(5) << update_counter << std::endl;
