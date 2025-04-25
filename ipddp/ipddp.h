@@ -229,7 +229,7 @@ IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
     if (model->ST_init.size()) {ST = model->ST_init;}
     else {
         ST = Eigen::VectorXd::Zero(model->dim_cT);
-        if (model->dim_gT) {ST.topRows(model->dim_g) = Eigen::VectorXd::Ones(model->dim_gT);}
+        if (model->dim_gT) {ST.topRows(model->dim_gT) = Eigen::VectorXd::Ones(model->dim_gT);}
         for (auto dim_hT_top : dim_hTs_top) {ST(dim_hT_top) = 1.0;}
     }
 
