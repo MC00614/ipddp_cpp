@@ -836,8 +836,8 @@ void IPDDP::forwardPass() {
     Eigen::VectorXd ZT_new(model->dim_ecT);
     Eigen::VectorXd ECT_new(model->dim_ecT);
 
-    double tau = std::max(0.99, 1.0 - param.mu);
-    // double tau = 0.99;
+    double tau = std::min(0.99, 1.0 - param.mu);
+    // double tau = 0.9;
     
     double cost_new = 0.0;
     double logcost_new = 0.0;
@@ -857,7 +857,9 @@ void IPDDP::forwardPass() {
 
         dV_exp = -(step_size * dV(0) + step_size * step_size * dV(1));
         // CHECK: Using Expected Value Decrement -> For Early Termination
-        if (dV_exp > 0) {forward_failed = 3; continue;}
+        if (error > 1){
+            if (dV_exp > 0) {forward_failed = 3; continue;}
+        }
 
         X_new.col(0) = X.col(0);
         for (int t = 0; t < model->N; ++t) {

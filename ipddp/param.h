@@ -15,7 +15,7 @@ struct Param {
     double rho_mul = 10.0; // multiplier for rho update
     double rho_max = 1e+6; // maximum rho
     int max_step_iter = 10; // maximum iteration for forward pass
-    double reg1_exp = 5.0; // exponent for regularization update
+    double reg1_exp = 10.0; // exponent for regularization update
     double reg1_min = 1e-6; // minimum regularization
     double reg2_exp = 10.0; // exponent for regularization update
     double reg2_min = 1.0; // minimum regularization

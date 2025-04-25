@@ -20,17 +20,18 @@ int main() {
     // param.max_iter = 500;
     // param.max_inner_iter = 20;
     param.tolerance = 1e-4;
-    param.max_iter = 1000;
+    param.max_iter = 2000;
     param.max_inner_iter = 100;
     param.mu = 1.0;
-    param.mu_min = 1e-6;
+    param.mu_min = 1e-8;
     param.rho = 1.0;
+    param.rho_max = 1e+9;
     param.max_step_iter = 10;
     param.max_regularization = 20;
-    // param.auto_init_noc = true;
-    // param.auto_init_cc = true;
-    // param.auto_init_ccT = true;
-    // param.auto_init_ecT = true;
+    param.auto_init_noc = true;
+    param.auto_init_cc = true;
+    param.auto_init_ccT = true;
+    param.auto_init_ecT = true;
 
     // Solver Setting
     auto start = std::chrono::steady_clock::now();
@@ -50,7 +51,8 @@ int main() {
     std::vector<double> all_cost = ipddp.getAllCost();
 
     // RESCALE
-    X_result.topRows(6) *= model->r_scale;
+    X_result.row(0) *= model->m_scale;
+    X_result.middleRows(1,6) *= model->r_scale;
     U_result *= (model->m_scale * model->r_scale);
     
     std::cout<<"X_result = \n"<<X_result.transpose()<<std::endl;
