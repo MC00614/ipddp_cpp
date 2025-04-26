@@ -68,7 +68,7 @@ Rocket3D::Rocket3D() : QuatModelBase(10) { // q_idx = 10 with mass
 
     X_init(7,0) = 0.01;
     X_init(8,0) = 0.01;
-    X_init(9,0) = 0.0;
+    X_init(9,0) = 0.01;
 
     // Quaternion
     X_init(10, 0) = 1.0;
@@ -78,7 +78,6 @@ Rocket3D::Rocket3D() : QuatModelBase(10) { // q_idx = 10 with mass
 
     dim_u = 3;
     U_init = Eigen::MatrixXd::Zero(dim_u, N);
-    // U_init.row(2) = Eigen::VectorXd::Ones(N);
     U_init.row(2) = (umax + umin) / 2 * Eigen::VectorXd::Ones(N);
 
     // Dynamics Scale
