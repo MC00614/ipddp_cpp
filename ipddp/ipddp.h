@@ -930,8 +930,8 @@ void IPDDP::forwardPass() {
             }
             for (int t = 0; t < model->N; ++t) {
                 if (model->dim_g) {
-                    if ((Y_new.col(t).topRows(model->dim_g).array() < (1 - tau) * Y.col(t).topRows(model->dim_g).array()).any()) {forward_failed = 11; break;}
-                    if ((S_new.col(t).topRows(model->dim_g).array() < (1 - tau) * S.col(t).topRows(model->dim_g).array()).any()) {forward_failed = 12; break;}
+                    if ((Y_new.col(t).topRows(model->dim_g).array() < (1 - tau) * Y.col(t).topRows(model->dim_g).array()).any()) {forward_failed = 11; continue;}
+                    if ((S_new.col(t).topRows(model->dim_g).array() < (1 - tau) * S.col(t).topRows(model->dim_g).array()).any()) {forward_failed = 12; continue;}
                 }
                 for (int i = 0; i < model->dim_hs.size(); ++i) {
                     if ((Y_new.col(t).row(dim_hs_top[i]).array() - Y_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm()
@@ -948,8 +948,8 @@ void IPDDP::forwardPass() {
             YT_new = YT + (step_size * kyT) + KyT * dxT;
             ST_new = ST + (step_size * ksT) + KsT * dxT;
             if (model->dim_gT) {
-                if ((YT_new.topRows(model->dim_gT).array() < (1 - tau) * YT.topRows(model->dim_gT).array()).any()) {forward_failed = 21; break;}
-                if ((ST_new.topRows(model->dim_gT).array() < (1 - tau) * ST.topRows(model->dim_gT).array()).any()) {forward_failed = 22; break;}
+                if ((YT_new.topRows(model->dim_gT).array() < (1 - tau) * YT.topRows(model->dim_gT).array()).any()) {forward_failed = 21; continue;}
+                if ((ST_new.topRows(model->dim_gT).array() < (1 - tau) * ST.topRows(model->dim_gT).array()).any()) {forward_failed = 22; continue;}
             }
             for (int i = 0; i < model->dim_hTs.size(); ++i) {
                 if ((YT_new.row(dim_hTs_top[i]).array() - YT_new.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).norm()
