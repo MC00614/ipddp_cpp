@@ -49,6 +49,9 @@ int main() {
     Eigen::MatrixXd X_result = ipddp.getResX();
     Eigen::MatrixXd U_result = ipddp.getResU();
     std::vector<double> all_cost = ipddp.getAllCost();
+    std::cout << std::fixed << std::setprecision(8);
+
+    std::cout<<"X_T = \n"<<X_result.col(model->N).transpose()<<std::endl;
 
     // RESCALE
     X_result.row(0) *= model->m_scale;

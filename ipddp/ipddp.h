@@ -129,6 +129,12 @@ private:
     Eigen::VectorXd eT;
 
     double opterror;
+    double opterror_rpT_ec;
+    double opterror_rdT_ec;
+    double opterror_rpT_c;
+    double opterror_rdT_c;
+    double opterror_rp_c;
+    double opterror_rd_c;
     Eigen::VectorXd dV; // Expected Value Change
 
     std::vector<double> all_cost;
@@ -344,8 +350,14 @@ void IPDDP::initialRoll() {
 
 void IPDDP::initAdditionalVariables() {
     // Equality Constraint (TODO: CHECK: Init Lagrangian)
-    if (model->dim_ec && param.auto_init_ec) {R = -EC;}
-    if (model->dim_ecT && param.auto_init_ecT) {RT = -ECT;}
+    if (model->dim_ec && param.auto_init_ec) {
+        R = -EC;
+        // Z = - param.lambda - param.rho * R;
+    }
+    if (model->dim_ecT && param.auto_init_ecT) {
+        RT = -ECT;
+        // ZT = - param.lambdaT - param.rho * RT;
+    }
     
     // CHECK (Just Parameter)
     double eps = std::max(param.tolerance, param.mu);
@@ -607,6 +619,12 @@ void IPDDP::backwardPass() {
     Eigen::MatrixXd Ks_(model->dim_c, model->dim_rn);
 
     opterror = 0.0;
+    opterror_rpT_ec = 0.0;
+    opterror_rdT_ec = 0.0;
+    opterror_rpT_c = 0.0;
+    opterror_rdT_c = 0.0;
+    opterror_rp_c = 0.0;
+    opterror_rd_c = 0.0;
 
     dV = Eigen::VectorXd::Zero(2);
 
@@ -665,6 +683,8 @@ void IPDDP::backwardPass() {
         // Vxx += KsT.transpose() * I_cT * KyT + KyT.transpose() * I_cT * KsT;
 
         opterror = std::max({rpT.lpNorm<Eigen::Infinity>(), rdT.lpNorm<Eigen::Infinity>(), opterror});
+        // opterror_rpT_c = std::max({rpT.lpNorm<Eigen::Infinity>(), opterror_rpT_c});
+        // opterror_rdT_c = std::max({rdT.lpNorm<Eigen::Infinity>(), opterror_rdT_c});
     }
 
     // Equality Terminal Constraint
@@ -701,6 +721,8 @@ void IPDDP::backwardPass() {
         // Vxx += KzT.transpose() * I_ecT * KrT + KrT.transpose() * I_ecT * KzT;
         
         opterror = std::max({rpT.lpNorm<Eigen::Infinity>(), rdT.lpNorm<Eigen::Infinity>(), opterror});
+        // opterror_rpT_ec = std::max({rpT.lpNorm<Eigen::Infinity>(), opterror_rpT_ec});
+        // opterror_rdT_ec = std::max({rdT.lpNorm<Eigen::Infinity>(), opterror_rdT_ec});
     }
 
 
@@ -845,6 +867,8 @@ void IPDDP::backwardPass() {
             Ky.middleCols(t_dim_x, model->dim_rn) = Ky_;
 
             opterror = std::max({rp.lpNorm<Eigen::Infinity>(), rd.lpNorm<Eigen::Infinity>(), opterror});
+            // opterror_rp_c = std::max({rp.lpNorm<Eigen::Infinity>(), opterror_rp_c});
+            // opterror_rd_c = std::max({rp.lpNorm<Eigen::Infinity>(), opterror_rd_c});
         }
 
         // TODO
@@ -853,6 +877,12 @@ void IPDDP::backwardPass() {
 
         // }
     }
+    // std::cout << "opterror_rpT_ec = " << opterror_rpT_ec << std::endl;
+    // std::cout << "opterror_rdT_ec = " << opterror_rdT_ec << std::endl;
+    // std::cout << "opterror_rpT_c = " << opterror_rpT_c << std::endl;
+    // std::cout << "opterror_rdT_c = " << opterror_rdT_c << std::endl;
+    // std::cout << "opterror_rp_c = " << opterror_rp_c << std::endl;
+    // std::cout << "opterror_rd_c = " << opterror_rd_c << std::endl;
 }
 
 void IPDDP::checkRegulate() {
@@ -993,6 +1023,7 @@ void IPDDP::forwardPass() {
         if (model->dim_c) {error_new += (C_new + Y_new).colwise().lpNorm<1>().sum();}
         if (model->dim_ecT) {error_new += (ECT_new + RT_new).lpNorm<1>();}
         if (model->dim_cT) {error_new += (CT_new + YT_new).lpNorm<1>();}
+        // param.tolerance = std::min(param.tolerance, 1.0 / param.rho);
         error_new = std::max(param.tolerance, error_new);
         if (error < error_new) {forward_failed = 1; continue;}
 
