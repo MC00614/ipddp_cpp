@@ -960,8 +960,8 @@ void IPDDP::forwardPass() {
             }
             for (int t = 0; t < model->N; ++t) {
                 if (model->dim_g) {
-                    if ((Y_new.col(t).topRows(model->dim_g).array() < (1 - tau) * Y.col(t).topRows(model->dim_g).array()).any()) {forward_failed = 11; continue;}
-                    if ((S_new.col(t).topRows(model->dim_g).array() < (1 - tau) * S.col(t).topRows(model->dim_g).array()).any()) {forward_failed = 12; continue;}
+                    if ((Y_new.col(t).topRows(model->dim_g).array() < (1 - tau) * Y.col(t).topRows(model->dim_g).array()).any()) {forward_failed = 11; break;}
+                    if ((S_new.col(t).topRows(model->dim_g).array() < (1 - tau) * S.col(t).topRows(model->dim_g).array()).any()) {forward_failed = 12; break;}
                 }
                 for (int i = 0; i < model->dim_hs.size(); ++i) {
                     if ((Y_new.col(t).row(dim_hs_top[i]).array() - Y_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm()
@@ -970,7 +970,7 @@ void IPDDP::forwardPass() {
                     < (1 - tau) * (S.col(t).row(dim_hs_top[i]).array() - S.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm())).any()) {forward_failed = 14; break;}
                 }
                 if (forward_failed) {break;}
-            }    
+            }
         }
         if (forward_failed) {continue;}
         
