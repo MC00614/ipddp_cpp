@@ -408,7 +408,7 @@ void IPDDP::resetFilter() {
     if (model->dim_ec) {alcost += (param.lambda.transpose() * R).sum() + (0.5 * param.rho * R.squaredNorm());}
     if (model->dim_ecT) {alcostT += (param.lambdaT.transpose() * RT) + (0.5 * param.rho * RT.squaredNorm());}
 
-    logcost = cost - param.mu * (barriercost + barriercostT) + (alcost + alcostT);
+    logcost = cost - (param.mu * barriercost + param.muT * barriercostT) + (alcost + alcostT);
 
     error = 0.0;
     if (model->dim_ec) {error += (EC + R).colwise().lpNorm<1>().sum();}
@@ -502,6 +502,36 @@ void IPDDP::solve() {
             if ((opterror <= std::max(10.0 * param.mu, param.tolerance))) {
                 break;
             }
+
+            {
+                bool updated = false;
+                if (model->dim_c && opterror_rp_c < param.tolerance && opterror_rd_c < param.tolerance) {
+                    param.mu = std::max(param.mu_min, std::min(param.mu_mul * param.mu, std::pow(param.mu, param.mu_exp)));
+                    updated = true;
+                }
+                if (model->dim_cT && opterror_rpT_c < param.tolerance && opterror_rdT_c < param.tolerance) {
+                    param.muT = std::max(param.mu_min, std::min(param.mu_mul * param.muT, std::pow(param.muT, param.mu_exp)));
+                    updated = true;
+                }
+                // if (model->dim_ec && opterror_rpT_ec > param.tolerance && opterror_rdT_ec > param.tolerance) {
+                //     param.rho = std::min(param.rho_max, std::max(param.rho_mul * param.rho, 1.0 / param.mu));
+                // }
+                if (model->dim_ecT && opterror_rpT_ec < param.tolerance && opterror_rdT_ec < param.tolerance) {
+                    // param.rho = std::min(param.rho_max, param.rho_mul * param.rho);
+                    param.rho = std::min(param.rho_max, std::max(param.rho_mul * param.rho, 1.0 / param.mu));
+                    param.lambdaT = param.lambdaT + param.rho * RT;
+                    updated = true;
+                }
+                // if (model->dim_ecT && opterror_rpT_ec < param.tolerance) {
+                //     updated = true;
+                //     param.rho = std::min(param.rho_max, std::max(param.rho_mul * param.rho, 1.0 / param.mu));
+                //     if (opterror_rdT_ec < param.tolerance) {
+                //         param.lambdaT = param.lambdaT + param.rho * RT;
+                //         // param.rho = std::min(param.rho_max, param.rho_mul * param.rho);
+                //     }
+                // }
+                if (updated) {resetFilter();}
+            }
         }
         if (param.max_iter < iter) {
             std::cout << "Max Iteration" << std::endl;
@@ -509,7 +539,8 @@ void IPDDP::solve() {
         }
 
         // CHECK
-        if ((!(model->dim_c || model->dim_cT) || param.mu <= param.mu_min)
+        if ((!(model->dim_c) || param.mu <= param.mu_min)
+        && (!(model->dim_cT) || param.muT <= param.mu_min)
         && (!(model->dim_ec || model->dim_ecT) || (param.rho_max <= param.rho))
         && (model->dim_c || model->dim_cT || model->dim_ec || model->dim_ecT)) {
             std::cout << "Outer Max/Min" << std::endl;
@@ -517,7 +548,8 @@ void IPDDP::solve() {
         }
 
         // Update Outer Loop Parameters
-        if (model->dim_c || model->dim_cT) {param.mu = std::max((param.mu_min), std::min(param.mu_mul * param.mu, std::pow(param.mu, param.mu_exp)));}
+        if (model->dim_c) {param.mu = std::max(param.mu_min, std::min(param.mu_mul * param.mu, std::pow(param.mu, param.mu_exp)));}
+        if (model->dim_cT) {param.muT = std::max(param.mu_min, std::min(param.mu_mul * param.muT, std::pow(param.muT, param.mu_exp)));}
         // param.lambdaT = param.lambdaT + param.rho * RT;
         // CHECK
         if (model->dim_ecT) {param.lambdaT = param.lambdaT + param.rho * RT;}
@@ -594,6 +626,7 @@ void IPDDP::backwardPass() {
     Eigen::MatrixXd qxx(model->dim_rn,model->dim_rn), qxu(model->dim_rn,model->dim_u), quu(model->dim_u,model->dim_u);
 
     Eigen::VectorXd Qx(model->dim_rn), Qu(model->dim_u);
+    Eigen::VectorXd Qu_c(model->dim_rn), Qu_ec(model->dim_u);
     Eigen::MatrixXd Qxx(model->dim_rn,model->dim_rn), Qxu(model->dim_rn,model->dim_u), Quu(model->dim_u,model->dim_u);
     Eigen::MatrixXd Quu_sim(model->dim_u,model->dim_u);
 
@@ -654,7 +687,7 @@ void IPDDP::backwardPass() {
         Eigen::MatrixXd QsxT = cTx_all;
         
         Eigen::VectorXd rpT = CT + YT;
-        Eigen::VectorXd rdT = YT_*ST - param.mu*eT;
+        Eigen::VectorXd rdT = YT_*ST - param.muT*eT;
         Eigen::VectorXd rT = ST_*rpT - rdT;
         
         kyT = - rpT;
@@ -663,16 +696,16 @@ void IPDDP::backwardPass() {
         KsT = STYTinv * QsxT;
 
         // CHECK: New Value Decrement
-        dV(0) += ksT.transpose() * CT;
+        // dV(0) += ksT.transpose() * CT;
 
         Vx += KsT.transpose() * CT + QsxT.transpose() * ksT;
         Vxx += QsxT.transpose() * KsT + KsT.transpose() * QsxT;
 
         // with slack
-        // Eigen::VectorXd QyT = YTinv * rdT;
-        // Eigen::VectorXd QsT = rpT;
-        // Eigen::MatrixXd I_cT = Eigen::VectorXd::Ones(model->dim_cT).asDiagonal();
-        // dV(0) += QyT.transpose() * kyT;
+        Eigen::VectorXd QyT = YTinv * rdT;
+        Eigen::VectorXd QsT = rpT;
+        Eigen::MatrixXd I_cT = Eigen::VectorXd::Ones(model->dim_cT).asDiagonal();
+        dV(0) += QyT.transpose() * kyT;
         // dV(0) += QsT.transpose() * ksT;
         // dV(1) += ksT.transpose() * I_cT * kyT; 
 
@@ -683,8 +716,8 @@ void IPDDP::backwardPass() {
         // Vxx += KsT.transpose() * I_cT * KyT + KyT.transpose() * I_cT * KsT;
 
         opterror = std::max({rpT.lpNorm<Eigen::Infinity>(), rdT.lpNorm<Eigen::Infinity>(), opterror});
-        // opterror_rpT_c = std::max({rpT.lpNorm<Eigen::Infinity>(), opterror_rpT_c});
-        // opterror_rdT_c = std::max({rdT.lpNorm<Eigen::Infinity>(), opterror_rdT_c});
+        opterror_rpT_c = std::max({rpT.lpNorm<Eigen::Infinity>(), opterror_rpT_c});
+        opterror_rdT_c = std::max({rdT.lpNorm<Eigen::Infinity>(), opterror_rdT_c});
     }
 
     // Equality Terminal Constraint
@@ -701,16 +734,16 @@ void IPDDP::backwardPass() {
         KzT = param.rho * QzxT;
 
         // CHECK: New Value Decrement
-        dV(0) += kzT.transpose() * ECT;
+        // dV(0) += kzT.transpose() * ECT;
 
         Vx += KzT.transpose() * ECT + QzxT.transpose() * kzT;
         Vxx += QzxT.transpose() * KzT + KzT.transpose() * QzxT;
 
         // with slack
-        // Eigen::VectorXd QrT = rdT;
-        // Eigen::VectorXd QzT = rpT;
-        // Eigen::MatrixXd I_ecT = Eigen::VectorXd::Ones(model->dim_ecT).asDiagonal();
-        // dV(0) += QrT.transpose() * krT;
+        Eigen::VectorXd QrT = rdT;
+        Eigen::VectorXd QzT = rpT;
+        Eigen::MatrixXd I_ecT = Eigen::VectorXd::Ones(model->dim_ecT).asDiagonal();
+        dV(0) += QrT.transpose() * krT;
         // dV(0) += QzT.transpose() * kzT;
         // dV(1) += kzT.transpose() * I_ecT * krT; // Qrr = 0
         
@@ -721,8 +754,8 @@ void IPDDP::backwardPass() {
         // Vxx += KzT.transpose() * I_ecT * KrT + KrT.transpose() * I_ecT * KzT;
         
         opterror = std::max({rpT.lpNorm<Eigen::Infinity>(), rdT.lpNorm<Eigen::Infinity>(), opterror});
-        // opterror_rpT_ec = std::max({rpT.lpNorm<Eigen::Infinity>(), opterror_rpT_ec});
-        // opterror_rdT_ec = std::max({rdT.lpNorm<Eigen::Infinity>(), opterror_rdT_ec});
+        opterror_rpT_ec = std::max({rpT.lpNorm<Eigen::Infinity>(), opterror_rpT_ec});
+        opterror_rdT_ec = std::max({rdT.lpNorm<Eigen::Infinity>(), opterror_rdT_ec});
     }
 
 
@@ -786,7 +819,8 @@ void IPDDP::backwardPass() {
             r = S_*rp - rd;
             
             Qx += Qsx.transpose() * s;
-            Qu += Qsu.transpose() * s;
+            Qu_c = Qsu.transpose() * s;
+            Qu += Qu_c;
 
             // CHECK (Orignal IPDDP for Value Update)
             // Qx += Qsx.transpose() * s + Qsx.transpose() * (Yinv * r);
@@ -840,17 +874,17 @@ void IPDDP::backwardPass() {
             Ky_ = -Qsx - Qsu * Ku_;
 
             // CHECK: New Value Decrement
-            dV(0) += ks_.transpose() * c_v;
-            dV(1) += ku_.transpose() * Qsu.transpose() * ks_;
+            // dV(0) += ks_.transpose() * c_v;
+            // dV(1) += ku_.transpose() * Qsu.transpose() * ks_;
 
             Vx += (Ks_.transpose() * c_v) + (Qsx.transpose() * ks_) + (Ku_.transpose() * Qsu.transpose() * ks_) + (Ks_.transpose() * Qsu * ku_);
             Vxx += (Qsx.transpose() * Ks_) + (Ks_.transpose() * Qsx) + (Ku_.transpose() * Qsu.transpose() * Ks_) + (Ks_.transpose() * Qsu * Ku_);
 
             // with slack
-            // Eigen::VectorXd Qy = Yinv * rd;
-            // Eigen::VectorXd Qs = rp;
-            // Eigen::MatrixXd I_c = Eigen::VectorXd::Ones(model->dim_c).asDiagonal();
-            // dV(0) += Qy.transpose() * ky_;
+            Eigen::VectorXd Qy = Yinv * rd;
+            Eigen::VectorXd Qs = rp;
+            Eigen::MatrixXd I_c = Eigen::VectorXd::Ones(model->dim_c).asDiagonal();
+            dV(0) += Qy.transpose() * ky_;
             // dV(0) += Qs.transpose() * ks_;
             // dV(1) += ks_.transpose() * Qsu * ku_;
             // dV(1) += ks_.transpose() * I_c * ky_; // Qss = 0
@@ -867,8 +901,9 @@ void IPDDP::backwardPass() {
             Ky.middleCols(t_dim_x, model->dim_rn) = Ky_;
 
             opterror = std::max({rp.lpNorm<Eigen::Infinity>(), rd.lpNorm<Eigen::Infinity>(), opterror});
+            opterror_rp_c = std::max({rp.lpNorm<Eigen::Infinity>(), (Qu + Qu_c).lpNorm<Eigen::Infinity>(), opterror_rp_c});
             // opterror_rp_c = std::max({rp.lpNorm<Eigen::Infinity>(), opterror_rp_c});
-            // opterror_rd_c = std::max({rp.lpNorm<Eigen::Infinity>(), opterror_rd_c});
+            opterror_rd_c = std::max({rp.lpNorm<Eigen::Infinity>(), opterror_rd_c});
         }
 
         // TODO
@@ -889,7 +924,7 @@ void IPDDP::checkRegulate() {
     if (forward_failed || backward_failed) {++regulate;}
     // else if (step == 0) {--regulate;}
     // else if (step <= 3) {regulate = regulate;}
-    else {--regulate;}
+    // else {--regulate;}
 
     if (regulate < 0) {regulate = 0;}
     else if (param.max_regularization < regulate) {regulate = param.max_regularization;}
@@ -934,10 +969,13 @@ void IPDDP::forwardPass() {
         double step_size = step_list[step];
 
         dV_exp = -(step_size * dV(0) + step_size * step_size * dV(1));
+        // if (error <= 0.5){
+        //     if (dV_exp <= 0.0) {forward_failed = 3; continue;}
+        // }
         // CHECK: Using Expected Value Decrement -> For Early Termination
-        if (error > 1){
-            if (dV_exp > 0) {forward_failed = 3; continue;}
-        }
+        // if (error > 1){
+        //     if (dV_exp > 0) {forward_failed = 3; continue;}
+        // }
         // if (error > 3.0){
         //     if (dV_exp <= 0.0) {forward_failed = 3; continue;}
         // }
@@ -1025,7 +1063,8 @@ void IPDDP::forwardPass() {
         if (model->dim_cT) {error_new += (CT_new + YT_new).lpNorm<1>();}
         // param.tolerance = std::min(param.tolerance, 1.0 / param.rho);
         error_new = std::max(param.tolerance, error_new);
-        if (error < error_new) {forward_failed = 1; continue;}
+        // if (error < error_new) {forward_failed = 1; continue;}
+        if (error <= 0.99*error_new) {forward_failed = 1;}
 
         // Cost
         barriercost_new = 0.0;
@@ -1040,7 +1079,16 @@ void IPDDP::forwardPass() {
 
         if (model->dim_ec) {alcost_new += (param.lambda.transpose() * R_new).sum() + (0.5 * param.rho * R_new.squaredNorm());}
         if (model->dim_ecT) {alcostT_new += (param.lambdaT.transpose() * RT_new) + (0.5 * param.rho * RT_new.squaredNorm());}
-        logcost_new = cost_new - param.mu * (barriercost_new + barriercostT_new) + (alcost_new + alcostT_new);
+        logcost_new = cost_new - (param.mu * barriercost_new + param.muT * barriercostT_new) + (alcost_new + alcostT_new);
+        // std::cout << "logcost = " << logcost << std::endl;
+        // std::cout << "logcost_new = " << logcost_new << std::endl;
+        // // std::cout << "cost_new = " << cost_new << std::endl;
+        // std::cout << "barriercost_new = " << barriercost_new << std::endl;
+        // std::cout << "barriercostT_new = " << barriercostT_new << std::endl;
+        // // std::cout << "alcost_new = " << alcost_new << std::endl;
+        // std::cout << "alcostT_new = " << alcostT_new << std::endl;
+        // std::cout << " " << std::endl;
+        
         
         // Fixed Dual Variable
         // if (model->dim_ec) {for (int t = 0; t < model->N; ++t) {logcost_new += Z_new.col(t).transpose() * (EC_new.col(t) + R_new.col(t));}}
@@ -1049,13 +1097,20 @@ void IPDDP::forwardPass() {
         // if (model->dim_cT) {logcost_new += ST_new.transpose() * (CT_new + YT_new);}
         
         dV_act = logcost - logcost_new;
-        if (dV_act < 0.0) {forward_failed = 2; continue;}
+        if (forward_failed == 1) {
+            if (dV_act < -(0.9*error)) {forward_failed = 2; continue;}
+        } 
+        // if (dV_act < -(error-error_new)) {forward_failed = 2; continue;}
+        // if (dV_act < 0.0) {forward_failed = 2; continue;}
 
-        // if (error <= 2.0){
-        //     // std::cout << "dV_exp  = " << dV_exp << std::endl;
-        //     // std::cout << "dV_act  = " << dV_act << std::endl;
-        //     if (!(1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp)) {forward_failed = 4; continue;}
-        // }
+        // if (error <= param.tolerance){
+        if (error <= 0.5){
+            // if (dV_exp <= 0.0) {forward_failed = 3; continue;}
+
+            if (dV_exp >= 0.0) {
+                if (!(1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp)) {forward_failed = 4; continue;}
+            }
+        }
         
         if (!forward_failed) {break;}
     }

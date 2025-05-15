@@ -6,6 +6,7 @@ struct Param {
     int max_inner_iter = 100; // maximum iteration for inner loop
     double tolerance = 1e-3; // tolerance for termination
     double mu = 1.0; // initial barrier parameter
+    double muT = mu; // initial barrier parameter
     double mu_mul = 0.2; // multiplier for mu update
     double mu_exp = 1.2; // exponent for mu update
     double mu_min = 1e-4; // minimum mu (normally set as tolerance / 10)
@@ -22,9 +23,9 @@ struct Param {
     int max_regularization = 10; // maximum regularization for backward pass
 
     // Automatic Initialization of Slack and Lagrange
-    bool auto_init = true; // Master Button for all constraints
-    bool auto_init_ec = true; // for equality constraints)
-    bool auto_init_ecT = true; // for terminal equality constraints)
+    bool auto_init = false; // Master Button for all constraints
+    bool auto_init_ec = false; // for equality constraints)
+    bool auto_init_ecT = false; // for terminal equality constraints)
     bool auto_init_noc = false; // for inequality constraints
     bool auto_init_cc = false; // for conic constraints
     bool auto_init_nocT = false; // for terminal inequality constraints
