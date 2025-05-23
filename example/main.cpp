@@ -28,10 +28,6 @@ int main() {
     param.rho_max = 1e+9;
     param.max_step_iter = 10;
     param.max_regularization = 20;
-    param.auto_init_noc = true;
-    param.auto_init_cc = true;
-    param.auto_init_ccT = true;
-    param.auto_init_ecT = true;
 
     // Solver Setting
     auto start = std::chrono::steady_clock::now();

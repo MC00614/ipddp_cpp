@@ -14,7 +14,8 @@ public:
     Vector4dual2nd Phi(Vector3dual2nd w) {
         Vector4dual2nd phi;
         phi << 1, w;
-        phi.normalize();
+        // phi.normalize();
+        phi /= sqrt(1 + w.squaredNorm());
         return phi;
     }
 

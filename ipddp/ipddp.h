@@ -366,24 +366,24 @@ void IPDDP::initAdditionalVariables() {
     // Nonnegative Orthant Constraint
     if (model->dim_g && param.auto_init_noc) {
         Y.topRows(model->dim_g) = (-C.topRows(model->dim_g).array()).max(eps);
-        S.topRows(model->dim_g) = (param.mu / -C.topRows(model->dim_g).array()).max(eps);
+        // S.topRows(model->dim_g) = (param.mu / -C.topRows(model->dim_g).array()).max(eps);
     }
     if (model->dim_gT && param.auto_init_nocT) {
         YT.topRows(model->dim_gT) = (-CT.topRows(model->dim_gT).array()).max(eps);
-        ST.topRows(model->dim_gT) = (param.mu / -CT.topRows(model->dim_gT).array()).max(eps);
+        // ST.topRows(model->dim_gT) = (param.mu / -CT.topRows(model->dim_gT).array()).max(eps);
     }
 
     // Conic Constraint (CHECK: Langrange & Vector Part)
     if (param.auto_init_cc) {
         for (int i = 0; i < model->dim_hs.size(); ++i) {
             Y.row(dim_hs_top[i]) = (-C.row(dim_hs_top[i]).array()).max(eps);
-            S.row(dim_hs_top[i]) = (param.mu / -C.row(dim_hs_top[i]).array()).max(eps);
+            // S.row(dim_hs_top[i]) = (param.mu / -C.row(dim_hs_top[i]).array()).max(eps);
         }
     }
     if (param.auto_init_ccT) {
         for (int i = 0; i < model->dim_hTs.size(); ++i) {
             YT.row(dim_hTs_top[i]) = (-CT.row(dim_hTs_top[i]).array()).max(eps);
-            ST.row(dim_hTs_top[i]) = (param.mu / -CT.row(dim_hTs_top[i]).array()).max(eps);
+            // ST.row(dim_hTs_top[i]) = (param.mu / -CT.row(dim_hTs_top[i]).array()).max(eps);
         }
     }
 }
@@ -517,8 +517,8 @@ void IPDDP::solve() {
                 //     param.rho = std::min(param.rho_max, std::max(param.rho_mul * param.rho, 1.0 / param.mu));
                 // }
                 if (model->dim_ecT && opterror_rpT_ec < param.tolerance && opterror_rdT_ec < param.tolerance) {
-                    // param.rho = std::min(param.rho_max, param.rho_mul * param.rho);
-                    param.rho = std::min(param.rho_max, std::max(param.rho_mul * param.rho, 1.0 / param.mu));
+                    param.rho = std::min(param.rho_max, param.rho_mul * param.rho);
+                    // param.rho = std::min(param.rho_max, std::max(param.rho_mul * param.rho, 1.0 / param.mu));
                     param.lambdaT = param.lambdaT + param.rho * RT;
                     updated = true;
                 }
@@ -552,8 +552,9 @@ void IPDDP::solve() {
         if (model->dim_cT) {param.muT = std::max(param.mu_min, std::min(param.mu_mul * param.muT, std::pow(param.muT, param.mu_exp)));}
         // param.lambdaT = param.lambdaT + param.rho * RT;
         // CHECK
+        // if (model->dim_ec || model->dim_ecT) {param.rho = std::min(param.rho_max, std::max(param.rho_mul * param.rho, 1.0 / param.mu));}
+        if (model->dim_ec || model->dim_ecT) {param.rho = std::min(param.rho_max, param.rho_mul * param.rho);}
         if (model->dim_ecT) {param.lambdaT = param.lambdaT + param.rho * RT;}
-        if (model->dim_ec || model->dim_ecT) {param.rho = std::min(param.rho_max, std::max(param.rho_mul * param.rho, 1.0 / param.mu));}
         resetFilter();
         resetRegulation();
     }
@@ -1064,7 +1065,7 @@ void IPDDP::forwardPass() {
         // param.tolerance = std::min(param.tolerance, 1.0 / param.rho);
         error_new = std::max(param.tolerance, error_new);
         // if (error < error_new) {forward_failed = 1; continue;}
-        if (error <= 0.99*error_new) {forward_failed = 1;}
+        if (0.99*error <= error_new) {forward_failed = 1;}
 
         // Cost
         barriercost_new = 0.0;
@@ -1080,15 +1081,7 @@ void IPDDP::forwardPass() {
         if (model->dim_ec) {alcost_new += (param.lambda.transpose() * R_new).sum() + (0.5 * param.rho * R_new.squaredNorm());}
         if (model->dim_ecT) {alcostT_new += (param.lambdaT.transpose() * RT_new) + (0.5 * param.rho * RT_new.squaredNorm());}
         logcost_new = cost_new - (param.mu * barriercost_new + param.muT * barriercostT_new) + (alcost_new + alcostT_new);
-        // std::cout << "logcost = " << logcost << std::endl;
-        // std::cout << "logcost_new = " << logcost_new << std::endl;
-        // // std::cout << "cost_new = " << cost_new << std::endl;
-        // std::cout << "barriercost_new = " << barriercost_new << std::endl;
-        // std::cout << "barriercostT_new = " << barriercostT_new << std::endl;
-        // // std::cout << "alcost_new = " << alcost_new << std::endl;
-        // std::cout << "alcostT_new = " << alcostT_new << std::endl;
-        // std::cout << " " << std::endl;
-        
+        if (isnan(logcost_new)) {forward_failed = 5; continue;}
         
         // Fixed Dual Variable
         // if (model->dim_ec) {for (int t = 0; t < model->N; ++t) {logcost_new += Z_new.col(t).transpose() * (EC_new.col(t) + R_new.col(t));}}
@@ -1097,20 +1090,22 @@ void IPDDP::forwardPass() {
         // if (model->dim_cT) {logcost_new += ST_new.transpose() * (CT_new + YT_new);}
         
         dV_act = logcost - logcost_new;
-        if (forward_failed == 1) {
-            if (dV_act < -(0.9*error)) {forward_failed = 2; continue;}
-        } 
-        // if (dV_act < -(error-error_new)) {forward_failed = 2; continue;}
         // if (dV_act < 0.0) {forward_failed = 2; continue;}
+        // if (dV_act < -(error-error_new)) {forward_failed = 2; continue;}
+        if (forward_failed == 1) {
+            if (dV_act < -(0.3*error)) {forward_failed = 2; continue;}
+        //     if (dV_act < -(0.1*error)) {forward_failed = 2; continue;}
+            else {forward_failed = 0;}
+        }
 
         // if (error <= param.tolerance){
-        if (error <= 0.5){
-            // if (dV_exp <= 0.0) {forward_failed = 3; continue;}
+        // if (error <= 0.5){
+        //     // if (dV_exp <= 0.0) {forward_failed = 3; continue;}
 
-            if (dV_exp >= 0.0) {
-                if (!(1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp)) {forward_failed = 4; continue;}
-            }
-        }
+        //     if (dV_exp >= 0.0) {
+        //         if (!(1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp)) {forward_failed = 4; continue;}
+        //     }
+        // }
         
         if (!forward_failed) {break;}
     }
