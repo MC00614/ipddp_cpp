@@ -2,29 +2,35 @@
 #include <iostream>
 
 #include <cmath>
+#include <chrono>
 
-#include "drone3d.h"
+#include "rocket3d.h"
 
 #include "ipddp.h"
 #include "visualize.h"
 
 int main() {
     // Load Dynamic Model
-    auto model = std::make_shared<Drone3D>();
+    auto model = std::make_shared<Rocket3D>();
+
+    // Intial velocity 
+    model->X_init(3,0) = -2.0;
+    model->X_init(4,0) = -2.5;
+    model->X_init(5,0) = 3.0;
     
     // Parameter Setting
     Param param;
     
     // Solver Setting
-    clock_t start = clock();
+    auto start = std::chrono::steady_clock::now();
 
     IPDDP ipddp(model);
     ipddp.init(param);
     ipddp.solve();
 
-    clock_t finish = clock();
-    double duration = (double)(finish - start) / CLOCKS_PER_SEC;
-    std::cout << "\nIn Total : " << duration << " Seconds" << std::endl;
+    auto finish = std::chrono::steady_clock::now();
+    std::chrono::duration<double> duration = finish - start;
+    std::cout << "\nIn Total : " << duration.count() << " Seconds" << std::endl;
 
     // Parse Result
     Eigen::MatrixXd X_init = Eigen::MatrixXd::Zero(model->dim_x, model->N+1);
