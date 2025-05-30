@@ -4,7 +4,7 @@
 #include <cmath>
 #include <chrono>
 
-#include "rocket3d_stable.h"
+#include "rocket3d.h"
 
 #include "ipddp.h"
 #include "visualize.h"
