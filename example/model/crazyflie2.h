@@ -23,29 +23,29 @@ public:
 CrazyFlie::CrazyFlie() : QuatModelBase(9) { // q index = 9
     dt = 0.1;
     gravity = 9.81;
-    mass = 0.027;
+    mass = 0.5;
+    // mass = 0.027;
 
     // Inertia
     J.setZero();
-    J(0, 0) = 1.43e-5;
-    J(1, 1) = 1.43e-5;
-    J(2, 2) = 2.89e-5;
+    J(0, 0) = 0.029125;
+    J(1, 1) = 0.029125;
+    J(2, 2) = 0.055225;
     J_inv = J.inverse();
 
     // Dimensions
     dim_x = 13; // position(3), velocity(3), angular velocity(3), quaternion(4)
     dim_u = 4;  // thrust, torque_x, torque_y, torque_z
-    N = 30;
+    N = 200;
 
     X_init = Eigen::MatrixXd::Zero(dim_x, N + 1);
-    X_init(0, 0) = 1.0;
-    X_init(1, 0) = 1.0;
-    X_init(2, 0) = 1.0;
-    // X_init(3, 0) = -1.0;
-    // X_init(4, 0) = -1.0;
-    // X_init(5, 0) = -0.5;
+    X_init(0, 0) = 4.0;
+    X_init(1, 0) = 3.0;
+    X_init(2, 0) = 10.0;
     // X_init(3, 0) = -0.5;
     // X_init(4, 0) = -0.5;
+    // X_init(3, 0) = -1.0;
+    // X_init(4, 0) = -1.0;
     // X_init(5, 0) = -0.5;
     X_init(9, 0) = 1.0;       // initial quaternion = [1, 0, 0, 0]
 
@@ -125,41 +125,29 @@ CrazyFlie::CrazyFlie() : QuatModelBase(9) { // q index = 9
 
     // Cost
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
-        return 1e-3 * u.squaredNorm();
+        return u.squaredNorm();
     };
 
     p = [this](const VectorXdual2nd& x) -> dual2nd {
         return 0.0;
     };
 
-    // // Constraints
-    // dim_g = 6;
-    // g = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-    //     VectorXdual2nd g_n(6);
-    //     g_n(0) = u_max - u(0);
-    //     g_n(1) = w_max*w_max - x.segment(6,3).squaredNorm();
-    //     g_n(2) = -0.0 - x(5);
-    //     g_n(3) = (x.head(3) - obs_cent_zip.col(0)).norm() - obs_rad_zip(0);
-    //     g_n(4) = (x.head(3) - obs_cent_zip.col(1)).norm() - obs_rad_zip(1);
-    //     g_n(5) = (x.head(3) - obs_cent_zip.col(2)).norm() - obs_rad_zip(2);
-    //     return -g_n;
-    // };
     // Constraints
-    dim_g = 2;
+    dim_g = 6;
     g = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        VectorXdual2nd g_n(2);
+        VectorXdual2nd g_n(6);
         g_n(0) = u_max - u(0);
         g_n(1) = w_max*w_max - x.segment(6,3).squaredNorm();
-        // g_n(2) = -0.0 - x(5);
-        // g_n(3) = (x.head(3) - obs_cent_zip.col(0)).norm() - obs_rad_zip(0);
-        // g_n(4) = (x.head(3) - obs_cent_zip.col(1)).norm() - obs_rad_zip(1);
-        // g_n(5) = (x.head(3) - obs_cent_zip.col(2)).norm() - obs_rad_zip(2);
+        g_n(2) = -0.0 - x(5);
+        g_n(3) = (x.head(3) - obs_cent_zip.col(0)).norm() - obs_rad_zip(0);
+        g_n(4) = (x.head(3) - obs_cent_zip.col(1)).norm() - obs_rad_zip(1);
+        g_n(5) = (x.head(3) - obs_cent_zip.col(2)).norm() - obs_rad_zip(2);
         return -g_n;
     };
 
     dim_h = 3;
     h = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        const double state_angmax = tan(60.0 * (M_PI/180.0));
+        const double state_angmax = tan(45.0 * (M_PI/180.0));
         VectorXdual2nd h_n(3);
         h_n(0) = state_angmax * x(2);
         h_n(1) = x(0);
@@ -169,22 +157,12 @@ CrazyFlie::CrazyFlie() : QuatModelBase(9) { // q index = 9
     hs.push_back(h);
     dim_hs.push_back(dim_h);
 
-    dim_hT = 3;
-    hT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
-        const double state_angmax = tan(60.0 * (M_PI/180.0));
-        VectorXdual2nd h_n(3);
-        h_n(0) = state_angmax * x(2);
-        h_n(1) = x(0);
-        h_n(2) = x(1);
-        return -h_n;
-    };
-    hTs.push_back(hT);
-    dim_hTs.push_back(dim_hT);
-
     // Terminal constraint
     dim_ecT = 9;
     ecT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
-        return x.head(9);
+        VectorXdual2nd ecT_n = x.head(9);
+        ecT_n(2) -= 1.0;
+        return ecT_n;
     };
 }
 

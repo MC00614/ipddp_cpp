@@ -667,11 +667,23 @@ void IPDDP::backwardPass() {
     double reg1_mu = param.reg1_min * (std::pow(param.reg1_exp, regulate));
     double reg2_mu = param.reg2_min * (std::pow(param.reg2_exp, regulate));
 
+    double eps_p = reg2_mu;
+    double eps_d = reg1_mu;
+
+    Eigen::MatrixXd MAT(model->dim_u + model->dim_c + model->dim_ec, model->dim_u + model->dim_c + model->dim_ec);
+    Eigen::MatrixXd MAT_sym(model->dim_u + model->dim_c + model->dim_ec, model->dim_u + model->dim_c + model->dim_ec);
+    Eigen::VectorXd d(model->dim_u + model->dim_c + model->dim_ec);
+    Eigen::MatrixXd K(model->dim_u + model->dim_c + model->dim_ec, model->dim_rn);
+    Eigen::VectorXd d_sol(model->dim_u + model->dim_c + model->dim_ec);
+    Eigen::MatrixXd K_sol(model->dim_u + model->dim_c + model->dim_ec, model->dim_rn);
+
     Vx = px_all;
     Vxx = pxx_all;
 
     // Inequality Terminal Constraint
     if (model->dim_cT) {
+        Eigen::MatrixXd QsxT = cTx_all;
+
         Eigen::MatrixXd YT_ = Eigen::MatrixXd::Zero(model->dim_cT, model->dim_cT);
         Eigen::MatrixXd ST_ = Eigen::MatrixXd::Zero(model->dim_cT, model->dim_cT);
         if (model->dim_gT) {
@@ -682,19 +694,29 @@ void IPDDP::backwardPass() {
             YT_.block(dim_hTs_top[i], dim_hTs_top[i], model->dim_hTs[i], model->dim_hTs[i]) = L(YT.middleRows(dim_hTs_top[i], model->dim_hTs[i]));
             ST_.block(dim_hTs_top[i], dim_hTs_top[i], model->dim_hTs[i], model->dim_hTs[i]) = L(ST.middleRows(dim_hTs_top[i], model->dim_hTs[i]));
         }
+        // TODO: Efficient Block Matrix Calculation
         Eigen::MatrixXd YTinv = YT_.inverse();
         Eigen::MatrixXd STYTinv = YTinv * ST_;
-
-        Eigen::MatrixXd QsxT = cTx_all;
         
         Eigen::VectorXd rpT = CT + YT;
         Eigen::VectorXd rdT = YT_*ST - param.muT*eT;
-        Eigen::VectorXd rT = ST_*rpT - rdT;
+
+        Eigen::MatrixXd Eps_p = eps_p * Eigen::MatrixXd::Identity(model->dim_cT, model->dim_cT);
+        Eigen::MatrixXd Eps_d = eps_d * Eigen::MatrixXd::Identity(model->dim_cT, model->dim_cT);
+        Eigen::MatrixXd M_inv = (YT_ + Eps_p).inverse();
         
-        kyT = - rpT;
-        KyT = - QsxT;
-        ksT = YTinv * rT;
-        KsT = STYTinv * QsxT;
+        Eigen::MatrixXd  Qyy_inv = -(Eps_d + M_inv * ST_).inverse();
+
+        ksT = - Qyy_inv * (rpT + M_inv * rdT);
+        KsT = - Qyy_inv * QsxT;
+        kyT = - rpT + Eps_d * ksT;
+        KyT = - QsxT + Eps_d * KsT;
+        
+        // Eigen::VectorXd rT = ST_*rpT - rdT;
+        // kyT = - rpT;
+        // KyT = - QsxT;
+        // ksT = YTinv * rT;
+        // KsT = STYTinv * QsxT;
 
         // CHECK: New Value Decrement
         // dV(0) += ksT.transpose() * CT;
@@ -727,12 +749,24 @@ void IPDDP::backwardPass() {
 
         Eigen::VectorXd rpT = ECT + RT;
         Eigen::VectorXd rdT = ZT + param.lambdaT + (param.rho * RT);
-        Eigen::VectorXd rT = param.rho*rpT - rdT;
 
-        krT = - rpT;
-        KrT = - QzxT;
-        kzT = rT;
-        KzT = param.rho * QzxT;
+        Eigen::MatrixXd Eps_p = eps_p * Eigen::MatrixXd::Identity(model->dim_ecT, model->dim_ecT);
+        Eigen::MatrixXd Eps_d = eps_d * Eigen::MatrixXd::Identity(model->dim_ecT, model->dim_ecT);
+        Eigen::MatrixXd Rho = param.rho * Eigen::MatrixXd::Identity(model->dim_ecT, model->dim_ecT);
+        
+        Eigen::MatrixXd M_inv = (Rho + Eps_p).inverse();
+        Eigen::MatrixXd Qzz_inv = -(Eps_d + M_inv).inverse();
+        
+        kzT = - Qzz_inv * (rpT + M_inv * rdT);
+        KzT = - Qzz_inv * QzxT;
+        krT = - rpT + eps_d * kzT;
+        KrT = - QzxT + eps_d * KzT;
+        
+        // Eigen::VectorXd rT = param.rho*rpT - rdT;
+        // krT = - rpT;
+        // KrT = - QzxT;
+        // kzT = rT;
+        // KzT = param.rho * QzxT;
 
         // CHECK: New Value Decrement
         // dV(0) += kzT.transpose() * ECT;
@@ -759,6 +793,10 @@ void IPDDP::backwardPass() {
         opterror_rdT_ec = std::max({rdT.lpNorm<Eigen::Infinity>(), opterror_rdT_ec});
     }
 
+    // Inequality Constraint
+    Eigen::MatrixXd Eps_p = eps_p * Eigen::MatrixXd::Identity(model->dim_c, model->dim_c);
+    Eigen::MatrixXd Eps_d = eps_d * Eigen::MatrixXd::Identity(model->dim_c, model->dim_c);
+    Eigen::MatrixXd M_inv;
 
     backward_failed = false;
 
@@ -793,7 +831,17 @@ void IPDDP::backwardPass() {
         Qxu = qxu + (fx.transpose() * Vxx * fu);
         Quu = quu + (fu.transpose() * Vxx * fu);
 
-        // Inequality Constraint
+        // BLOCK (1,1)
+        // Option 1. Like Original
+        // Qxx += fx.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fx;
+        // Qxu += fx.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fu;
+        // Quu += fu.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fu;
+        // Quu += reg2_mu * Eigen::MatrixXd::Identity(model->dim_u, model->dim_u);
+        // MAT.topLeftCorner(model->dim_u, model->dim_u) = Quu;
+
+        // Option (2) On Matrix
+        MAT.topLeftCorner(model->dim_u, model->dim_u) = Quu + eps_p * Eigen::MatrixXd::Identity(model->dim_u, model->dim_u);
+
         if (model->dim_c) {
             y = Y.col(t);
             s = S.col(t);
@@ -830,13 +878,18 @@ void IPDDP::backwardPass() {
             // Qxx += Qsx.transpose() * SYinv * Qsx;
             // Qxu += Qsx.transpose() * SYinv * Qsu;
             // Quu += Qsu.transpose() * SYinv * Qsu;
+
+            // BLOCK (2,1)
+            MAT.block(model->dim_u, 0, model->dim_c, model->dim_u) = Qsu;
+            // BLOCK (1,2)
+            MAT.block(0, model->dim_u, model->dim_u, model->dim_c) = Qsu.transpose();
+            // BLOCK (2,2)
+            M_inv = (Y_ + Eps_p).inverse();
+            MAT.block(model->dim_u, model->dim_u, model->dim_c, model->dim_c) = -(Eps_d + M_inv * S_);
+
+            d.middleRows(model->dim_u, model->dim_c) = - rp - M_inv * rd;
+            K.middleRows(model->dim_u, model->dim_c) = - Qsx;
         }
-        
-        // Regularization
-        Qxx += fx.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fx;
-        Qxu += fx.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fu;
-        Quu += fu.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fu;
-        Quu += reg2_mu * Eigen::MatrixXd::Identity(model->dim_u, model->dim_u);
         
         // TODO
         // Equality Constraint
@@ -844,17 +897,46 @@ void IPDDP::backwardPass() {
 
         // }
 
-        Quu_sim = 0.5*(Quu + Quu.transpose());
-        Quu = Quu_sim;
-        Quu_llt = Eigen::LLT<Eigen::MatrixXd>(Quu);
-        if (!Quu.isApprox(Quu.transpose()) || Quu_llt.info() == Eigen::NumericalIssue) {
+        // LDLT Factorization
+        d.topRows(model->dim_u) = - Qu;
+        K.topRows(model->dim_u) = - Qxu.transpose();
+
+        MAT_sym = 0.5 * (MAT + MAT.transpose());
+        Eigen::LDLT<Eigen::MatrixXd> MAT_ldlt(MAT_sym);
+        if (MAT_ldlt.info() != Eigen::Success || MAT_ldlt.info() == Eigen::NumericalIssue) {
+            std::cout << "LDLT factorization failed.\n";
             backward_failed = true;
             break;
         }
-        R = Quu_llt.matrixU();
 
-        ku_ = -R.inverse() * (R.transpose().inverse() * Qu);
-        Ku_ = -R.inverse() * (R.transpose().inverse() * Qxu.transpose());
+        // Inertia Check
+        Eigen::VectorXd diagD = MAT_ldlt.vectorD();
+        double tol = 1e-9;
+        int n_pos = (diagD.array() > tol).count();
+        int n_neg = (diagD.array() < -tol).count();
+        if ((n_pos != model->dim_u) || (n_neg != (model->dim_c + model->dim_ec))) {
+            std::cout << "Inertia Check failed." << std::endl;
+            backward_failed = true;
+            break;
+        }
+
+        d_sol = MAT_ldlt.solve(d);
+        K_sol = MAT_ldlt.solve(K);
+
+        ku_ = d_sol.topRows(model->dim_u);
+        Ku_ = K_sol.topRows(model->dim_u);
+
+        // Quu_sim = 0.5*(Quu + Quu.transpose());
+        // Quu = Quu_sim;
+        // Quu_llt = Eigen::LLT<Eigen::MatrixXd>(Quu);
+        // if (!Quu.isApprox(Quu.transpose()) || Quu_llt.info() == Eigen::NumericalIssue) {
+        //     backward_failed = true;
+        //     break;
+        // }
+        // R = Quu_llt.matrixU();
+
+        // ku_ = -R.inverse() * (R.transpose().inverse() * Qu);
+        // Ku_ = -R.inverse() * (R.transpose().inverse() * Qxu.transpose());
         
         dV(0) += ku_.transpose() * Qu;
         dV(1) += 0.5 * ku_.transpose() * Quu * ku_;
@@ -869,10 +951,15 @@ void IPDDP::backwardPass() {
 
         // Inequality Constraint
         if (model->dim_c) {
-            ks_ = (Yinv * r) + (SYinv * Qsu * ku_);
-            Ks_ = SYinv * (Qsx + Qsu * Ku_);
-            ky_ = -rp - Qsu * ku_;
-            Ky_ = -Qsx - Qsu * Ku_;
+            ks_ = d_sol.middleRows(model->dim_u, model->dim_c);
+            Ks_ = K_sol.middleRows(model->dim_u, model->dim_c);
+            ky_ = - (rp + Qsu * ku_) + Eps_d * ks_;
+            Ky_ = - (Qsx + Qsu * Ku_) + Eps_d * Ks_;
+
+            // ks_ = (Yinv * r) + (SYinv * Qsu * ku_);
+            // Ks_ = SYinv * (Qsx + Qsu * Ku_);
+            // ky_ = -rp - Qsu * ku_;
+            // Ky_ = -Qsx - Qsu * Ku_;
 
             // CHECK: New Value Decrement
             // dV(0) += ks_.transpose() * c_v;
@@ -904,7 +991,7 @@ void IPDDP::backwardPass() {
             opterror = std::max({rp.lpNorm<Eigen::Infinity>(), rd.lpNorm<Eigen::Infinity>(), opterror});
             opterror_rp_c = std::max({rp.lpNorm<Eigen::Infinity>(), (Qu + Qu_c).lpNorm<Eigen::Infinity>(), opterror_rp_c});
             // opterror_rp_c = std::max({rp.lpNorm<Eigen::Infinity>(), opterror_rp_c});
-            opterror_rd_c = std::max({rp.lpNorm<Eigen::Infinity>(), opterror_rd_c});
+            opterror_rd_c = std::max({rd.lpNorm<Eigen::Infinity>(), opterror_rd_c});
         }
 
         // TODO
@@ -1065,7 +1152,7 @@ void IPDDP::forwardPass() {
         // param.tolerance = std::min(param.tolerance, 1.0 / param.rho);
         error_new = std::max(param.tolerance, error_new);
         // if (error < error_new) {forward_failed = 1; continue;}
-        if (0.99*error <= error_new) {forward_failed = 1;}
+        if (0.9*error <= error_new) {forward_failed = 1;}
 
         // Cost
         barriercost_new = 0.0;
@@ -1093,7 +1180,7 @@ void IPDDP::forwardPass() {
         // if (dV_act < 0.0) {forward_failed = 2; continue;}
         // if (dV_act < -(error-error_new)) {forward_failed = 2; continue;}
         if (forward_failed == 1) {
-            if (dV_act < -(0.3*error)) {forward_failed = 2; continue;}
+            if (dV_act < -(0.1*error)) {forward_failed = 2; continue;}
         //     if (dV_act < -(0.1*error)) {forward_failed = 2; continue;}
             else {forward_failed = 0;}
         }

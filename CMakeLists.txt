@@ -27,7 +27,7 @@ else()
 endif()
 
 # Main Executable
-add_executable(${PROJECT_NAME} example/main.cpp)
+add_executable(${PROJECT_NAME} example/test.cpp)
 target_include_directories(${PROJECT_NAME} PRIVATE ${INCLUDE_DIRS})
 target_compile_options(${PROJECT_NAME} PRIVATE -O2)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${Python3_LIBRARIES})
