@@ -13,6 +13,7 @@ public:
     Eigen::VectorXd gravity;
     double umax;
     Eigen::MatrixXd U;
+    Eigen::VectorXd x_goal;
 };
 
 Rocket2D::Rocket2D() {
@@ -25,12 +26,12 @@ Rocket2D::Rocket2D() {
     umax = mass*9.81*1.1;
 
     // Stage Count
-    N = 300;
+    N = 170;
 
     dim_x = 6;
     X_init = Eigen::MatrixXd::Zero(dim_x, N+1);
-    X_init(0,0) = 8.0;
-    X_init(1,0) = 6.0;
+    X_init(0,0) = 4.0;
+    X_init(1,0) = 3.0;
 
     dim_u = 2;
     U_init = Eigen::MatrixXd::Zero(dim_u, N);
@@ -55,12 +56,12 @@ Rocket2D::Rocket2D() {
 
     // Stage Cost Function
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
-        return 1e-6 * u.squaredNorm() + 1e-3 * (x.segment(2,2).squaredNorm() + x.segment(5,1).squaredNorm());
+        return 1e-4 * u.squaredNorm();
     };
 
     // Terminal Cost Function
     p = [this](const VectorXdual2nd& x) -> dual2nd {
-        return x.squaredNorm();
+        return 0.0;
     };
 
     // Nonnegative Orthant Constraint Mapping
@@ -106,6 +107,17 @@ Rocket2D::Rocket2D() {
     };
     hTs.push_back(hT);
     dim_hTs.push_back(dim_hT);
+
+    // Terminal Equality Constraint
+    x_goal.resize(dim_x);
+    x_goal << 1.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+
+    dim_ecT = 6;
+    ecT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
+        VectorXdual2nd ec_n(6);
+        ec_n = x - x_goal;
+        return ec_n;
+    };
 }
 
 Rocket2D::~Rocket2D() {

@@ -44,7 +44,6 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
     X_init(2,0) = 8.0;
     X_init(3,0) = -2.0;
     X_init(4,0) = -2.5;
-    // X_init(4,0) = -2.0;
     X_init(5,0) = 3.0;
 
     // Quaternion
@@ -94,7 +93,7 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
 
     // Stage Cost Function
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
-        return 1e-6 * u.squaredNorm() + 1e-3 * x.segment(3,6).squaredNorm();
+        return 1e-6 * u.squaredNorm();
     };
 
     // Terminal Cost Function
@@ -169,8 +168,6 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
         ecT_n(10) = dq(1);
         ecT_n(11) = dq(2);
         ecT_n(12) = dq(3);
-
-        // ecT_n(9) = 1.0 - abs((q_desired.transpose() * x.middleRows(9, 4))(0));
         return ecT_n;
     };
 }
