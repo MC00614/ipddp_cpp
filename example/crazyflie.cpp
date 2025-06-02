@@ -3,7 +3,7 @@
 
 #include <cmath>
 
-#include "crazyflie2.h"
+#include "crazyflie.h"
 
 #include "ipddp.h"
 #include "visualize.h"
@@ -49,6 +49,9 @@ int main() {
     std::cout<<"X_result = \n"<<X_result.transpose()<<std::endl;
     std::cout<<"U_result = \n"<<U_result.transpose()<<std::endl;
 
+    std::cout<<"X_last = \n"<<X_result.col(model->N).transpose()<<std::endl;
+    std::cout<<"U_last = \n"<<U_result.col(model->N-1).transpose()<<std::endl;
+    
     // Visualize
     visualize(X_init, U_init, X_result, U_result, all_cost);
 
