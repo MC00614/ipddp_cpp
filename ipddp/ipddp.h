@@ -506,30 +506,18 @@ void IPDDP::solve() {
             {
                 bool updated = false;
                 if (model->dim_c && opterror_rp_c < param.tolerance && opterror_rd_c < param.tolerance) {
+                    if (param.mu > param.mu_min) {updated = true;}
                     param.mu = std::max(param.mu_min, std::min(param.mu_mul * param.mu, std::pow(param.mu, param.mu_exp)));
-                    updated = true;
                 }
                 if (model->dim_cT && opterror_rpT_c < param.tolerance && opterror_rdT_c < param.tolerance) {
+                    if (param.muT > param.mu_min) {updated = true;}
                     param.muT = std::max(param.mu_min, std::min(param.mu_mul * param.muT, std::pow(param.muT, param.mu_exp)));
-                    updated = true;
                 }
-                // if (model->dim_ec && opterror_rpT_ec > param.tolerance && opterror_rdT_ec > param.tolerance) {
-                //     param.rho = std::min(param.rho_max, std::max(param.rho_mul * param.rho, 1.0 / param.mu));
-                // }
                 if (model->dim_ecT && opterror_rpT_ec < param.tolerance && opterror_rdT_ec < param.tolerance) {
+                    if (param.rho < param.rho_max) {updated = true;}
                     param.rho = std::min(param.rho_max, param.rho_mul * param.rho);
-                    // param.rho = std::min(param.rho_max, std::max(param.rho_mul * param.rho, 1.0 / param.mu));
                     param.lambdaT = param.lambdaT + param.rho * RT;
-                    updated = true;
                 }
-                // if (model->dim_ecT && opterror_rpT_ec < param.tolerance) {
-                //     updated = true;
-                //     param.rho = std::min(param.rho_max, std::max(param.rho_mul * param.rho, 1.0 / param.mu));
-                //     if (opterror_rdT_ec < param.tolerance) {
-                //         param.lambdaT = param.lambdaT + param.rho * RT;
-                //         // param.rho = std::min(param.rho_max, param.rho_mul * param.rho);
-                //     }
-                // }
                 if (updated) {resetFilter();}
             }
         }
@@ -1151,8 +1139,8 @@ void IPDDP::forwardPass() {
         if (model->dim_cT) {error_new += (CT_new + YT_new).lpNorm<1>();}
         // param.tolerance = std::min(param.tolerance, 1.0 / param.rho);
         error_new = std::max(param.tolerance, error_new);
-        // if (error < error_new) {forward_failed = 1; continue;}
-        if (0.9*error <= error_new) {forward_failed = 1;}
+        if (error < error_new) {forward_failed = 1; continue;}
+        // if (0.99*error <= error_new) {forward_failed = 1;}
 
         // Cost
         barriercost_new = 0.0;
@@ -1177,10 +1165,10 @@ void IPDDP::forwardPass() {
         // if (model->dim_cT) {logcost_new += ST_new.transpose() * (CT_new + YT_new);}
         
         dV_act = logcost - logcost_new;
-        // if (dV_act < 0.0) {forward_failed = 2; continue;}
+        if (dV_act < 0.0) {forward_failed = 2; continue;}
         // if (dV_act < -(error-error_new)) {forward_failed = 2; continue;}
         if (forward_failed == 1) {
-            if (dV_act < -(0.1*error)) {forward_failed = 2; continue;}
+            if (dV_act < -(0.3*error)) {forward_failed = 2; continue;}
         //     if (dV_act < -(0.1*error)) {forward_failed = 2; continue;}
             else {forward_failed = 0;}
         }

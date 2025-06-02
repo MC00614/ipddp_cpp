@@ -27,7 +27,7 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
     mass = 10.0;
     gravity << 0.0, 0.0, -9.81;
     umax = mass * 9.81 * 1.1;
-    umin = mass * 9.81 * 0.2;
+    umin = mass * 9.81 * 0.6;
     J_B << (1.0/12.0) * mass * (3 * r * r + l * l), 0, 0,
            0, (1.0/12.0) * mass * (3 * r * r + l * l), 0,
            0, 0, 0.5 * mass * r * r;
@@ -35,28 +35,23 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
     L_thrust << 0, 0, -l/2;
 
     // Stage Count
-    N = 100;
+    N = 200;
 
     dim_x = 13;
     X_init = Eigen::MatrixXd::Zero(dim_x, N+1);
-    // X_init(0,0) = 4.0;
-    // X_init(1,0) = 6.0;
-    X_init(2,0) = 100.0;
-    // X_init(3,0) = -2.0;
-    // X_init(4,0) = -2.5;
-    // // X_init(4,0) = -2.0;
-    // X_init(5,0) = 3.0;
+    X_init(0,0) = 4.0;
+    X_init(1,0) = 6.0;
+    X_init(2,0) = 8.0;
 
     // Quaternion
-    X_init(9, 0) = 0.7071;
+    X_init(9, 0) = 1.0;
     X_init(10, 0) = 0.0;
-    X_init(11, 0) = 0.7071;
+    X_init(11, 0) = 0.0;
     X_init(12, 0) = 0.0;
 
     dim_u = 3;
     U_init = Eigen::MatrixXd::Zero(dim_u, N);
     U_init.row(2) = 9.81 * 10.0 * Eigen::VectorXd::Ones(N);
-    // U_init.row(2) = umin * Eigen::VectorXd::Ones(N);
 
     // Discrete Time System
     f = [this](const VectorXdual2nd& x, const Vector3dual2nd& u) -> VectorXdual2nd {
@@ -95,13 +90,12 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
 
     // Stage Cost Function
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
-        return 1e-6 * u.squaredNorm() + 1e-3 * x.segment(3,6).squaredNorm();
+        return 1e-6 * u.squaredNorm();
     };
 
     // Terminal Cost Function
     p = [this](const VectorXdual2nd& x) -> dual2nd {
-        VectorXdual2nd dq = Lq(x.segment(9, 4)).transpose() * q_desired;
-        return 10*((1.0 - abs(dq(0))) + dq(1) + dq(2) + dq(3));
+        return 0;
     };
 
     // Nonnegative Orthant Constraint Mapping
@@ -126,55 +120,53 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
     hs.push_back(h);
     dim_hs.push_back(dim_h);
     
-    // // Connic Constraint Mapping (Guidance Cone)
-    // dim_h = 3;
-    // h = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-    //     const double state_angmax = tan(45.0 * (M_PI/180.0));
-    //     VectorXdual2nd h_n(3);
-    //     h_n(0) = state_angmax * x(2);
-    //     h_n(1) = x(0);
-    //     h_n(2) = x(1);
-    //     return -h_n;
-    // };
-    // hs.push_back(h);
-    // dim_hs.push_back(dim_h);
+    // Connic Constraint Mapping (Guidance Cone)
+    dim_h = 3;
+    h = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
+        const double state_angmax = tan(45.0 * (M_PI/180.0));
+        VectorXdual2nd h_n(3);
+        h_n(0) = state_angmax * x(2);
+        h_n(1) = x(0);
+        h_n(2) = x(1);
+        return -h_n;
+    };
+    hs.push_back(h);
+    dim_hs.push_back(dim_h);
 
-    // // Terminal State Constraint
-    // dim_hT = 3;
-    // hT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
-    //     const double state_angmax = tan(45.0 * (M_PI/180.0));
-    //     VectorXdual2nd h_n(3);
-    //     h_n(0) = state_angmax * x(2);
-    //     h_n(1) = x(0);
-    //     h_n(2) = x(1);
-    //     return -h_n;
-    // };
-    // hTs.push_back(hT);
-    // dim_hTs.push_back(dim_hT);
+    // Terminal State Constraint
+    dim_hT = 3;
+    hT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
+        const double state_angmax = tan(45.0 * (M_PI/180.0));
+        VectorXdual2nd h_n(3);
+        h_n(0) = state_angmax * x(2);
+        h_n(1) = x(0);
+        h_n(2) = x(1);
+        return -h_n;
+    };
+    hTs.push_back(hT);
+    dim_hTs.push_back(dim_hT);
 
-    // // Terminal State Equality Constraint (Full State)
-    // q_desired << 1, 0, 0, 0;
-    // dim_ecT = 13;
-    // ecT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
-    //     VectorXdual2nd ecT_n(13);
-    //     ecT_n(0) = x(0);
-    //     ecT_n(1) = x(1);
-    //     ecT_n(2) = x(2) - 1.0;
-    //     ecT_n(3) = x(3);
-    //     ecT_n(4) = x(4);
-    //     ecT_n(5) = x(5);
-    //     ecT_n(6) = x(6);
-    //     ecT_n(7) = x(7);
-    //     ecT_n(8) = x(8);
-    //     VectorXdual2nd dq = Lq(x.segment(9, 4)).transpose() * q_desired;
-    //     ecT_n(9) = 1.0 - abs(dq(0));
-    //     ecT_n(10) = dq(1);
-    //     ecT_n(11) = dq(2);
-    //     ecT_n(12) = dq(3);
-
-    //     // ecT_n(9) = 1.0 - abs((q_desired.transpose() * x.middleRows(9, 4))(0));
-    //     return ecT_n;
-    // };
+    // Terminal State Equality Constraint (Full State)
+    q_desired << 1, 0, 0, 0;
+    dim_ecT = 13;
+    ecT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
+        VectorXdual2nd ecT_n(13);
+        ecT_n(0) = x(0);
+        ecT_n(1) = x(1);
+        ecT_n(2) = x(2) - 1.0;
+        ecT_n(3) = x(3);
+        ecT_n(4) = x(4);
+        ecT_n(5) = x(5);
+        ecT_n(6) = x(6);
+        ecT_n(7) = x(7);
+        ecT_n(8) = x(8);
+        VectorXdual2nd dq = Lq(x.segment(9, 4)).transpose() * q_desired;
+        ecT_n(9) = 1.0 - abs(dq(0));
+        ecT_n(10) = dq(1);
+        ecT_n(11) = dq(2);
+        ecT_n(12) = dq(3);
+        return ecT_n;
+    };
 }
 
 Rocket3D::~Rocket3D() {
