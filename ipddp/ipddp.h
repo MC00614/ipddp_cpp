@@ -658,8 +658,7 @@ void IPDDP::backwardPass() {
     double eps_p = reg2_mu;
     double eps_d = reg1_mu;
 
-    Eigen::MatrixXd MAT(model->dim_u + model->dim_c + model->dim_ec, model->dim_u + model->dim_c + model->dim_ec);
-    Eigen::MatrixXd MAT_sym(model->dim_u + model->dim_c + model->dim_ec, model->dim_u + model->dim_c + model->dim_ec);
+    Eigen::MatrixXd MAT = Eigen::MatrixXd::Zero(model->dim_u + model->dim_c + model->dim_ec, model->dim_u + model->dim_c + model->dim_ec);
     Eigen::VectorXd d(model->dim_u + model->dim_c + model->dim_ec);
     Eigen::MatrixXd K(model->dim_u + model->dim_c + model->dim_ec, model->dim_rn);
     Eigen::VectorXd d_sol(model->dim_u + model->dim_c + model->dim_ec);
@@ -691,20 +690,20 @@ void IPDDP::backwardPass() {
 
         Eigen::MatrixXd Eps_p = eps_p * Eigen::MatrixXd::Identity(model->dim_cT, model->dim_cT);
         Eigen::MatrixXd Eps_d = eps_d * Eigen::MatrixXd::Identity(model->dim_cT, model->dim_cT);
-        Eigen::MatrixXd M_inv = (YT_ + Eps_p).inverse();
+        Eigen::MatrixXd M_inv = (ST_ + Eps_p).inverse();
         
-        Eigen::MatrixXd  Qyy_inv = -(Eps_d + M_inv * ST_).inverse();
+        Eigen::MatrixXd  Qyy_inv = -(Eps_d + M_inv * YT_).inverse();
 
         ksT = - Qyy_inv * (rpT + M_inv * rdT);
         KsT = - Qyy_inv * QsxT;
         kyT = - rpT + Eps_d * ksT;
         KyT = - QsxT + Eps_d * KsT;
         
-        // Eigen::VectorXd rT = ST_*rpT - rdT;
-        // kyT = - rpT;
-        // KyT = - QsxT;
-        // ksT = YTinv * rT;
-        // KsT = STYTinv * QsxT;
+        Eigen::VectorXd rT = ST_*rpT - rdT;
+        kyT = - rpT;
+        KyT = - QsxT;
+        ksT = YTinv * rT;
+        KsT = STYTinv * QsxT;
 
         // CHECK: New Value Decrement
         // dV(0) += ksT.transpose() * CT;
@@ -750,11 +749,11 @@ void IPDDP::backwardPass() {
         krT = - rpT + eps_d * kzT;
         KrT = - QzxT + eps_d * KzT;
         
-        // Eigen::VectorXd rT = param.rho*rpT - rdT;
-        // krT = - rpT;
-        // KrT = - QzxT;
-        // kzT = rT;
-        // KzT = param.rho * QzxT;
+        Eigen::VectorXd rT = param.rho*rpT - rdT;
+        krT = - rpT;
+        KrT = - QzxT;
+        kzT = rT;
+        KzT = param.rho * QzxT;
 
         // CHECK: New Value Decrement
         // dV(0) += kzT.transpose() * ECT;
@@ -872,8 +871,8 @@ void IPDDP::backwardPass() {
             // BLOCK (1,2)
             MAT.block(0, model->dim_u, model->dim_u, model->dim_c) = Qsu.transpose();
             // BLOCK (2,2)
-            M_inv = (Y_ + Eps_p).inverse();
-            MAT.block(model->dim_u, model->dim_u, model->dim_c, model->dim_c) = -(Eps_d + M_inv * S_);
+            M_inv = (S_ + Eps_p).inverse();
+            MAT.block(model->dim_u, model->dim_u, model->dim_c, model->dim_c) = -(Eps_d + M_inv * Y_);
 
             d.middleRows(model->dim_u, model->dim_c) = - rp - M_inv * rd;
             K.middleRows(model->dim_u, model->dim_c) = - Qsx;
@@ -885,12 +884,17 @@ void IPDDP::backwardPass() {
 
         // }
 
+        // std::cout << "MAT = \n" << MAT << std::endl;
+
         // LDLT Factorization
         d.topRows(model->dim_u) = - Qu;
         K.topRows(model->dim_u) = - Qxu.transpose();
 
-        MAT_sym = 0.5 * (MAT + MAT.transpose());
-        Eigen::LDLT<Eigen::MatrixXd> MAT_ldlt(MAT_sym);
+        if (!MAT.isApprox(MAT.transpose())) {
+            MAT = 0.5 * (MAT + MAT.transpose());
+        }
+
+        Eigen::LDLT<Eigen::MatrixXd> MAT_ldlt(MAT);
         if (MAT_ldlt.info() != Eigen::Success || MAT_ldlt.info() == Eigen::NumericalIssue) {
             std::cout << "LDLT factorization failed.\n";
             backward_failed = true;
@@ -939,15 +943,15 @@ void IPDDP::backwardPass() {
 
         // Inequality Constraint
         if (model->dim_c) {
-            ks_ = d_sol.middleRows(model->dim_u, model->dim_c);
-            Ks_ = K_sol.middleRows(model->dim_u, model->dim_c);
-            ky_ = - (rp + Qsu * ku_) + Eps_d * ks_;
-            Ky_ = - (Qsx + Qsu * Ku_) + Eps_d * Ks_;
+            // ks_ = d_sol.middleRows(model->dim_u, model->dim_c);
+            // Ks_ = K_sol.middleRows(model->dim_u, model->dim_c);
+            // ky_ = - (rp + Qsu * ku_) + Eps_d * ks_;
+            // Ky_ = - (Qsx + Qsu * Ku_) + Eps_d * Ks_;
 
-            // ks_ = (Yinv * r) + (SYinv * Qsu * ku_);
-            // Ks_ = SYinv * (Qsx + Qsu * Ku_);
-            // ky_ = -rp - Qsu * ku_;
-            // Ky_ = -Qsx - Qsu * Ku_;
+            ks_ = (Yinv * r) + (SYinv * Qsu * ku_);
+            Ks_ = SYinv * (Qsx + Qsu * Ku_);
+            ky_ = -rp - Qsu * ku_;
+            Ky_ = -Qsx - Qsu * Ku_;
 
             // CHECK: New Value Decrement
             // dV(0) += ks_.transpose() * c_v;
@@ -1139,8 +1143,6 @@ void IPDDP::forwardPass() {
         if (model->dim_cT) {error_new += (CT_new + YT_new).lpNorm<1>();}
         // param.tolerance = std::min(param.tolerance, 1.0 / param.rho);
         error_new = std::max(param.tolerance, error_new);
-        if (error < error_new) {forward_failed = 1; continue;}
-        // if (0.99*error <= error_new) {forward_failed = 1;}
 
         // Cost
         barriercost_new = 0.0;
@@ -1157,6 +1159,7 @@ void IPDDP::forwardPass() {
         if (model->dim_ecT) {alcostT_new += (param.lambdaT.transpose() * RT_new) + (0.5 * param.rho * RT_new.squaredNorm());}
         logcost_new = cost_new - (param.mu * barriercost_new + param.muT * barriercostT_new) + (alcost_new + alcostT_new);
         if (isnan(logcost_new)) {forward_failed = 5; continue;}
+        dV_act = logcost - logcost_new;
         
         // Fixed Dual Variable
         // if (model->dim_ec) {for (int t = 0; t < model->N; ++t) {logcost_new += Z_new.col(t).transpose() * (EC_new.col(t) + R_new.col(t));}}
@@ -1164,23 +1167,27 @@ void IPDDP::forwardPass() {
         // if (model->dim_ecT) {logcost_new += ZT_new.transpose() * (ECT_new + RT_new);}
         // if (model->dim_cT) {logcost_new += ST_new.transpose() * (CT_new + YT_new);}
         
-        dV_act = logcost - logcost_new;
-        if (dV_act < 0.0) {forward_failed = 2; continue;}
+        // Error Decrement
+        // if (error < error_new) {forward_failed = 1; continue;}
+        if (0.99*error <= error_new) {forward_failed = 1;}
+
+        // Cost Decrement
+        // if (dV_act < 0.0) {forward_failed = 2; continue;}
         // if (dV_act < -(error-error_new)) {forward_failed = 2; continue;}
         if (forward_failed == 1) {
-            if (dV_act < -(0.3*error)) {forward_failed = 2; continue;}
-        //     if (dV_act < -(0.1*error)) {forward_failed = 2; continue;}
+            // if (dV_act < -(0.3*error)) {forward_failed = 2; continue;}
+            if (dV_act < -(0.05*error)) {forward_failed = 2; continue;}
             else {forward_failed = 0;}
         }
 
-        // if (error <= param.tolerance){
-        // if (error <= 0.5){
-        //     // if (dV_exp <= 0.0) {forward_failed = 3; continue;}
+        if (error <= param.tolerance){
+            if (dV_act < 0.0) {forward_failed = 2; continue;}
+            if (dV_exp <= 0.0) {forward_failed = 3; continue;}
 
-        //     if (dV_exp >= 0.0) {
-        //         if (!(1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp)) {forward_failed = 4; continue;}
-        //     }
-        // }
+            if (dV_exp >= 0.0) {
+                if (!(1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp)) {forward_failed = 4; continue;}
+            }
+        }
         
         if (!forward_failed) {break;}
     }
