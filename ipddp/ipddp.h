@@ -68,8 +68,8 @@ private:
     double cost;
     Param param;
     void initialRoll();
-    void initAdditionalVariables();
-    void initAutoConstraintScaling();
+    // void initAdditionalVariables();
+    // void initAutoConstraintScaling();
     void resetFilter();
     double logcost;
     double error;
@@ -205,7 +205,7 @@ IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
     if (model->R_init.size()) {R = model->R_init;}
     else {R = Eigen::MatrixXd::Zero(model->dim_ec, model->N);}
     if (model->Z_init.size()) {Z = model->Z_init;}
-    else {Z = Eigen::MatrixXd::Ones(model->dim_ec, model->N);}
+    else {Z = Eigen::MatrixXd::Zero(model->dim_ec, model->N);}
 
 
     if (model->Y_init.size()) {Y = model->Y_init;}
@@ -224,7 +224,7 @@ IPDDP::IPDDP(std::shared_ptr<ModelClass> model_ptr) : model(model_ptr) {
     if (model->RT_init.size()) {RT = model->RT_init;}
     else {RT = Eigen::VectorXd::Zero(model->dim_ecT);}
     if (model->ZT_init.size()) {ZT = model->ZT_init;}
-    else {ZT = Eigen::VectorXd::Ones(model->dim_ecT);}
+    else {ZT = Eigen::VectorXd::Zero(model->dim_ecT);}
 
     if (model->YT_init.size()) {YT = model->YT_init;}
     else {
@@ -344,54 +344,54 @@ void IPDDP::initialRoll() {
 
     cost = calculateTotalCost(X, U);
 
-    if (param.auto_scale) {initAutoConstraintScaling();}
-    if (param.auto_init) {initAdditionalVariables();}
+    // if (param.auto_scale) {initAutoConstraintScaling();}
+    // if (param.auto_init) {initAdditionalVariables();}
 }
 
-void IPDDP::initAdditionalVariables() {
-    // Equality Constraint (TODO: CHECK: Init Lagrangian)
-    if (model->dim_ec && param.auto_init_ec) {
-        R = -EC;
-        // Z = - param.lambda - param.rho * R;
-    }
-    if (model->dim_ecT && param.auto_init_ecT) {
-        RT = -ECT;
-        // ZT = - param.lambdaT - param.rho * RT;
-    }
+// void IPDDP::initAdditionalVariables() {
+//     // Equality Constraint (TODO: CHECK: Init Lagrangian)
+//     if (model->dim_ec && param.auto_init_ec) {
+//         R = -EC;
+//         // Z = - param.lambda - param.rho * R;
+//     }
+//     if (model->dim_ecT && param.auto_init_ecT) {
+//         RT = -ECT;
+//         // ZT = - param.lambdaT - param.rho * RT;
+//     }
     
-    // CHECK (Just Parameter)
-    double eps = std::max(param.tolerance, param.mu);
-    // eps = 1.0;
+//     // CHECK (Just Parameter)
+//     double eps = std::max(param.tolerance, param.mu);
+//     // eps = 1.0;
     
-    // Nonnegative Orthant Constraint
-    if (model->dim_g && param.auto_init_noc) {
-        Y.topRows(model->dim_g) = (-C.topRows(model->dim_g).array()).max(eps);
-        // S.topRows(model->dim_g) = (param.mu / -C.topRows(model->dim_g).array()).max(eps);
-    }
-    if (model->dim_gT && param.auto_init_nocT) {
-        YT.topRows(model->dim_gT) = (-CT.topRows(model->dim_gT).array()).max(eps);
-        // ST.topRows(model->dim_gT) = (param.mu / -CT.topRows(model->dim_gT).array()).max(eps);
-    }
+//     // Nonnegative Orthant Constraint
+//     if (model->dim_g && param.auto_init_noc) {
+//         Y.topRows(model->dim_g) = (-C.topRows(model->dim_g).array()).max(eps);
+//         // S.topRows(model->dim_g) = (param.mu / -C.topRows(model->dim_g).array()).max(eps);
+//     }
+//     if (model->dim_gT && param.auto_init_nocT) {
+//         YT.topRows(model->dim_gT) = (-CT.topRows(model->dim_gT).array()).max(eps);
+//         // ST.topRows(model->dim_gT) = (param.mu / -CT.topRows(model->dim_gT).array()).max(eps);
+//     }
 
-    // Conic Constraint (CHECK: Langrange & Vector Part)
-    if (param.auto_init_cc) {
-        for (int i = 0; i < model->dim_hs.size(); ++i) {
-            Y.row(dim_hs_top[i]) = (-C.row(dim_hs_top[i]).array()).max(eps);
-            // S.row(dim_hs_top[i]) = (param.mu / -C.row(dim_hs_top[i]).array()).max(eps);
-        }
-    }
-    if (param.auto_init_ccT) {
-        for (int i = 0; i < model->dim_hTs.size(); ++i) {
-            YT.row(dim_hTs_top[i]) = (-CT.row(dim_hTs_top[i]).array()).max(eps);
-            // ST.row(dim_hTs_top[i]) = (param.mu / -CT.row(dim_hTs_top[i]).array()).max(eps);
-        }
-    }
-}
+//     // Conic Constraint (CHECK: Langrange & Vector Part)
+//     if (param.auto_init_cc) {
+//         for (int i = 0; i < model->dim_hs.size(); ++i) {
+//             Y.row(dim_hs_top[i]) = (-C.row(dim_hs_top[i]).array()).max(eps);
+//             // S.row(dim_hs_top[i]) = (param.mu / -C.row(dim_hs_top[i]).array()).max(eps);
+//         }
+//     }
+//     if (param.auto_init_ccT) {
+//         for (int i = 0; i < model->dim_hTs.size(); ++i) {
+//             YT.row(dim_hTs_top[i]) = (-CT.row(dim_hTs_top[i]).array()).max(eps);
+//             // ST.row(dim_hTs_top[i]) = (param.mu / -CT.row(dim_hTs_top[i]).array()).max(eps);
+//         }
+//     }
+// }
 
-void IPDDP::initAutoConstraintScaling() {
-    // TODO: AutoScale & Multiply to Calculation Result
-    if (model->dim_ec && param.auto_scale_ec) {scale_ec = EC.colwise().lpNorm<1>();}
-}
+// void IPDDP::initAutoConstraintScaling() {
+//     // TODO: AutoScale & Multiply to Calculation Result
+//     if (model->dim_ec && param.auto_scale_ec) {scale_ec = EC.colwise().lpNorm<1>();}
+// }
 
 void IPDDP::resetFilter() {
     double barriercost = 0.0;
@@ -654,12 +654,23 @@ void IPDDP::backwardPass() {
 
     double reg1_mu = param.reg1_min * (std::pow(param.reg1_exp, regulate));
     double reg2_mu = param.reg2_min * (std::pow(param.reg2_exp, regulate));
+    
+    Eigen::MatrixXd M_inv;
+    Eigen::MatrixXd Eps_p_c;
+    Eigen::MatrixXd Eps_d_c;
+    Eigen::MatrixXd MAT = Eigen::MatrixXd::Zero(model->dim_u + model->dim_c + model->dim_ec, model->dim_u + model->dim_c + model->dim_ec);
+    Eigen::VectorXd d = Eigen::VectorXd::Zero(model->dim_u + model->dim_c + model->dim_ec);
+    Eigen::MatrixXd K = Eigen::MatrixXd::Zero(model->dim_u + model->dim_c + model->dim_ec, model->dim_rn);
+    Eigen::VectorXd d_sol = Eigen::VectorXd::Zero(model->dim_u + model->dim_c + model->dim_ec);
+    Eigen::MatrixXd K_sol = Eigen::MatrixXd::Zero(model->dim_u + model->dim_c + model->dim_ec, model->dim_rn);
 
     Vx = px_all;
     Vxx = pxx_all;
 
     // Inequality Terminal Constraint
     if (model->dim_cT) {
+        Eigen::MatrixXd QsxT = cTx_all;
+
         Eigen::MatrixXd YT_ = Eigen::MatrixXd::Zero(model->dim_cT, model->dim_cT);
         Eigen::MatrixXd ST_ = Eigen::MatrixXd::Zero(model->dim_cT, model->dim_cT);
         if (model->dim_gT) {
@@ -670,15 +681,26 @@ void IPDDP::backwardPass() {
             YT_.block(dim_hTs_top[i], dim_hTs_top[i], model->dim_hTs[i], model->dim_hTs[i]) = L(YT.middleRows(dim_hTs_top[i], model->dim_hTs[i]));
             ST_.block(dim_hTs_top[i], dim_hTs_top[i], model->dim_hTs[i], model->dim_hTs[i]) = L(ST.middleRows(dim_hTs_top[i], model->dim_hTs[i]));
         }
+        // TODO: Efficient Block Matrix Calculation
         Eigen::MatrixXd YTinv = YT_.inverse();
         Eigen::MatrixXd STYTinv = YTinv * ST_;
-
-        Eigen::MatrixXd QsxT = cTx_all;
         
         Eigen::VectorXd rpT = CT + YT;
         Eigen::VectorXd rdT = YT_*ST - param.muT*eT;
-        Eigen::VectorXd rT = ST_*rpT - rdT;
+
+        // LDLT Inertia
+        // Eigen::MatrixXd Eps_p_cT = 0 * Eigen::MatrixXd::Identity(model->dim_cT, model->dim_cT);
+        // Eigen::MatrixXd Eps_d_cT = 0 * Eigen::MatrixXd::Identity(model->dim_cT, model->dim_cT);
+        // Eigen::MatrixXd M_inv = (ST_ + Eps_p_cT).inverse();
         
+        // Eigen::MatrixXd  Qyy_inv = -(Eps_d_cT + M_inv * YT_).inverse();
+
+        // ksT = - Qyy_inv * (rpT - M_inv * rdT);
+        // KsT = - Qyy_inv * QsxT;
+        // kyT = - rpT + Eps_d_cT * ksT;
+        // KyT = - QsxT + Eps_d_cT * KsT;
+        
+        Eigen::VectorXd rT = ST_*rpT - rdT;
         kyT = - rpT;
         KyT = - QsxT;
         ksT = YTinv * rT;
@@ -715,8 +737,21 @@ void IPDDP::backwardPass() {
 
         Eigen::VectorXd rpT = ECT + RT;
         Eigen::VectorXd rdT = ZT + param.lambdaT + (param.rho * RT);
-        Eigen::VectorXd rT = param.rho*rpT - rdT;
 
+        // LDLT Inertia
+        // Eigen::MatrixXd Eps_p_ecT = 0 * Eigen::MatrixXd::Identity(model->dim_ecT, model->dim_ecT);
+        // Eigen::MatrixXd Eps_d_ecT = 0 * Eigen::MatrixXd::Identity(model->dim_ecT, model->dim_ecT);
+        // Eigen::MatrixXd Rho = param.rho * Eigen::MatrixXd::Identity(model->dim_ecT, model->dim_ecT);
+        
+        // Eigen::MatrixXd M_inv = (Rho + Eps_p_ecT).inverse();
+        // Eigen::MatrixXd Qzz_inv = -(Eps_d_ecT + M_inv).inverse();
+        
+        // kzT = - Qzz_inv * (rpT - M_inv * rdT);
+        // KzT = - Qzz_inv * QzxT;
+        // krT = - rpT + eps_d * kzT;
+        // KrT = - QzxT + eps_d * KzT;
+        
+        Eigen::VectorXd rT = param.rho*rpT - rdT;
         krT = - rpT;
         KrT = - QzxT;
         kzT = rT;
@@ -746,7 +781,6 @@ void IPDDP::backwardPass() {
         opterror_rpT_ec = std::max({rpT.lpNorm<Eigen::Infinity>(), opterror_rpT_ec});
         opterror_rdT_ec = std::max({rdT.lpNorm<Eigen::Infinity>(), opterror_rdT_ec});
     }
-
 
     backward_failed = false;
 
@@ -781,7 +815,11 @@ void IPDDP::backwardPass() {
         Qxu = qxu + (fx.transpose() * Vxx * fu);
         Quu = quu + (fu.transpose() * Vxx * fu);
 
-        // Inequality Constraint
+        Qxx += fx.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fx;
+        Qxu += fx.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fu;
+        Quu += fu.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fu;
+        Quu += reg2_mu * Eigen::MatrixXd::Identity(model->dim_u, model->dim_u);
+
         if (model->dim_c) {
             y = Y.col(t);
             s = S.col(t);
@@ -818,13 +856,11 @@ void IPDDP::backwardPass() {
             // Qxx += Qsx.transpose() * SYinv * Qsx;
             // Qxu += Qsx.transpose() * SYinv * Qsu;
             // Quu += Qsu.transpose() * SYinv * Qsu;
+
+            // LDLT Inertia
+            Eps_p_c = Eigen::MatrixXd::Zero(model->dim_c, model->dim_c);
+            Eps_d_c = Eigen::MatrixXd::Zero(model->dim_c, model->dim_c);
         }
-        
-        // Regularization
-        Qxx += fx.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fx;
-        Qxu += fx.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fu;
-        Quu += fu.transpose() * (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn)) * fu;
-        Quu += reg2_mu * Eigen::MatrixXd::Identity(model->dim_u, model->dim_u);
         
         // TODO
         // Equality Constraint
@@ -832,17 +868,82 @@ void IPDDP::backwardPass() {
 
         // }
 
-        Quu_sim = 0.5*(Quu + Quu.transpose());
-        Quu = Quu_sim;
-        Quu_llt = Eigen::LLT<Eigen::MatrixXd>(Quu);
-        if (!Quu.isApprox(Quu.transpose()) || Quu_llt.info() == Eigen::NumericalIssue) {
-            backward_failed = true;
-            break;
-        }
-        R = Quu_llt.matrixU();
+        // LDLT Inertia
+        backward_failed = true;
+        for (int reg = std::min(param.max_inertia_correction, regulate); reg < param.max_inertia_correction + 1; ++reg) {
+            backward_failed = false;
+        
+            double eps_p = param.reg2_min * (std::pow(param.reg2_exp, reg));
+            double eps_d = param.reg1_min * (std::pow(param.reg1_exp, reg));
 
-        ku_ = -R.inverse() * (R.transpose().inverse() * Qu);
-        Ku_ = -R.inverse() * (R.transpose().inverse() * Qxu.transpose());
+            if (reg == 0) {eps_p = 0.0; eps_d = 0.0;}
+
+            Eps_p_c = eps_p * Eigen::MatrixXd::Identity(model->dim_c, model->dim_c);
+            Eps_d_c = eps_d * Eigen::MatrixXd::Identity(model->dim_c, model->dim_c);
+
+            MAT.topLeftCorner(model->dim_u, model->dim_u) = Quu;
+
+            d.topRows(model->dim_u) = - Qu;
+            K.topRows(model->dim_u) = - Qxu.transpose();
+    
+            if (model->dim_c) {
+                // BLOCK (2,1)
+                MAT.block(model->dim_u, 0, model->dim_c, model->dim_u) = Qsu;
+                // BLOCK (1,2)
+                MAT.block(0, model->dim_u, model->dim_u, model->dim_c) = Qsu.transpose();
+                // BLOCK (2,2)
+                M_inv = (S_ + Eps_p_c).inverse();
+                MAT.block(model->dim_u, model->dim_u, model->dim_c, model->dim_c) = -(Eps_d_c + M_inv * Y_);
+        
+                d.middleRows(model->dim_u, model->dim_c) = - (rp - M_inv * rd);
+                K.middleRows(model->dim_u, model->dim_c) = - Qsx;
+            }
+    
+            if (!MAT.isApprox(MAT.transpose())) {
+                MAT = 0.5 * (MAT + MAT.transpose());
+            }
+    
+            Eigen::LDLT<Eigen::MatrixXd> MAT_ldlt(MAT);
+            if (MAT_ldlt.info() != Eigen::Success || MAT_ldlt.info() == Eigen::NumericalIssue) {
+                // std::cout << "LDLT factorization failed.\n";
+                backward_failed = true;
+                continue;
+            }
+    
+            // Inertia Check
+            Eigen::VectorXd diagD = MAT_ldlt.vectorD();
+            const double tol = 1e-9;
+            int n_pos = (diagD.array() > tol).count();
+            int n_neg = (diagD.array() < -tol).count();
+            if ((n_pos != model->dim_u) || (n_neg != (model->dim_c + model->dim_ec))) {
+                // std::cout << "Inertia Check failed." << std::endl;
+                backward_failed = true;
+                continue;
+            }
+
+            d_sol = MAT_ldlt.solve(d);
+            K_sol = MAT_ldlt.solve(K);
+
+            if (!backward_failed) {break;}
+        }
+
+        if (backward_failed) {break;}
+
+        ku_ = d_sol.topRows(model->dim_u);
+        Ku_ = K_sol.topRows(model->dim_u);
+
+        // LLT Original
+        // Quu_sim = 0.5*(Quu + Quu.transpose());
+        // Quu = Quu_sim;
+        // Quu_llt = Eigen::LLT<Eigen::MatrixXd>(Quu);
+        // if (!Quu.isApprox(Quu.transpose()) || Quu_llt.info() == Eigen::NumericalIssue) {
+        //     backward_failed = true;
+        //     break;
+        // }
+        // R = Quu_llt.matrixU();
+
+        // ku_ = -R.inverse() * (R.transpose().inverse() * Qu);
+        // Ku_ = -R.inverse() * (R.transpose().inverse() * Qxu.transpose());
         
         dV(0) += ku_.transpose() * Qu;
         dV(1) += 0.5 * ku_.transpose() * Quu * ku_;
@@ -857,6 +958,13 @@ void IPDDP::backwardPass() {
 
         // Inequality Constraint
         if (model->dim_c) {
+            // LDLT Inertia
+            ks_ = d_sol.middleRows(model->dim_u, model->dim_c);
+            Ks_ = K_sol.middleRows(model->dim_u, model->dim_c);
+            ky_ = - (rp + Qsu * ku_) + Eps_d_c * ks_;
+            Ky_ = - (Qsx + Qsu * Ku_) + Eps_d_c * Ks_;
+
+            // LLT Original
             ks_ = (Yinv * r) + (SYinv * Qsu * ku_);
             Ks_ = SYinv * (Qsx + Qsu * Ku_);
             ky_ = -rp - Qsu * ku_;
@@ -892,7 +1000,7 @@ void IPDDP::backwardPass() {
             opterror = std::max({rp.lpNorm<Eigen::Infinity>(), rd.lpNorm<Eigen::Infinity>(), opterror});
             opterror_rp_c = std::max({rp.lpNorm<Eigen::Infinity>(), (Qu + Qu_c).lpNorm<Eigen::Infinity>(), opterror_rp_c});
             // opterror_rp_c = std::max({rp.lpNorm<Eigen::Infinity>(), opterror_rp_c});
-            opterror_rd_c = std::max({rp.lpNorm<Eigen::Infinity>(), opterror_rd_c});
+            opterror_rd_c = std::max({rd.lpNorm<Eigen::Infinity>(), opterror_rd_c});
         }
 
         // TODO
@@ -958,16 +1066,12 @@ void IPDDP::forwardPass() {
         double step_size = step_list[step];
 
         dV_exp = -(step_size * dV(0) + step_size * step_size * dV(1));
-        // if (error <= 0.5){
-        //     if (dV_exp <= 0.0) {forward_failed = 3; continue;}
-        // }
         // CHECK: Using Expected Value Decrement -> For Early Termination
-        // if (error > 1){
-        //     if (dV_exp > 0) {forward_failed = 3; continue;}
-        // }
-        // if (error > 3.0){
-        //     if (dV_exp <= 0.0) {forward_failed = 3; continue;}
-        // }
+        if (param.forward_early_termination) {
+            if (error <= param.tolerance && dV_exp > 0) {
+                forward_failed = 3; continue;
+            }
+        }
 
         X_new.col(0) = X.col(0);
         for (int t = 0; t < model->N; ++t) {
@@ -1052,8 +1156,6 @@ void IPDDP::forwardPass() {
         if (model->dim_cT) {error_new += (CT_new + YT_new).lpNorm<1>();}
         // param.tolerance = std::min(param.tolerance, 1.0 / param.rho);
         error_new = std::max(param.tolerance, error_new);
-        if (error < error_new) {forward_failed = 1; continue;}
-        // if (0.99*error <= error_new) {forward_failed = 1;}
 
         // Cost
         barriercost_new = 0.0;
@@ -1070,6 +1172,7 @@ void IPDDP::forwardPass() {
         if (model->dim_ecT) {alcostT_new += (param.lambdaT.transpose() * RT_new) + (0.5 * param.rho * RT_new.squaredNorm());}
         logcost_new = cost_new - (param.mu * barriercost_new + param.muT * barriercostT_new) + (alcost_new + alcostT_new);
         if (isnan(logcost_new)) {forward_failed = 5; continue;}
+        dV_act = logcost - logcost_new;
         
         // Fixed Dual Variable
         // if (model->dim_ec) {for (int t = 0; t < model->N; ++t) {logcost_new += Z_new.col(t).transpose() * (EC_new.col(t) + R_new.col(t));}}
@@ -1077,23 +1180,29 @@ void IPDDP::forwardPass() {
         // if (model->dim_ecT) {logcost_new += ZT_new.transpose() * (ECT_new + RT_new);}
         // if (model->dim_cT) {logcost_new += ST_new.transpose() * (CT_new + YT_new);}
         
-        dV_act = logcost - logcost_new;
-        if (dV_act < 0.0) {forward_failed = 2; continue;}
-        // if (dV_act < -(error-error_new)) {forward_failed = 2; continue;}
-        // if (forward_failed == 1) {
-        //     if (dV_act < -(0.3*error)) {forward_failed = 2; continue;}
-        // //     if (dV_act < -(0.1*error)) {forward_failed = 2; continue;}
-        //     else {forward_failed = 0;}
-        // }
+        // Error Decrement
+        if (param.forward_filter == 0) {
+            if (error < error_new) {forward_failed = 1; continue;}
+            if (dV_act < 0.0) {forward_failed = 2; continue;}
+        }
+        if (param.forward_filter == 1) {
+            if (error <= error_new) {forward_failed = 1;}
+            if (forward_failed == 1) {
+                if (dV_act < -(param.forward_cost_threshold * error)) {forward_failed = 2; continue;}
+                else {forward_failed = 0;}
+            }
+        }
 
-        // if (error <= param.tolerance){
-        // if (error <= 0.5){
-        //     // if (dV_exp <= 0.0) {forward_failed = 3; continue;}
-
-        //     if (dV_exp >= 0.0) {
-        //         if (!(1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp)) {forward_failed = 4; continue;}
-        //     }
-        // }
+        if (param.forward_early_termination) {
+            if (error <= param.tolerance){
+                // if (dV_act < 0.0) {forward_failed = 2; continue;}
+                // if (dV_exp <= 0.0) {forward_failed = 3; continue;}
+    
+                if (dV_exp >= 0.0) {
+                    if (!(1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp)) {forward_failed = 4; continue;}
+                }
+            }
+        }
         
         if (!forward_failed) {break;}
     }

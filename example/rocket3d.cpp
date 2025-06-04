@@ -4,7 +4,7 @@
 #include <cmath>
 #include <chrono>
 
-#include "rocket3d.h"
+#include "rocket3d_move.h"
 
 #include "ipddp.h"
 #include "visualize.h"
@@ -13,11 +13,6 @@ int main() {
     // Load Dynamic Model
     auto model = std::make_shared<Rocket3D>();
 
-    // Intial velocity 
-    model->X_init(3,0) = -2.0;
-    model->X_init(4,0) = -2.5;
-    model->X_init(5,0) = 3.0;
-    
     // Parameter Setting
     Param param;
     

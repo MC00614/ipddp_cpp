@@ -4,7 +4,7 @@
 #include <cmath>
 #include <chrono>
 
-#include "rocket3d_scale.h"
+#include "rocket3d_scvx.h"
 
 #include "ipddp.h"
 #include "visualize.h"
@@ -25,8 +25,9 @@ int main() {
     param.mu_min = 1e-8;
     param.rho = 1.0;
     param.rho_max = 1e+9;
-    param.max_step_iter = 10;
+    // param.max_step_iter = 10;
     param.max_regularization = 20;
+    param.max_inertia_correction = 20;
 
     // Solver Setting
     auto start = std::chrono::steady_clock::now();

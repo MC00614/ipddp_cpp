@@ -13,6 +13,7 @@ public:
 
     double u_max;
     double w_max;
+    Eigen::Vector4d q_desired;
 
     Eigen::Vector3d obs_cent;
     Eigen::MatrixXd obs_cent_zip;
@@ -35,12 +36,12 @@ CrazyFlie::CrazyFlie() : QuatModelBase(9) { // q index = 9
     // Dimensions
     dim_x = 13; // position(3), velocity(3), angular velocity(3), quaternion(4)
     dim_u = 4;  // thrust, torque_x, torque_y, torque_z
-    N = 30;
+    N = 100;
 
     X_init = Eigen::MatrixXd::Zero(dim_x, N + 1);
-    X_init(0, 0) = 1.0;
-    X_init(1, 0) = 1.0;
-    X_init(2, 0) = 1.0;
+    X_init(0, 0) = 0.0;
+    X_init(1, 0) = 0.0;
+    X_init(2, 0) = 2.0;
     // X_init(3, 0) = -1.0;
     // X_init(4, 0) = -1.0;
     // X_init(5, 0) = -0.5;
@@ -169,10 +170,38 @@ CrazyFlie::CrazyFlie() : QuatModelBase(9) { // q index = 9
     hs.push_back(h);
     dim_hs.push_back(dim_h);
 
+    dim_hT = 3;
+    hT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
+        const double state_angmax = tan(60.0 * (M_PI/180.0));
+        VectorXdual2nd h_n(3);
+        h_n(0) = state_angmax * x(2);
+        h_n(1) = x(0);
+        h_n(2) = x(1);
+        return -h_n;
+    };
+    hTs.push_back(hT);
+    dim_hTs.push_back(dim_hT);
+
     // Terminal constraint
-    dim_ecT = 9;
+    q_desired << 1, 0, 0, 0;
+    dim_ecT = 13;
     ecT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
-        return x.head(9);
+        VectorXdual2nd ecT_n(13);
+        ecT_n(0) = x(0);
+        ecT_n(1) = x(1);
+        ecT_n(2) = x(2) - 1.0;
+        ecT_n(3) = x(3);
+        ecT_n(4) = x(4);
+        ecT_n(5) = x(5);
+        ecT_n(6) = x(6);
+        ecT_n(7) = x(7);
+        ecT_n(8) = x(8);
+        VectorXdual2nd dq = Lq(x.segment(9, 4)).transpose() * q_desired;
+        ecT_n(9) = 1.0 - abs(dq(0));
+        ecT_n(10) = dq(1);
+        ecT_n(11) = dq(2);
+        ecT_n(12) = dq(3);
+        return ecT_n;
     };
 }
 

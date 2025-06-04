@@ -69,16 +69,16 @@ Rocket3D::Rocket3D() : QuatModelBase(10) { // q_idx = 10 with mass
     // X_init(5,0) = -(1.0/15.0) * X_init(2,0);
     // X_init(6,0) = -20.0;
 
-    X_init(7,0) = 0.05;
-    X_init(8,0) = 0.05;
+    // X_init(7,0) = 0.05;
+    // X_init(8,0) = 0.05;
     // X_init(9,0) = 0.00;
 
     // Quaternion
-    // X_init(10, 0) = 1.0;
-    X_init(10, 0) = 0.95;
-    X_init(11, 0) = 0.1803;
-    X_init(12, 0) = 0.1803;
-    X_init(13, 0) = 0.1803;
+    X_init(10, 0) = 1.0;
+    // X_init(10, 0) = 0.95;
+    // X_init(11, 0) = 0.1803;
+    // X_init(12, 0) = 0.1803;
+    // X_init(13, 0) = 0.1803;
 
     dim_u = 3;
     U_init = Eigen::MatrixXd::Zero(dim_u, N);
