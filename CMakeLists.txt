@@ -3,6 +3,7 @@ project(ipddp)
 
 find_package(Python3 COMPONENTS Development REQUIRED)
 find_package(Eigen3 REQUIRED NO_MODULE)
+# find_package(OpenMP REQUIRED)
 
 # autodiff requires a c++17 enabled compiler
 set(CMAKE_CXX_STANDARD 17)
@@ -30,10 +31,11 @@ add_executable(${PROJECT_NAME} example/main.cpp)
 target_include_directories(${PROJECT_NAME} PRIVATE ${INCLUDE_DIRS})
 target_compile_options(${PROJECT_NAME} PRIVATE -O2)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${Python3_LIBRARIES})
+# target_link_libraries(${PROJECT_NAME} PRIVATE ${Python3_LIBRARIES} OpenMP::OpenMP_CXX)
 
 # Examples
 if (BUILD_EXAMPLE)
-    foreach(EXAMPLE rocket2d drone3d)
+    foreach(EXAMPLE rocket2d rocket3d_stable rocket3d_move drone3d crazyflie)
         add_executable(${EXAMPLE} example/${EXAMPLE}.cpp)
         target_include_directories(${EXAMPLE} PRIVATE ${INCLUDE_DIRS})
         target_compile_options(${EXAMPLE} PRIVATE -O2)

@@ -12,22 +12,22 @@ public:
     double mass;
     Eigen::Vector3d gravity;
     double umax;
+    double umin;
     Eigen::MatrixXd U;
     Eigen::Matrix3d J_B;
     Eigen::Matrix3d J_B_inv;
     Eigen::Vector3d L_thrust;
-    // Eigen::Vector4d q_desired;
+    Eigen::Vector4d q_desired;
 };
 
 Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
-    // q_desired << 1, 0, 0, 0;
-
     r = 0.4;
     l = 1.4;
     dt = 0.1;
     mass = 10.0;
     gravity << 0.0, 0.0, -9.81;
-    umax = mass*9.81*1.1;
+    umax = mass * 9.81 * 1.1;
+    umin = mass * 9.81 * 0.6;
     J_B << (1.0/12.0) * mass * (3 * r * r + l * l), 0, 0,
            0, (1.0/12.0) * mass * (3 * r * r + l * l), 0,
            0, 0, 0.5 * mass * r * r;
@@ -35,16 +35,13 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
     L_thrust << 0, 0, -l/2;
 
     // Stage Count
-    N = 100;
+    N = 200;
 
     dim_x = 13;
     X_init = Eigen::MatrixXd::Zero(dim_x, N+1);
     X_init(0,0) = 4.0;
-    X_init(1,0) = 2.0;
+    X_init(1,0) = 6.0;
     X_init(2,0) = 8.0;
-    // X_init(3,0) = -1.0;
-    // X_init(4,0) = 2.0;
-    // X_init(5,0) = -1.0;
 
     // Quaternion
     X_init(9, 0) = 1.0;
@@ -56,11 +53,6 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
     U_init = Eigen::MatrixXd::Zero(dim_u, N);
     U_init.row(2) = 9.81 * 10.0 * Eigen::VectorXd::Ones(N);
 
-    Y_init = Eigen::MatrixXd::Zero(7, N);
-    Y_init.topRows(1) = 15*Eigen::MatrixXd::Ones(1, N);
-    Y_init.row(1) = 30*Eigen::VectorXd::Ones(N);
-    Y_init.row(4) = 5*Eigen::VectorXd::Ones(N);
-    
     // Discrete Time System
     f = [this](const VectorXdual2nd& x, const Vector3dual2nd& u) -> VectorXdual2nd {
         VectorXdual2nd x_n = x;
@@ -98,25 +90,20 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
 
     // Stage Cost Function
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
-        return (2 * 1e-3 * u.squaredNorm());
-                + (50 * x.segment(3,6).squaredNorm());
-        // return (2 * 1e-3 * u.squaredNorm());
+        return 1e-6 * u.squaredNorm();
     };
 
     // Terminal Cost Function
     p = [this](const VectorXdual2nd& x) -> dual2nd {
-        return 50 * x.segment(0,3).squaredNorm()
-                + (1000 * x.segment(3,6).squaredNorm());
-                // + (1 * 1e-0 * x.segment(6,3).squaredNorm())
-                // + (1 * 1e-0 * (Lq(q_desired).transpose() * x.segment(q_idx, q_dim)).segment(1,3).squaredNorm());
-        // return 5 * 1e-1 * x.segment(0,3).squaredNorm();
+        return 0;
     };
 
     // Nonnegative Orthant Constraint Mapping
-    dim_g = 1;
+    dim_g = 2;
     g = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        VectorXdual2nd g_n(1);
+        VectorXdual2nd g_n(2);
         g_n(0) = umax - u.norm();
+        g_n(1) = u.norm() - umin;
         return -g_n;
     };
 
@@ -158,6 +145,28 @@ Rocket3D::Rocket3D() : QuatModelBase(9) { // q_idx = 9, q_dim = 4
     };
     hTs.push_back(hT);
     dim_hTs.push_back(dim_hT);
+
+    // Terminal State Equality Constraint (Full State)
+    q_desired << 1, 0, 0, 0;
+    dim_ecT = 13;
+    ecT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
+        VectorXdual2nd ecT_n(13);
+        ecT_n(0) = x(0);
+        ecT_n(1) = x(1);
+        ecT_n(2) = x(2) - 1.0;
+        ecT_n(3) = x(3);
+        ecT_n(4) = x(4);
+        ecT_n(5) = x(5);
+        ecT_n(6) = x(6);
+        ecT_n(7) = x(7);
+        ecT_n(8) = x(8);
+        VectorXdual2nd dq = Lq(x.segment(9, 4)).transpose() * q_desired;
+        ecT_n(9) = 1.0 - abs(dq(0));
+        ecT_n(10) = dq(1);
+        ecT_n(11) = dq(2);
+        ecT_n(12) = dq(3);
+        return ecT_n;
+    };
 }
 
 Rocket3D::~Rocket3D() {

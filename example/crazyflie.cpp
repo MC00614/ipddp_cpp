@@ -3,16 +3,30 @@
 
 #include <cmath>
 
-#include "rocket2d.h"
+#include "crazyflie.h"
 
 #include "ipddp.h"
 #include "visualize.h"
 
 int main() {
     // Load Dynamic Model
-    auto model = std::make_shared<Rocket2D>();
+    auto model = std::make_shared<CrazyFlie>();
     
+    // Parameter Setting
     Param param;
+    param.tolerance = 1e-3;
+    param.max_iter = 1000;
+    param.max_inner_iter = 50;
+    param.max_regularization = 15;
+
+    param.rho_max = 1e8;
+    param.mu_min = 1e-8;
+    // param.mu_mul = 0.5;
+    // param.rho_mul = 10.0;
+
+    // param.auto_init = true;
+    // param.auto_init_cc = true;
+    // param.auto_init_ec = true;
     
     // Solver Setting
     clock_t start = clock();

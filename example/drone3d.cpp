@@ -14,10 +14,6 @@ int main() {
     
     // Parameter Setting
     Param param;
-    param.tolerance = 1e-6;
-    param.max_iter = 1000;
-    param.mu = 0.1;
-    param.max_step_iter = 10;
     
     // Solver Setting
     clock_t start = clock();
@@ -37,8 +33,11 @@ int main() {
     Eigen::MatrixXd U_result = ipddp.getResU();
     std::vector<double> all_cost = ipddp.getAllCost();
 
-    // std::cout<<"X_result = \n"<<X_result.transpose()<<std::endl;
-    // std::cout<<"U_result = \n"<<U_result.transpose()<<std::endl;
+    std::cout<<"X_result = \n"<<X_result.transpose()<<std::endl;
+    std::cout<<"U_result = \n"<<U_result.transpose()<<std::endl;
+
+    std::cout<<"X_last = \n"<<X_result.col(model->N).transpose()<<std::endl;
+    std::cout<<"U_last = \n"<<U_result.col(model->N-1).transpose()<<std::endl;
 
     // Visualize
     visualize(X_init, U_init, X_result, U_result, all_cost);
