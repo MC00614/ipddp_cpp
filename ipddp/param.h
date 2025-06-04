@@ -22,21 +22,32 @@ struct Param {
     double reg2_min = 1.0; // minimum regularization
     int max_regularization = 10; // maximum regularization for backward pass
 
-    // Automatic Initialization of Slack and Lagrange
-    bool auto_init = false; // Master Button for all constraints
-    bool auto_init_ec = false; // for equality constraints)
-    bool auto_init_ecT = false; // for terminal equality constraints)
-    bool auto_init_noc = false; // for inequality constraints
-    bool auto_init_cc = false; // for conic constraints
-    bool auto_init_nocT = false; // for terminal inequality constraints
-    bool auto_init_ccT = false; // for terminal conic constraints
+    double corr_p_min = 1e-6; // minimum correction for primal
+    double corr_d_min = 1e-9; // minimum correction for dual
+    double corr_p_mul = 10.0; // multiplier for primal correction
+    double corr_d_mul = 10.0; // multiplier for dual correction
+    int max_inertia_correction = 0; // maximum inertia correction for backward pass (0 = no correction)
 
-    // Automatic Scaling of Constraints
-    bool auto_scale = false; // Master Button for all constraints
-    bool auto_scale_ec = false; // for equality constraints
-    bool auto_scale_ecT = false; // for terminal equality constraints
-    bool auto_scale_noc = false; // for inequality constraints
-    bool auto_scale_cc = false; // for conic constraints
-    bool auto_scale_nocT = false; // for terminal inequality constraints
-    bool auto_scale_ccT = false; // for terminal conic constraints
+    bool forward_early_termination = false; // early termination for forward pass
+    int forward_filter = 1; // filter selection for forward pass
+    int forward_cost_threshold = 0.3; // cost threshold for forward pass
+
+    // Deprecated Parameters
+    // // Automatic Initialization of Slack and Lagrange
+    // bool auto_init = false; // Master Button for all constraints
+    // bool auto_init_ec = false; // for equality constraints)
+    // bool auto_init_ecT = false; // for terminal equality constraints)
+    // bool auto_init_noc = false; // for inequality constraints
+    // bool auto_init_cc = false; // for conic constraints
+    // bool auto_init_nocT = false; // for terminal inequality constraints
+    // bool auto_init_ccT = false; // for terminal conic constraints
+
+    // // Automatic Scaling of Constraints
+    // bool auto_scale = false; // Master Button for all constraints
+    // bool auto_scale_ec = false; // for equality constraints
+    // bool auto_scale_ecT = false; // for terminal equality constraints
+    // bool auto_scale_noc = false; // for inequality constraints
+    // bool auto_scale_cc = false; // for conic constraints
+    // bool auto_scale_nocT = false; // for terminal inequality constraints
+    // bool auto_scale_ccT = false; // for terminal conic constraints
 };
