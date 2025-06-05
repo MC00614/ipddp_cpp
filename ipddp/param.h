@@ -30,7 +30,7 @@ struct Param {
 
     bool forward_early_termination = false; // early termination for forward pass
     int forward_filter = 0; // filter selection for forward pass (0 = standard, 1 = combined)
-    int forward_cost_threshold = 0.3; // cost threshold for forward pass
+    int forward_cost_threshold = 0.1; // cost threshold for forward pass
 
     // Deprecated Parameters
     // // Automatic Initialization of Slack and Lagrange

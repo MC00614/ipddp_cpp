@@ -1,9 +1,9 @@
 #include "quat_model_base.h"
 
-class CrazyFlie : public QuatModelBase {
+class Drone3D : public QuatModelBase {
 public:
-    CrazyFlie();
-    ~CrazyFlie();
+    Drone3D();
+    ~Drone3D();
 
     double dt;
     double gravity;
@@ -21,7 +21,7 @@ public:
     Eigen::VectorXd obs_rad_zip;
 };
 
-CrazyFlie::CrazyFlie() : QuatModelBase(9) { // q index = 9
+Drone3D::Drone3D() : QuatModelBase(9) { // q index = 9
     dt = 0.1;
     gravity = 9.81;
     mass = 0.027;
@@ -33,28 +33,23 @@ CrazyFlie::CrazyFlie() : QuatModelBase(9) { // q index = 9
     J(2, 2) = 2.89e-5;
     J_inv = J.inverse();
 
+    N = 100;
+
     // Dimensions
     dim_x = 13; // position(3), velocity(3), angular velocity(3), quaternion(4)
     dim_u = 4;  // thrust, torque_x, torque_y, torque_z
-    N = 100;
 
     X_init = Eigen::MatrixXd::Zero(dim_x, N + 1);
-    X_init(0, 0) = 0.0;
-    X_init(1, 0) = 0.0;
-    X_init(2, 0) = 2.0;
-    // X_init(3, 0) = -1.0;
-    // X_init(4, 0) = -1.0;
-    // X_init(5, 0) = -0.5;
-    // X_init(3, 0) = -0.5;
-    // X_init(4, 0) = -0.5;
-    // X_init(5, 0) = -0.5;
-    X_init(9, 0) = 1.0;       // initial quaternion = [1, 0, 0, 0]
+    X_init(0,0) = 5.0;
+    X_init(1,0) = 5.0;
+    X_init(2,0) = 10.0;
+    X_init(3,0) = -0.2;
+    X_init(4,0) = -0.2;
+    X_init(5,0) = -0.3;
+    X_init(9, 0) = 1.0;
 
     U_init = Eigen::MatrixXd::Zero(dim_u, N);
     U_init.row(0) = mass * gravity * Eigen::VectorXd::Ones(N); // hover
-    // U_init.row(1) = 0.01 * Eigen::VectorXd::Random(N);
-    // U_init.row(2) = 0.01 * Eigen::VectorXd::Random(N);
-    // U_init.row(3) = 0.01 * Eigen::VectorXd::Random(N);
 
     u_max = 2.0 * mass * gravity;
     w_max = 0.5; // max angular velocity
@@ -126,7 +121,7 @@ CrazyFlie::CrazyFlie() : QuatModelBase(9) { // q index = 9
 
     // Cost
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
-        return 1e-3 * u.squaredNorm();
+        return 1e-6 * u.squaredNorm();
     };
 
     p = [this](const VectorXdual2nd& x) -> dual2nd {
@@ -134,33 +129,21 @@ CrazyFlie::CrazyFlie() : QuatModelBase(9) { // q index = 9
     };
 
     // // Constraints
-    // dim_g = 6;
-    // g = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-    //     VectorXdual2nd g_n(6);
-    //     g_n(0) = u_max - u(0);
-    //     g_n(1) = w_max*w_max - x.segment(6,3).squaredNorm();
-    //     g_n(2) = -0.0 - x(5);
-    //     g_n(3) = (x.head(3) - obs_cent_zip.col(0)).norm() - obs_rad_zip(0);
-    //     g_n(4) = (x.head(3) - obs_cent_zip.col(1)).norm() - obs_rad_zip(1);
-    //     g_n(5) = (x.head(3) - obs_cent_zip.col(2)).norm() - obs_rad_zip(2);
-    //     return -g_n;
-    // };
-    // Constraints
-    dim_g = 2;
+    dim_g = 6;
     g = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        VectorXdual2nd g_n(2);
+        VectorXdual2nd g_n(6);
         g_n(0) = u_max - u(0);
         g_n(1) = w_max*w_max - x.segment(6,3).squaredNorm();
-        // g_n(2) = -0.0 - x(5);
-        // g_n(3) = (x.head(3) - obs_cent_zip.col(0)).norm() - obs_rad_zip(0);
-        // g_n(4) = (x.head(3) - obs_cent_zip.col(1)).norm() - obs_rad_zip(1);
-        // g_n(5) = (x.head(3) - obs_cent_zip.col(2)).norm() - obs_rad_zip(2);
+        g_n(2) = 0.0 - x(5);
+        g_n(3) = (x.head(3) - obs_cent_zip.col(0)).norm() - obs_rad_zip(0);
+        g_n(4) = (x.head(3) - obs_cent_zip.col(1)).norm() - obs_rad_zip(1);
+        g_n(5) = (x.head(3) - obs_cent_zip.col(2)).norm() - obs_rad_zip(2);
         return -g_n;
     };
 
     dim_h = 3;
     h = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        const double state_angmax = tan(60.0 * (M_PI/180.0));
+        const double state_angmax = tan(45.0 * (M_PI/180.0));
         VectorXdual2nd h_n(3);
         h_n(0) = state_angmax * x(2);
         h_n(1) = x(0);
@@ -172,7 +155,7 @@ CrazyFlie::CrazyFlie() : QuatModelBase(9) { // q index = 9
 
     dim_hT = 3;
     hT = [this](const VectorXdual2nd& x) -> VectorXdual2nd {
-        const double state_angmax = tan(60.0 * (M_PI/180.0));
+        const double state_angmax = tan(45.0 * (M_PI/180.0));
         VectorXdual2nd h_n(3);
         h_n(0) = state_angmax * x(2);
         h_n(1) = x(0);
@@ -205,4 +188,4 @@ CrazyFlie::CrazyFlie() : QuatModelBase(9) { // q index = 9
     };
 }
 
-CrazyFlie::~CrazyFlie() {}
+Drone3D::~Drone3D() {}
