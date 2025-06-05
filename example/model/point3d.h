@@ -1,9 +1,9 @@
 #include "model_base.h"
 
-class Drone3D : public ModelBase {
+class Point3D : public ModelBase {
 public:
-    Drone3D();
-    ~Drone3D();
+    Point3D();
+    ~Point3D();
 
     // User Variable
     double dt;
@@ -16,7 +16,7 @@ public:
     Eigen::VectorXd obs_rad_zip;
 };
 
-Drone3D::Drone3D() {
+Point3D::Point3D() {
     dt = 0.1;
     gravity = 9.81;
     umax = gravity * 1.5;
@@ -89,7 +89,7 @@ Drone3D::Drone3D() {
 
     // Stage Cost Function
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
-        return 1e-4 * u.squaredNorm();
+        return 1e-6 * u.squaredNorm();
     };
 
     // Terminal Cost Function
@@ -98,14 +98,13 @@ Drone3D::Drone3D() {
     };
 
     // Nonnegative Orthant Constraint Mapping
-    dim_g = 5;
+    dim_g = 4;
     g = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
-        VectorXdual2nd g_n(5);
+        VectorXdual2nd g_n(4);
         g_n(0) = umax - u.norm();
-        g_n(1) = -x(5) - 0.0;
-        g_n(2) = (x.head(3) - obs_cent_zip.col(0)).norm() - obs_rad_zip(0);
-        g_n(3) = (x.head(3) - obs_cent_zip.col(1)).norm() - obs_rad_zip(1);
-        g_n(4) = (x.head(3) - obs_cent_zip.col(2)).norm() - obs_rad_zip(2);
+        g_n(1) = (x.head(3) - obs_cent_zip.col(0)).norm() - obs_rad_zip(0);
+        g_n(2) = (x.head(3) - obs_cent_zip.col(1)).norm() - obs_rad_zip(1);
+        g_n(3) = (x.head(3) - obs_cent_zip.col(2)).norm() - obs_rad_zip(2);
         return -g_n;
     };
 
@@ -162,5 +161,5 @@ Drone3D::Drone3D() {
     };
 }
 
-Drone3D::~Drone3D() {
+Point3D::~Point3D() {
 }

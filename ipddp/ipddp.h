@@ -868,82 +868,85 @@ void IPDDP::backwardPass() {
 
         // }
 
-        // LDLT Inertia
-        backward_failed = true;
-        for (int reg = std::min(param.max_inertia_correction, regulate); reg < param.max_inertia_correction + 1; ++reg) {
-            backward_failed = false;
+        if (param.max_inertia_correction != 0) {
+            // LDLT Inertia
+            backward_failed = true;
+            for (int reg = std::min(param.max_inertia_correction, regulate); reg < param.max_inertia_correction + 1; ++reg) {
+                backward_failed = false;
+            
+                double eps_p = param.reg2_min * (std::pow(param.reg2_exp, reg));
+                double eps_d = param.reg1_min * (std::pow(param.reg1_exp, reg));
+    
+                if (reg == 0) {eps_p = 0.0; eps_d = 0.0;}
+    
+                Eps_p_c = eps_p * Eigen::MatrixXd::Identity(model->dim_c, model->dim_c);
+                Eps_d_c = eps_d * Eigen::MatrixXd::Identity(model->dim_c, model->dim_c);
+    
+                MAT.topLeftCorner(model->dim_u, model->dim_u) = Quu;
+    
+                d.topRows(model->dim_u) = - Qu;
+                K.topRows(model->dim_u) = - Qxu.transpose();
         
-            double eps_p = param.reg2_min * (std::pow(param.reg2_exp, reg));
-            double eps_d = param.reg1_min * (std::pow(param.reg1_exp, reg));
-
-            if (reg == 0) {eps_p = 0.0; eps_d = 0.0;}
-
-            Eps_p_c = eps_p * Eigen::MatrixXd::Identity(model->dim_c, model->dim_c);
-            Eps_d_c = eps_d * Eigen::MatrixXd::Identity(model->dim_c, model->dim_c);
-
-            MAT.topLeftCorner(model->dim_u, model->dim_u) = Quu;
-
-            d.topRows(model->dim_u) = - Qu;
-            K.topRows(model->dim_u) = - Qxu.transpose();
-    
-            if (model->dim_c) {
-                // BLOCK (2,1)
-                MAT.block(model->dim_u, 0, model->dim_c, model->dim_u) = Qsu;
-                // BLOCK (1,2)
-                MAT.block(0, model->dim_u, model->dim_u, model->dim_c) = Qsu.transpose();
-                // BLOCK (2,2)
-                M_inv = (S_ + Eps_p_c).inverse();
-                MAT.block(model->dim_u, model->dim_u, model->dim_c, model->dim_c) = -(Eps_d_c + M_inv * Y_);
+                if (model->dim_c) {
+                    // BLOCK (2,1)
+                    MAT.block(model->dim_u, 0, model->dim_c, model->dim_u) = Qsu;
+                    // BLOCK (1,2)
+                    MAT.block(0, model->dim_u, model->dim_u, model->dim_c) = Qsu.transpose();
+                    // BLOCK (2,2)
+                    M_inv = (S_ + Eps_p_c).inverse();
+                    MAT.block(model->dim_u, model->dim_u, model->dim_c, model->dim_c) = -(Eps_d_c + M_inv * Y_);
+            
+                    d.middleRows(model->dim_u, model->dim_c) = - (rp - M_inv * rd);
+                    K.middleRows(model->dim_u, model->dim_c) = - Qsx;
+                }
         
-                d.middleRows(model->dim_u, model->dim_c) = - (rp - M_inv * rd);
-                K.middleRows(model->dim_u, model->dim_c) = - Qsx;
+                if (!MAT.isApprox(MAT.transpose())) {
+                    MAT = 0.5 * (MAT + MAT.transpose());
+                }
+        
+                Eigen::LDLT<Eigen::MatrixXd> MAT_ldlt(MAT);
+                if (MAT_ldlt.info() != Eigen::Success || MAT_ldlt.info() == Eigen::NumericalIssue) {
+                    // std::cout << "LDLT factorization failed.\n";
+                    backward_failed = true;
+                    continue;
+                }
+        
+                // Inertia Check
+                Eigen::VectorXd diagD = MAT_ldlt.vectorD();
+                const double tol = 1e-9;
+                int n_pos = (diagD.array() > tol).count();
+                int n_neg = (diagD.array() < -tol).count();
+                if ((n_pos != model->dim_u) || (n_neg != (model->dim_c + model->dim_ec))) {
+                    // std::cout << "Inertia Check failed." << std::endl;
+                    backward_failed = true;
+                    continue;
+                }
+    
+                d_sol = MAT_ldlt.solve(d);
+                K_sol = MAT_ldlt.solve(K);
+    
+                if (!backward_failed) {break;}
             }
     
-            if (!MAT.isApprox(MAT.transpose())) {
-                MAT = 0.5 * (MAT + MAT.transpose());
-            }
+            if (backward_failed) {break;}
     
-            Eigen::LDLT<Eigen::MatrixXd> MAT_ldlt(MAT);
-            if (MAT_ldlt.info() != Eigen::Success || MAT_ldlt.info() == Eigen::NumericalIssue) {
-                // std::cout << "LDLT factorization failed.\n";
-                backward_failed = true;
-                continue;
-            }
-    
-            // Inertia Check
-            Eigen::VectorXd diagD = MAT_ldlt.vectorD();
-            const double tol = 1e-9;
-            int n_pos = (diagD.array() > tol).count();
-            int n_neg = (diagD.array() < -tol).count();
-            if ((n_pos != model->dim_u) || (n_neg != (model->dim_c + model->dim_ec))) {
-                // std::cout << "Inertia Check failed." << std::endl;
-                backward_failed = true;
-                continue;
-            }
-
-            d_sol = MAT_ldlt.solve(d);
-            K_sol = MAT_ldlt.solve(K);
-
-            if (!backward_failed) {break;}
+            ku_ = d_sol.topRows(model->dim_u);
+            Ku_ = K_sol.topRows(model->dim_u);
         }
-
-        if (backward_failed) {break;}
-
-        ku_ = d_sol.topRows(model->dim_u);
-        Ku_ = K_sol.topRows(model->dim_u);
-
-        // LLT Original
-        // Quu_sim = 0.5*(Quu + Quu.transpose());
-        // Quu = Quu_sim;
-        // Quu_llt = Eigen::LLT<Eigen::MatrixXd>(Quu);
-        // if (!Quu.isApprox(Quu.transpose()) || Quu_llt.info() == Eigen::NumericalIssue) {
-        //     backward_failed = true;
-        //     break;
-        // }
-        // R = Quu_llt.matrixU();
-
-        // ku_ = -R.inverse() * (R.transpose().inverse() * Qu);
-        // Ku_ = -R.inverse() * (R.transpose().inverse() * Qxu.transpose());
+        else {
+            // LLT Original
+            Quu_sim = 0.5*(Quu + Quu.transpose());
+            Quu = Quu_sim;
+            Quu_llt = Eigen::LLT<Eigen::MatrixXd>(Quu);
+            if (!Quu.isApprox(Quu.transpose()) || Quu_llt.info() == Eigen::NumericalIssue) {
+                backward_failed = true;
+                break;
+            }
+            R = Quu_llt.matrixU();
+    
+            ku_ = -R.inverse() * (R.transpose().inverse() * Qu);
+            Ku_ = -R.inverse() * (R.transpose().inverse() * Qxu.transpose());
+        }
         
         dV(0) += ku_.transpose() * Qu;
         dV(1) += 0.5 * ku_.transpose() * Quu * ku_;
@@ -958,17 +961,20 @@ void IPDDP::backwardPass() {
 
         // Inequality Constraint
         if (model->dim_c) {
-            // LDLT Inertia
-            ks_ = d_sol.middleRows(model->dim_u, model->dim_c);
-            Ks_ = K_sol.middleRows(model->dim_u, model->dim_c);
-            ky_ = - (rp + Qsu * ku_) + Eps_d_c * ks_;
-            Ky_ = - (Qsx + Qsu * Ku_) + Eps_d_c * Ks_;
-
-            // LLT Original
-            ks_ = (Yinv * r) + (SYinv * Qsu * ku_);
-            Ks_ = SYinv * (Qsx + Qsu * Ku_);
-            ky_ = -rp - Qsu * ku_;
-            Ky_ = -Qsx - Qsu * Ku_;
+            if (param.max_inertia_correction != 0) {
+                // LDLT Inertia
+                ks_ = d_sol.middleRows(model->dim_u, model->dim_c);
+                Ks_ = K_sol.middleRows(model->dim_u, model->dim_c);
+                ky_ = - (rp + Qsu * ku_) + Eps_d_c * ks_;
+                Ky_ = - (Qsx + Qsu * Ku_) + Eps_d_c * Ks_;
+            }
+            else {
+                // LLT Original
+                ks_ = (Yinv * r) + (SYinv * Qsu * ku_);
+                Ks_ = SYinv * (Qsx + Qsu * Ku_);
+                ky_ = -rp - Qsu * ku_;
+                Ky_ = -Qsx - Qsu * Ku_;
+            }
 
             // CHECK: New Value Decrement
             // dV(0) += ks_.transpose() * c_v;
@@ -1186,6 +1192,9 @@ void IPDDP::forwardPass() {
             if (dV_act < 0.0) {forward_failed = 2; continue;}
         }
         if (param.forward_filter == 1) {
+            if (error <= param.tolerance) {
+                if (error < error_new) {forward_failed = 1; continue;}
+            }
             if (error <= error_new) {forward_failed = 1;}
             if (forward_failed == 1) {
                 if (dV_act < -(param.forward_cost_threshold * error)) {forward_failed = 2; continue;}

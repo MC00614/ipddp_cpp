@@ -3,14 +3,14 @@
 
 #include <cmath>
 
-#include "drone3d.h"
+#include "point3d.h"
 
 #include "ipddp.h"
 #include "visualize.h"
 
 int main() {
     // Load Dynamic Model
-    auto model = std::make_shared<Drone3D>();
+    auto model = std::make_shared<Point3D>();
     
     // Parameter Setting
     Param param;
