@@ -25,19 +25,12 @@ public:
     double obstacle_radius;           // Radius of the obstacle
     double spacecraft_radius;         // Radius of the spacecraft
     double min_dist_2;                // Minimum distance squared
-
-    // Method to check final state
-    void checkFinalState(const Eigen::MatrixXd& X_result);
-    bool checkTerminalConstraint(const Eigen::VectorXd& final_state);
-    // Method to export trajectory for Julia visualization
-    void exportTrajectory(const Eigen::MatrixXd& X, const Eigen::MatrixXd& U, const std::string& prefix = "trajectory");
 };
 
 RPO::RPO() {
     // Time step
     dt = 1.0;
 
-    // Orbital parameters (matching the Julia code)
     double mu = 3.986004418e14;  // Earth's gravitational parameter (m³/s²)
     double a = 6971100.0;        // Semi-major axis of orbit (meters)
     double n = std::sqrt(mu / (a*a*a));  // Mean motion (rad/s)
@@ -74,7 +67,7 @@ RPO::RPO() {
     xg << 0.0, -0.68, 3.05, 0.0, 0.0, 0.0;
 
     // Maximum control value
-    umax = 0.4;  // Each control component is limited to +/- 0.4 (matching Julia)
+    umax = 0.4;
 
     // Stage Count
     N = 240;
@@ -85,14 +78,11 @@ RPO::RPO() {
 
     // Status Setting (Initial conditions)
     X_init = Eigen::MatrixXd::Zero(dim_x, N+1);
-    // X_init.col(0) << 0.0, -6.68, 3.05, 0.0, 0.0, 0.0;  // Initial position and velocity
-    // X_init.col(0) << -2.0, -6.0, 4.0, 0.0, 0.0, 0.0;  // Initial position and velocity
-    X_init.col(0) << -4.0, -8.0, 0.0, 0.0, 0.0, 0.0;  // Initial position and velocity
+    X_init.col(0) << -4.0, -8.0, 0.0, 0.0, 0.0, 0.0;
 
     // Simple warm-start
     U_init = Eigen::MatrixXd::Zero(dim_u, N);
-    U_init.setZero();  // Start with zero control
-    // U_init = Eigen::MatrixXd::Random(dim_u, N) * 0.1;  // Random initial control
+    U_init.setZero();
 
     // Discrete Time System
     f = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> VectorXdual2nd {
@@ -103,30 +93,19 @@ RPO::RPO() {
 
     // Stage Cost Function - LQR cost to regulate to goal
     q = [this](const VectorXdual2nd& x, const VectorXdual2nd& u) -> dual2nd {
-      // Separate position and velocity errors
-      VectorXdual2nd pos_error = x.head(3) - xg.head(3).cast<dual2nd>();
-      VectorXdual2nd vel_error = x.tail(3) - xg.tail(3).cast<dual2nd>();
-
-      // Higher weight on position errors (10x), lower on velocity
-    //   dual2nd pos_cost = 1.0 * pos_error.squaredNorm();
-    //   dual2nd vel_cost = 1.0 * vel_error.squaredNorm();
-      dual2nd control_cost = 100.0 * u.squaredNorm();
-
-    //   return 0.5 * (pos_cost + vel_cost + control_cost);
-      return 0.5 * (control_cost);
+      dual2nd control_cost = u.squaredNorm();
+      return control_cost;
     };
 
     // Terminal Cost Function - Higher weight on final error
     p = [this](const VectorXdual2nd& x) -> dual2nd {
-      // Separate position and velocity errors
-      VectorXdual2nd pos_error = x.head(3) - xg.head(3).cast<dual2nd>();
-      VectorXdual2nd vel_error = x.tail(3) - xg.tail(3).cast<dual2nd>();
-
-      // Very high weight on final position error (100x), moderate on velocity
-      dual2nd pos_cost = 2.0 * pos_error.squaredNorm();
-      dual2nd vel_cost = 1.0 * vel_error.squaredNorm();
-
-      return 0.5 * (pos_cost + vel_cost);
+        VectorXdual2nd pos_error = x.head(3) - xg.head(3).cast<dual2nd>();
+        VectorXdual2nd vel_error = x.tail(3) - xg.tail(3).cast<dual2nd>();
+        pos_error(1) += 0.12; // Adjust y position error to avoid vertex of cone
+        dual2nd pos_cost = 2.0 * pos_error.squaredNorm();
+        dual2nd vel_cost = 1.0 * vel_error.squaredNorm();
+  
+        return pos_cost + vel_cost;
     };
 
     // Control component bounds: -umax ≤ u[i] ≤ umax for each component

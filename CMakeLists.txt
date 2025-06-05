@@ -35,7 +35,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${Python3_LIBRARIES})
 
 # Examples
 if (BUILD_EXAMPLE)
-    foreach(EXAMPLE rocket2d rocket3d point3d drone3d)
+    foreach(EXAMPLE rocket2d rocket3d point3d drone3d rpo)
         add_executable(${EXAMPLE} example/${EXAMPLE}.cpp)
         target_include_directories(${EXAMPLE} PRIVATE ${INCLUDE_DIRS})
         target_compile_options(${EXAMPLE} PRIVATE -O2)

@@ -519,6 +519,12 @@ void IPDDP::solve() {
                     param.lambdaT = param.lambdaT + param.rho * RT;
                 }
                 if (updated) {resetFilter();}
+                // std::cout << "opterror_rp_c = " << opterror_rp_c << std::endl;
+                // std::cout << "opterror_rd_c = " << opterror_rd_c << std::endl;
+                // std::cout << "opterror_rpT_c = " << opterror_rpT_c << std::endl;
+                // std::cout << "opterror_rdT_c = " << opterror_rdT_c << std::endl;
+                // std::cout << "opterror_rpT_ec = " << opterror_rpT_ec << std::endl;
+                // std::cout << "opterror_rdT_ec = " << opterror_rdT_ec << std::endl;
             }
         }
         if (param.max_iter < iter) {
@@ -874,13 +880,10 @@ void IPDDP::backwardPass() {
             for (int reg = std::min(param.max_inertia_correction, regulate); reg < param.max_inertia_correction + 1; ++reg) {
                 backward_failed = false;
             
-                double eps_p = param.reg2_min * (std::pow(param.reg2_exp, reg));
-                double eps_d = param.reg1_min * (std::pow(param.reg1_exp, reg));
+                double eps_p = param.corr_p_min * (std::pow(param.corr_p_mul, reg));
+                double eps_d = param.corr_d_min * (std::pow(param.corr_d_mul, reg));
     
                 if (reg == 0) {eps_p = 0.0; eps_d = 0.0;}
-    
-                Eps_p_c = eps_p * Eigen::MatrixXd::Identity(model->dim_c, model->dim_c);
-                Eps_d_c = eps_d * Eigen::MatrixXd::Identity(model->dim_c, model->dim_c);
     
                 MAT.topLeftCorner(model->dim_u, model->dim_u) = Quu;
     
@@ -888,6 +891,9 @@ void IPDDP::backwardPass() {
                 K.topRows(model->dim_u) = - Qxu.transpose();
         
                 if (model->dim_c) {
+                    Eps_p_c = eps_p * Eigen::MatrixXd::Identity(model->dim_c, model->dim_c);
+                    Eps_d_c = eps_d * Eigen::MatrixXd::Identity(model->dim_c, model->dim_c);
+                    
                     // BLOCK (2,1)
                     MAT.block(model->dim_u, 0, model->dim_c, model->dim_u) = Qsu;
                     // BLOCK (1,2)
@@ -1025,7 +1031,7 @@ void IPDDP::backwardPass() {
 
 void IPDDP::checkRegulate() {
     if (forward_failed || backward_failed) {++regulate;}
-    // else if (step == 0) {--regulate;}
+    else if (step == 0 && param.max_inertia_correction != 0) {--regulate;}
     // else if (step <= 3) {regulate = regulate;}
     // else {--regulate;}
 
