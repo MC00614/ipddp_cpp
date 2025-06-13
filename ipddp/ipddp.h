@@ -664,11 +664,27 @@ void IPDDP::backwardPass() {
     Eigen::MatrixXd M_inv;
     Eigen::MatrixXd Eps_p_c;
     Eigen::MatrixXd Eps_d_c;
-    Eigen::MatrixXd MAT = Eigen::MatrixXd::Zero(model->dim_u + model->dim_c + model->dim_ec, model->dim_u + model->dim_c + model->dim_ec);
-    Eigen::VectorXd d = Eigen::VectorXd::Zero(model->dim_u + model->dim_c + model->dim_ec);
-    Eigen::MatrixXd K = Eigen::MatrixXd::Zero(model->dim_u + model->dim_c + model->dim_ec, model->dim_rn);
-    Eigen::VectorXd d_sol = Eigen::VectorXd::Zero(model->dim_u + model->dim_c + model->dim_ec);
-    Eigen::MatrixXd K_sol = Eigen::MatrixXd::Zero(model->dim_u + model->dim_c + model->dim_ec, model->dim_rn);
+
+    Eigen::LDLT<Eigen::MatrixXd> MAT_ldlt;
+
+    Eigen::MatrixXd MAT3 = Eigen::MatrixXd::Zero(model->dim_u + model->dim_c + model->dim_ec, model->dim_u + model->dim_c + model->dim_ec);
+    Eigen::VectorXd dr3 = Eigen::VectorXd::Zero(model->dim_u + model->dim_c + model->dim_ec);
+    Eigen::MatrixXd Kr3 = Eigen::MatrixXd::Zero(model->dim_u + model->dim_c + model->dim_ec, model->dim_rn);
+    Eigen::VectorXd dw3 = Eigen::VectorXd::Zero(model->dim_u + model->dim_c + model->dim_ec);
+    Eigen::MatrixXd Kw3 = Eigen::MatrixXd::Zero(model->dim_u + model->dim_c + model->dim_ec, model->dim_rn);
+
+    Eigen::MatrixXd MAT5 = Eigen::MatrixXd::Zero(model->dim_u + 2*model->dim_c + 2*model->dim_ec, model->dim_u + 2*model->dim_c + 2*model->dim_ec);
+    Eigen::VectorXd dw5 = Eigen::VectorXd::Zero(model->dim_u + 2*model->dim_c + 2*model->dim_ec);
+    Eigen::MatrixXd Kw5 = Eigen::MatrixXd::Zero(model->dim_u + 2*model->dim_c + 2*model->dim_ec, model->dim_rn);
+    Eigen::VectorXd dr5 = Eigen::VectorXd::Zero(model->dim_u + 2*model->dim_c + 2*model->dim_ec);
+    Eigen::MatrixXd Kr5 = Eigen::MatrixXd::Zero(model->dim_u + 2*model->dim_c + 2*model->dim_ec, model->dim_rn);
+    
+    Eigen::VectorXd dr3_e = Eigen::VectorXd::Zero(model->dim_u + model->dim_c + model->dim_ec);
+    Eigen::MatrixXd Kr3_e = Eigen::MatrixXd::Zero(model->dim_u + model->dim_c + model->dim_ec, model->dim_rn);
+    Eigen::VectorXd dr5_e = Eigen::VectorXd::Zero(model->dim_u + 2*model->dim_c + 2*model->dim_ec);
+    Eigen::MatrixXd Kr5_e = Eigen::MatrixXd::Zero(model->dim_u + 2*model->dim_c + 2*model->dim_ec, model->dim_rn);
+    Eigen::VectorXd dw3_e = Eigen::VectorXd::Zero(model->dim_u + model->dim_c + model->dim_ec);
+    Eigen::MatrixXd Kw3_e = Eigen::MatrixXd::Zero(model->dim_u + model->dim_c + model->dim_ec, model->dim_rn);
 
     Vx = px_all;
     Vxx = pxx_all;
@@ -874,43 +890,72 @@ void IPDDP::backwardPass() {
 
         // }
 
+        // Full Matrix
+        // BLOCK (1,1)
+        MAT5.topLeftCorner(model->dim_u, model->dim_u) = Quu;
+        // Residuals
+        dr5.topRows(model->dim_u) = - Qu;
+        Kr5.topRows(model->dim_u) = - Qxu.transpose();
+        if (model->dim_c) {
+            // BLOCK (2,1)
+            MAT5.block(model->dim_u, 0, model->dim_c, model->dim_u) = Qsu;
+            // BLOCK (1,2)
+            MAT5.block(0, model->dim_u, model->dim_u, model->dim_c) = Qsu.transpose();
+            // BLOCK (4,2)
+            MAT5.block(model->dim_u + model->dim_c + model->dim_ec, model->dim_u, model->dim_c, model->dim_c) = Y_;
+            // BLOCK (2,4)
+            MAT5.block(model->dim_u, model->dim_u + model->dim_c + model->dim_ec, model->dim_c, model->dim_c) = Eigen::MatrixXd::Identity(model->dim_c, model->dim_c);
+            // BLOCK (4,4)
+            MAT5.block(model->dim_u + model->dim_c + model->dim_ec, model->dim_u + model->dim_c + model->dim_ec, model->dim_c, model->dim_c) = S_;
+            // Residuals
+            dr5.middleRows(model->dim_u, model->dim_c) = - rp;
+            dr5.middleRows(model->dim_u + model->dim_c + model->dim_ec, model->dim_c) = - rd;
+            Kr5.middleRows(model->dim_u, model->dim_c) = - Qsx;
+        }
+
         if (param.max_inertia_correction != 0) {
             // LDLT Inertia
             backward_failed = true;
+
+            // Reduced Matrix
+            MAT3 = MAT5.topLeftCorner(model->dim_u + model->dim_c + model->dim_ec, model->dim_u + model->dim_c + model->dim_ec);
+            dr3 = dr5.topRows(model->dim_u + model->dim_c + model->dim_ec);
+            Kr3 = Kr5.topRows(model->dim_u + model->dim_c + model->dim_ec);
+            
             for (int reg = std::min(param.max_inertia_correction, regulate); reg < param.max_inertia_correction + 1; ++reg) {
                 backward_failed = false;
-            
+                
                 double eps_p = param.corr_p_min * (std::pow(param.corr_p_mul, reg));
                 double eps_d = param.corr_d_min * (std::pow(param.corr_d_mul, reg));
-    
+                
                 if (reg == 0) {eps_p = 0.0; eps_d = 0.0;}
-    
-                MAT.topLeftCorner(model->dim_u, model->dim_u) = Quu;
-    
-                d.topRows(model->dim_u) = - Qu;
-                K.topRows(model->dim_u) = - Qxu.transpose();
-        
+                
                 if (model->dim_c) {
                     Eps_p_c = eps_p * Eigen::MatrixXd::Identity(model->dim_c, model->dim_c);
                     Eps_d_c = eps_d * Eigen::MatrixXd::Identity(model->dim_c, model->dim_c);
                     
-                    // BLOCK (2,1)
-                    MAT.block(model->dim_u, 0, model->dim_c, model->dim_u) = Qsu;
-                    // BLOCK (1,2)
-                    MAT.block(0, model->dim_u, model->dim_u, model->dim_c) = Qsu.transpose();
+                    // // BLOCK (1,1)
+                    // MAT5.topLeftCorner(model->dim_u, model->dim_u) = Quu + eps_p * Eigen::MatrixXd::Identity(model->dim_u, model->dim_u);
+                    // BLOCK (2,2)
+                    MAT5.block(model->dim_u, model->dim_u, model->dim_c, model->dim_c) = - Eps_d_c;
+                    // BLOCK (4,4)
+                    MAT5.block(model->dim_u + model->dim_c + model->dim_ec, model->dim_u + model->dim_c + model->dim_ec, model->dim_c, model->dim_c) = S_ + Eps_p_c;
+
+                    // // BLOCK (1,1)
+                    // MAT3.topLeftCorner(model->dim_u, model->dim_u) = Quu + eps_p * Eigen::MatrixXd::Identity(model->dim_u, model->dim_u);
                     // BLOCK (2,2)
                     M_inv = (S_ + Eps_p_c).inverse();
-                    MAT.block(model->dim_u, model->dim_u, model->dim_c, model->dim_c) = -(Eps_d_c + M_inv * Y_);
+                    MAT3.block(model->dim_u, model->dim_u, model->dim_c, model->dim_c) += -(Eps_d_c + M_inv * Y_);
             
-                    d.middleRows(model->dim_u, model->dim_c) = - (rp - M_inv * rd);
-                    K.middleRows(model->dim_u, model->dim_c) = - Qsx;
+                    // Residuals
+                    dr3.middleRows(model->dim_u, model->dim_c) = - (rp - M_inv * rd);
                 }
         
-                if (!MAT.isApprox(MAT.transpose())) {
-                    MAT = 0.5 * (MAT + MAT.transpose());
+                if (!MAT3.isApprox(MAT3.transpose())) {
+                    MAT3 = 0.5 * (MAT3 + MAT3.transpose());
                 }
         
-                Eigen::LDLT<Eigen::MatrixXd> MAT_ldlt(MAT);
+                MAT_ldlt = Eigen::LDLT<Eigen::MatrixXd>(MAT3);
                 if (MAT_ldlt.info() != Eigen::Success || MAT_ldlt.info() == Eigen::NumericalIssue) {
                     // std::cout << "LDLT factorization failed.\n";
                     backward_failed = true;
@@ -927,17 +972,87 @@ void IPDDP::backwardPass() {
                     backward_failed = true;
                     continue;
                 }
-    
-                d_sol = MAT_ldlt.solve(d);
-                K_sol = MAT_ldlt.solve(K);
-    
+                    
                 if (!backward_failed) {break;}
             }
-    
+            
             if (backward_failed) {break;}
+
+            dw3 = MAT_ldlt.solve(dr3);
+            Kw3 = MAT_ldlt.solve(Kr3);
+
+            ku_ = dw3.topRows(model->dim_u);
+            Ku_ = Kw3.topRows(model->dim_u);
+
+            if (model->dim_c) {
+                // LDLT Inertia
+                ks_ = dw3.middleRows(model->dim_u, model->dim_c);
+                Ks_ = Kw3.middleRows(model->dim_u, model->dim_c);
+                ky_ = - M_inv * (rd + Y_ * ks_);
+                Ky_ = - M_inv * (Y_ * Ks_);
+            }
+
+            // iterativeRefinement();
+
+            dw5.topRows(model->dim_u + model->dim_c + model->dim_ec) = dw3;
+            Kw5.topRows(model->dim_u + model->dim_c + model->dim_ec) = Kw3;
+            if (model->dim_c) {
+                dw5.middleRows(model->dim_u + model->dim_c + model->dim_ec, model->dim_c) = ky_;
+                Kw5.middleRows(model->dim_u + model->dim_c + model->dim_ec, model->dim_c) = Ky_;
+            }
+            dr5_e = dr5 - MAT5 * dw5;
+            Kr5_e = Kr5 - MAT5 * Kw5;
+
+            int ir_iter = 0;
+            double dr5_e_norm = dr5_e.norm();
+            double Kr5_e_norm = Kr5_e.norm();
+
+            while ((dr5_e.norm() > param.ir_eps || Kr5_e.norm() > param.ir_eps) && ir_iter++ < param.ir_max_iter) {        
+                dr3_e = dr5_e.topRows(model->dim_u + model->dim_c + model->dim_ec);
+                Kr3_e = Kr5_e.topRows(model->dim_u + model->dim_c + model->dim_ec);
+                if (model->dim_c) {
+                    dr3_e.middleRows(model->dim_u, model->dim_c) = - M_inv * dr5_e.middleRows(model->dim_u + model->dim_c + model->dim_ec, model->dim_c);
+                }
+                
+                dw3_e = MAT_ldlt.solve(dr3_e);
+                Kw3_e = MAT_ldlt.solve(Kr3_e);
+                
+                dw3 = dw3 + dw3_e;
+                Kw3 = Kw3 + Kw3_e;
     
-            ku_ = d_sol.topRows(model->dim_u);
-            Ku_ = K_sol.topRows(model->dim_u);
+                ku_ = dw3.topRows(model->dim_u);
+                Ku_ = Kw3.topRows(model->dim_u);
+    
+                if (model->dim_c) {
+                    // LDLT Inertia
+                    ks_ = dw3.middleRows(model->dim_u, model->dim_c);
+                    Ks_ = Kw3.middleRows(model->dim_u, model->dim_c);
+                    ky_ = - M_inv * (rd + Y_ * ks_);
+                    Ky_ = - M_inv * (Y_ * Ks_);
+                }
+                
+                dw5.topRows(model->dim_u + model->dim_c + model->dim_ec) = dw3;
+                Kw5.topRows(model->dim_u + model->dim_c + model->dim_ec) = Kw3;
+                if (model->dim_c) {
+                    dw5.middleRows(model->dim_u + model->dim_c + model->dim_ec, model->dim_c) = ky_;
+                    Kw5.middleRows(model->dim_u + model->dim_c + model->dim_ec, model->dim_c) = Ky_;
+                }
+                
+                dr5_e = dr5 - MAT5 * dw5;
+                Kr5_e = Kr5 - MAT5 * Kw5;
+
+                double new_dr5_e_norm = dr5_e.norm();
+                double new_Kr5_e_norm = Kr5_e.norm();
+
+                // std::cout << "dr5_e.norm() = " << dr5_e.norm() << std::endl;
+                // std::cout << "Kr5_e.norm() = " << Kr5_e.norm() << std::endl;
+                if (((new_dr5_e_norm < param.ir_eps) || (dr5_e_norm - new_dr5_e_norm > param.ir_update_eps)) && ((new_Kr5_e_norm < param.ir_eps) || (Kr5_e_norm - new_Kr5_e_norm > param.ir_update_eps))) {
+                    dr5_e_norm = new_dr5_e_norm;
+                    Kr5_e_norm = new_Kr5_e_norm;
+                }
+                else {break;}
+                
+            }
         }
         else {
             // LLT Original
@@ -952,6 +1067,12 @@ void IPDDP::backwardPass() {
     
             ku_ = -R.inverse() * (R.transpose().inverse() * Qu);
             Ku_ = -R.inverse() * (R.transpose().inverse() * Qxu.transpose());
+            if (model->dim_c) {
+                ks_ = (Yinv * r) + (SYinv * Qsu * ku_);
+                Ks_ = SYinv * (Qsx + Qsu * Ku_);
+                ky_ = -rp - Qsu * ku_;
+                Ky_ = -Qsx - Qsu * Ku_;
+            }
         }
         
         dV(0) += ku_.transpose() * Qu;
@@ -959,7 +1080,7 @@ void IPDDP::backwardPass() {
         
         Vx = Qx + (Ku_.transpose() * Qu) + (Ku_.transpose() * Quu * ku_) + (Qxu * ku_);
         Vxx = Qxx + (Ku_.transpose() * Qxu.transpose()) + (Qxu * Ku_) + (Ku_.transpose() * Quu * Ku_);
-        
+
         ku.col(t) = ku_;
         Ku.middleCols(t_dim_x, model->dim_rn) = Ku_;
 
@@ -967,21 +1088,7 @@ void IPDDP::backwardPass() {
 
         // Inequality Constraint
         if (model->dim_c) {
-            if (param.max_inertia_correction != 0) {
-                // LDLT Inertia
-                ks_ = d_sol.middleRows(model->dim_u, model->dim_c);
-                Ks_ = K_sol.middleRows(model->dim_u, model->dim_c);
-                ky_ = - (rp + Qsu * ku_) + Eps_d_c * ks_;
-                Ky_ = - (Qsx + Qsu * Ku_) + Eps_d_c * Ks_;
-            }
-            else {
-                // LLT Original
-                ks_ = (Yinv * r) + (SYinv * Qsu * ku_);
-                Ks_ = SYinv * (Qsx + Qsu * Ku_);
-                ky_ = -rp - Qsu * ku_;
-                Ky_ = -Qsx - Qsu * Ku_;
-            }
-
+            // if (param.max_inertia_correction != 0) {
             // CHECK: New Value Decrement
             // dV(0) += ks_.transpose() * c_v;
             // dV(1) += ku_.transpose() * Qsu.transpose() * ks_;
@@ -1010,7 +1117,7 @@ void IPDDP::backwardPass() {
             Ky.middleCols(t_dim_x, model->dim_rn) = Ky_;
 
             opterror = std::max({rp.lpNorm<Eigen::Infinity>(), rd.lpNorm<Eigen::Infinity>(), opterror});
-            opterror_rp_c = std::max({rp.lpNorm<Eigen::Infinity>(), (Qu + Qu_c).lpNorm<Eigen::Infinity>(), opterror_rp_c});
+            opterror_rp_c = std::max({rp.lpNorm<Eigen::Infinity>(), (Qu).lpNorm<Eigen::Infinity>(), opterror_rp_c});
             // opterror_rp_c = std::max({rp.lpNorm<Eigen::Infinity>(), opterror_rp_c});
             opterror_rd_c = std::max({rd.lpNorm<Eigen::Infinity>(), opterror_rd_c});
         }
@@ -1031,7 +1138,7 @@ void IPDDP::backwardPass() {
 
 void IPDDP::checkRegulate() {
     if (forward_failed || backward_failed) {++regulate;}
-    else if (step == 0 && param.max_inertia_correction != 0) {--regulate;}
+    // else if (step == 0 && param.max_inertia_correction != 0) {--regulate;}
     // else if (step <= 3) {regulate = regulate;}
     // else {--regulate;}
 
