@@ -326,28 +326,20 @@ void IPDDP::init(Param param) {
 }
 
 void IPDDP::initialRoll() {
+    if (model->dim_c) {C.resize(model->dim_c, model->N);}
+    if (model->dim_ec) {EC.resize(model->dim_ec, model->N);}
+
     for (int t = 0; t < model->N; ++t) {
-        X.col(t+1) = model->f(X.col(t), U.col(t)).cast<double>();
-    }
-    if (model->dim_ec) {
-        EC.resize(model->dim_ec, model->N);
-        for (int t = 0; t < model->N; ++t) {
-            EC.col(t) = model->ec(X.col(t), U.col(t)).cast<double>();
-        }
-    }
-    if (model->dim_c) {
-        C.resize(model->dim_c, model->N);
-        for (int t = 0; t < model->N; ++t) {
-            C.col(t) = model->c(X.col(t), U.col(t)).cast<double>();
-        }
+        const Eigen::VectorXd& xt = X.col(t);
+        const Eigen::VectorXd& ut = U.col(t);
+        if (model->dim_c) {C.col(t) = model->c(xt, ut).cast<double>();}
+        if (model->dim_ec) {EC.col(t) = model->ec(xt, ut).cast<double>();}
+        X.col(t+1) = model->f(xt, ut).cast<double>();
     }
     if (model->dim_cT) {CT = model->cT(X.col(model->N)).cast<double>();}
     if (model->dim_ecT) {ECT = model->ecT(X.col(model->N)).cast<double>();}
 
     cost = calculateTotalCost(X, U);
-
-    // if (param.auto_scale) {initAutoConstraintScaling();}
-    // if (param.auto_init) {initAdditionalVariables();}
 }
 
 void IPDDP::resetFilter() {
@@ -368,10 +360,10 @@ void IPDDP::resetFilter() {
     logcost = cost - (param.mu * barriercost + param.muT * barriercostT) + (alcost + alcostT);
 
     error = 0.0;
-    if (model->dim_ec) {error += (EC + R).colwise().lpNorm<1>().sum();}
-    if (model->dim_c) {error += (C + Y).colwise().lpNorm<1>().sum();}
-    if (model->dim_ecT) {error += (ECT + RT).lpNorm<1>();}
-    if (model->dim_cT) {error += (CT + YT).lpNorm<1>();}
+    if (model->dim_ec) {error += (EC + R).array().abs().sum();}
+    if (model->dim_c) {error += (C + Y).array().abs().sum();}
+    if (model->dim_ecT) {error += (ECT + RT).array().abs().sum();}
+    if (model->dim_cT) {error += (CT + YT).array().abs().sum();}
     error = std::max(param.tolerance, error);
     
     step = 0;
@@ -528,23 +520,26 @@ void IPDDP::calculateAllDiff() {
         VectorXdual2nd x = X.col(t).cast<dual2nd>();
         VectorXdual2nd u = U.col(t).cast<dual2nd>();
 
-        fx_all.middleCols(t*model->dim_rn, model->dim_rn) = model->fx(x,u);
-        fu_all.middleCols(t*model->dim_u, model->dim_u) = model->fu(x,u);
+        const int t_dim_rn = t * model->dim_rn;
+        const int t_dim_u = t * model->dim_u;
+
+        fx_all.middleCols(t_dim_rn, model->dim_rn) = model->fx(x,u);
+        fu_all.middleCols(t_dim_u, model->dim_u) = model->fu(x,u);
         qx_all.col(t) = model->qx(x,u);
         qu_all.col(t) = model->qu(x,u);
         qdd_all.middleCols(t*(model->dim_rn+model->dim_u), model->dim_rn+model->dim_u) = model->qdd(x,u);
         // if (DDP) {
-        //     fxx_all.middleCols(t*model->dim_rn*model->dim_rn, model->dim_rn*model->dim_rn) = model->fxx(x,u);
-        //     fxu_all.middleCols(t*model->dim_rn*model->dim_u, model->dim_rn*model->dim_u) = model->fxu(x,u);
-        //     fuu_all.middleCols(t*model->dim_u*model->dim_u, model->dim_u*model->dim_u) = model->fuu(x,u);
+        //     fxx_all.middleCols(t_dim_rn*model->dim_rn, model->dim_rn*model->dim_rn) = model->fxx(x,u);
+        //     fxu_all.middleCols(t_dim_rn*model->dim_u, model->dim_rn*model->dim_u) = model->fxu(x,u);
+        //     fuu_all.middleCols(t_dim_u*model->dim_u, model->dim_u*model->dim_u) = model->fuu(x,u);
         // }
         if (model->dim_c) {
-            cx_all.middleCols(t*model->dim_rn, model->dim_rn) = model->cx(x,u);
-            cu_all.middleCols(t*model->dim_u, model->dim_u) = model->cu(x,u);
+            cx_all.middleCols(t_dim_rn, model->dim_rn) = model->cx(x,u);
+            cu_all.middleCols(t_dim_u, model->dim_u) = model->cu(x,u);
         }
         if (model->dim_ec) {
-            ecx_all.middleCols(t*model->dim_rn, model->dim_rn) = model->ecx(x,u);
-            ecu_all.middleCols(t*model->dim_u, model->dim_u) = model->ecu(x,u);
+            ecx_all.middleCols(t_dim_rn, model->dim_rn) = model->ecx(x,u);
+            ecu_all.middleCols(t_dim_u, model->dim_u) = model->ecu(x,u);
         }
     }
     VectorXdual2nd xT = X.col(model->N).cast<dual2nd>();
@@ -1099,6 +1094,7 @@ void IPDDP::forwardPass() {
 
     // double tau = std::max(0.99, 1.0 - param.mu);
     double tau = 0.9;
+    const double one_tau = 1.0 - tau;
     
     double cost_new = 0.0;
     double logcost_new = 0.0;
@@ -1114,7 +1110,7 @@ void IPDDP::forwardPass() {
     for (step = 0; step < this->param.max_step_iter; ++step) {
 
         forward_failed = 0;
-        double step_size = step_list[step];
+        const double step_size = step_list[step];
 
         dV_exp = -(step_size * dV(0) + step_size * step_size * dV(1));
         // CHECK: Using Expected Value Decrement -> For Early Termination
@@ -1126,85 +1122,89 @@ void IPDDP::forwardPass() {
 
         X_new.col(0) = X.col(0);
         for (int t = 0; t < model->N; ++t) {
-            int t_dim_x = t * model->dim_rn;
+            const int t_dim_x = t * model->dim_rn;
             dx = model->perturb(X_new.col(t), X.col(t));
             U_new.col(t) = U.col(t) + (step_size * ku.col(t)) + Ku.middleCols(t_dim_x, model->dim_rn) * dx;
             X_new.col(t+1) = model->f(X_new.col(t), U_new.col(t)).cast<double>();
-        }
-        dxT = model->perturb(X_new.col(model->N), X.col(model->N));
-        
-        if (model->dim_c) {
-            for (int t = 0; t < model->N; ++t) {
-                int t_dim_x = t * model->dim_rn;
-                dx = model->perturb(X_new.col(t), X.col(t));
+            if (model->dim_c) {
                 Y_new.col(t) = Y.col(t) + (step_size * ky.col(t)) + Ky.middleCols(t_dim_x, model->dim_rn) * dx;
                 S_new.col(t) = S.col(t) + (step_size * ks.col(t)) + Ks.middleCols(t_dim_x, model->dim_rn) * dx;
-            }
-            for (int t = 0; t < model->N; ++t) {
                 if (model->dim_g) {
-                    if ((Y_new.col(t).topRows(model->dim_g).array() < (1 - tau) * Y.col(t).topRows(model->dim_g).array()).any()) {forward_failed = 11; break;}
-                    if ((S_new.col(t).topRows(model->dim_g).array() < (1 - tau) * S.col(t).topRows(model->dim_g).array()).any()) {forward_failed = 12; break;}
+                    const int d = model->dim_g;
+                    const Eigen::Ref<const Eigen::VectorXd> Y_new_head = Y_new.col(t).head(d);
+                    const Eigen::Ref<const Eigen::VectorXd> S_new_head = S_new.col(t).head(d);
+                    const Eigen::Ref<const Eigen::VectorXd> Y_head = Y.col(t).head(d);
+                    const Eigen::Ref<const Eigen::VectorXd> S_head = S.col(t).head(d);
+                    if ((Y_new_head.array() < (one_tau) * Y_head.array()).any() || (S_new_head.array() < (one_tau) * S_head.array()).any()) {
+                        forward_failed = 11; break;
+                    }
                 }
                 for (int i = 0; i < model->dim_hs.size(); ++i) {
-                    if ((Y_new.col(t).row(dim_hs_top[i]).array() - Y_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm()
-                    < (1 - tau) * (Y.col(t).row(dim_hs_top[i]).array() - Y.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm())).any()) {forward_failed = 13; break;}
-                    if ((S_new.col(t).row(dim_hs_top[i]).array() - S_new.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm()
-                    < (1 - tau) * (S.col(t).row(dim_hs_top[i]).array() - S.col(t).middleRows(dim_hs_top[i]+1, model->dim_hs[i]-1).norm())).any()) {forward_failed = 14; break;}
+                    const int n = model->dim_hs[i] - 1;
+                    const int idx = dim_hs_top[i];
+                    const double Y_new_norm = Y_new(idx, t) - Y_new.col(t).segment(idx+1, n).norm();
+                    const double S_new_norm = S_new(idx, t) - S_new.col(t).segment(idx+1, n).norm();
+                    const double Y_norm = (one_tau) * (Y(idx, t) - Y.col(t).segment(idx+1, n).norm());
+                    const double S_norm = (one_tau) * (S(idx, t) - S.col(t).segment(idx+1, n).norm());
+                    if (Y_new_norm < Y_norm || S_new_norm < S_norm) {
+                        forward_failed = 13; break;
+                    }
                 }
                 if (forward_failed) {break;}
+                
+                C_new.col(t) = model->c(X_new.col(t), U_new.col(t)).cast<double>();
             }
+            if (model->dim_ec) {
+                R_new.col(t) = R.col(t) + (step_size * kr.col(t)) + Kr.middleCols(t_dim_x, model->dim_rn) * dx;
+                Z_new.col(t) = Z.col(t) + (step_size * kz.col(t)) + Kz.middleCols(t_dim_x, model->dim_rn) * dx;
+
+                EC_new.col(t) = model->ec(X_new.col(t), U_new.col(t)).cast<double>();
+            }        
         }
         if (forward_failed) {continue;}
         
+        dxT = model->perturb(X_new.col(model->N), X.col(model->N));
         if (model->dim_cT) {
             YT_new = YT + (step_size * kyT) + KyT * dxT;
             ST_new = ST + (step_size * ksT) + KsT * dxT;
             if (model->dim_gT) {
-                if ((YT_new.topRows(model->dim_gT).array() < (1 - tau) * YT.topRows(model->dim_gT).array()).any()) {forward_failed = 21; continue;}
-                if ((ST_new.topRows(model->dim_gT).array() < (1 - tau) * ST.topRows(model->dim_gT).array()).any()) {forward_failed = 22; continue;}
+                const int d = model->dim_gT;
+                const Eigen::Ref<const Eigen::VectorXd> YT_new_head = YT_new.head(d);
+                const Eigen::Ref<const Eigen::VectorXd> ST_new_head = ST_new.head(d);
+                const Eigen::Ref<const Eigen::VectorXd> YT_head = YT.head(d);
+                const Eigen::Ref<const Eigen::VectorXd> ST_head = ST.head(d);
+                if ((YT_new_head.array() < (one_tau) * YT_head.array()).any() || (ST_new_head.array() < (one_tau) * ST_head.array()).any()) {
+                    forward_failed = 21; continue;
+                }
             }
             for (int i = 0; i < model->dim_hTs.size(); ++i) {
-                if ((YT_new.row(dim_hTs_top[i]).array() - YT_new.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).norm()
-                < (1 - tau) * (YT.row(dim_hTs_top[i]).array() - YT.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).norm())).any()) {forward_failed = 23; break;}
-                if ((ST_new.row(dim_hTs_top[i]).array() - ST_new.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).norm()
-                < (1 - tau) * (ST.row(dim_hTs_top[i]).array() - ST.middleRows(dim_hTs_top[i]+1, model->dim_hTs[i]-1).norm())).any()) {forward_failed = 24; break;}
+                const int n = model->dim_hTs[i] - 1;
+                const int idx = dim_hTs_top[i];
+                const double YT_new_norm = YT_new(idx) - YT_new.segment(idx+1, n).norm();
+                const double ST_new_norm = ST_new(idx) - ST_new.segment(idx+1, n).norm();
+                const double YT_norm = (one_tau) * (YT(idx) - YT.segment(idx+1, n).norm());
+                const double ST_norm = (one_tau) * (ST(idx) - ST.segment(idx+1, n).norm());
+                if (YT_new_norm < YT_norm || ST_new_norm < ST_norm) {
+                    forward_failed = 23; break;
+                }
             }
-        }
-        if (forward_failed) {continue;}
+            if (forward_failed) {continue;}
 
-        if (model->dim_ec) {
-            for (int t = 0; t < model->N; ++t) {
-                int t_dim_x = t * model->dim_rn;
-                dx = model->perturb(X_new.col(t), X.col(t));
-                R_new.col(t) = R.col(t) + (step_size * kr.col(t)) + Kr.middleCols(t_dim_x, model->dim_rn) * dx;
-                Z_new.col(t) = Z.col(t) + (step_size * kz.col(t)) + Kz.middleCols(t_dim_x, model->dim_rn) * dx;
-            }
+            CT_new = model->cT(X_new.col(model->N)).cast<double>();
         }
 
         if (model->dim_ecT) {
             RT_new = RT + (step_size * krT) + KrT * dxT;
             ZT_new = ZT + (step_size * kzT) + KzT * dxT;
+
+            ECT_new = model->ecT(X_new.col(model->N)).cast<double>();
         }
-        
-        // Error
-        if (model->dim_c) {
-            for (int t = 0; t < model->N; ++t) {
-                C_new.col(t) = model->c(X_new.col(t), U_new.col(t)).cast<double>();
-            }
-        }
-        if (model->dim_ec) {
-            for (int t = 0; t < model->N; ++t) {
-                EC_new.col(t) = model->ec(X_new.col(t), U_new.col(t)).cast<double>();
-            }
-        }
-        if (model->dim_cT) {CT_new = model->cT(X_new.col(model->N)).cast<double>();}
-        if (model->dim_ecT) {ECT_new = model->ecT(X_new.col(model->N)).cast<double>();}
         
         error_new = 0.0;
-        if (model->dim_ec) {error_new += (EC_new + R_new).colwise().lpNorm<1>().sum();}
-        if (model->dim_c) {error_new += (C_new + Y_new).colwise().lpNorm<1>().sum();}
-        if (model->dim_ecT) {error_new += (ECT_new + RT_new).lpNorm<1>();}
-        if (model->dim_cT) {error_new += (CT_new + YT_new).lpNorm<1>();}
+        if (model->dim_ec) {error_new += (EC_new + R_new).array().abs().sum();}
+        if (model->dim_c) {error_new += (C_new + Y_new).array().abs().sum();}
+        if (model->dim_ecT) {error_new += (ECT_new + RT_new).array().abs().sum();}
+        if (model->dim_cT) {error_new += (CT_new + YT_new).array().abs().sum();}
         // param.tolerance = std::min(param.tolerance, 1.0 / param.rho);
         error_new = std::max(param.tolerance, error_new);
 
