@@ -32,13 +32,13 @@ public:
     Eigen::MatrixXd U_init; // Input Vector Initial Guess
     Eigen::MatrixXd Z_init; // Equality Lagrangian Initial Guess
     Eigen::MatrixXd R_init; // Equality Lagrangian Initial Guess
-    Eigen::MatrixXd S_init; // Inequality Lagrangianx Initial Guess
-    Eigen::MatrixXd Y_init; // Inequality Slack Varible Initial Guess
+    Eigen::MatrixXd Y_init; // Inequality Lagrangian Initial Guess
+    Eigen::MatrixXd S_init; // Inequality Slack Varible Initial Guess
 
     Eigen::VectorXd ZT_init; // Equality Lagrangian Initial Guess (Terminal)
     Eigen::VectorXd RT_init; // Equality Lagrangian Initial Guess (Terminal)
-    Eigen::VectorXd ST_init; // Inequality Lagrangian Initial Guess (Terminal)
-    Eigen::VectorXd YT_init; // Inequality Slack Varible Initial Guess (Terminal)
+    Eigen::VectorXd YT_init; // Inequality Lagrangian Initial Guess (Terminal)
+    Eigen::VectorXd ST_init; // Inequality Slack Varible Initial Guess (Terminal)
 
     // Dynamics and Cost Function
     std::function<VectorXdual2nd(VectorXdual2nd, VectorXdual2nd)> f; // Discrete Time System
