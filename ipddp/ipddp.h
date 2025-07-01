@@ -733,16 +733,11 @@ void IPDDP::backwardPass() {
         // Qxu = qxu + (fx.transpose() * Vxx * fu);
         // Quu = quu + (fu.transpose() * Vxx * fu);
 
-        // Qxx += reg1_mu * fx.transpose() * fx;
-        // Qxu += reg1_mu * fx.transpose() * fu;
-        // Quu += reg1_mu * fu.transpose() * fu;
-        // Quu.diagonal().array() += reg2_mu;
-
         // Regularization
-        Vxx_reg1 = Vxx + (reg1_mu * Eigen::MatrixXd::Identity(model->dim_rn, model->dim_rn));
-        Qxx = qxx + (fx.transpose() * Vxx_reg1 * fx);
-        Qxu = qxu + (fx.transpose() * Vxx_reg1 * fu);
-        Quu = quu + (fu.transpose() * Vxx_reg1 * fu);
+        Vxx.diagonal().array() += reg1_mu;
+        Qxx = qxx + (fx.transpose() * Vxx * fx);
+        Qxu = qxu + (fx.transpose() * Vxx * fu);
+        Quu = quu + (fu.transpose() * Vxx * fu);
         Quu.diagonal().array() += reg2_mu;
 
         Eigen::Ref<Eigen::VectorXd> ku_ = ku.col(t);
