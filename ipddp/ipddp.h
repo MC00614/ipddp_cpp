@@ -779,6 +779,7 @@ void IPDDP::backwardPass() {
                 L_inv_times_vec(Sinv_r.segment(idx, d), s.segment(idx, d), r.segment(idx, d));
             }
 
+            // more complex, but more fast
             Eigen::VectorXd Sinv_Y_g = y.head(model->dim_g).cwiseQuotient(s.head(model->dim_g));
             Sinv_Y_Qyx.topRows(model->dim_g) = Qyx.topRows(model->dim_g).array().colwise() * Sinv_Y_g.array();
             Sinv_Y_Qyu.topRows(model->dim_g) = Qyu.topRows(model->dim_g).array().colwise() * Sinv_Y_g.array();
@@ -791,6 +792,27 @@ void IPDDP::backwardPass() {
                 Sinv_Y_Qyx.middleRows(idx, d) = Sinv_Y_h * Qyx.middleRows(idx, d);
                 Sinv_Y_Qyu.middleRows(idx, d) = Sinv_Y_h * Qyu.middleRows(idx, d);
             }
+
+            // less complex, but more slow
+            // Eigen::VectorXd Sinv_Y_g = y.head(model->dim_g).cwiseQuotient(s.head(model->dim_g));
+            // Sinv_Y_Qyx.topRows(model->dim_g) = Qyx.topRows(model->dim_g).array().colwise() * Sinv_Y_g.array();
+            // Sinv_Y_Qyu.topRows(model->dim_g) = Qyu.topRows(model->dim_g).array().colwise() * Sinv_Y_g.array();
+            // Eigen::VectorXd Y_Qyx_h_max(dim_hs_max);
+            // Eigen::VectorXd Y_Qyu_h_max(dim_hs_max);
+            // for (int i = 0; i < model->dim_hs.size(); ++i) {
+            //     const int d = model->dim_hs[i];
+            //     const int idx = dim_hs_top[i];
+            //     Eigen::Ref<Eigen::VectorXd> Y_Qyx_h = Y_Qyx_h_max.topRows(d);
+            //     for (int j = 0; j < model->dim_rn; ++j) {
+            //         L_times_vec(Y_Qyx_h, y.segment(idx, d), Qyx.block(idx, j, d, 1));
+            //         L_inv_times_vec(Sinv_Y_Qyx.block(idx, j, d, 1), s.segment(idx, d), Y_Qyx_h);
+            //     }
+            //     Eigen::Ref<Eigen::VectorXd> Y_Qyu_h = Y_Qyu_h_max.topRows(d);
+            //     for (int j = 0; j < model->dim_u; ++j) {
+            //         L_times_vec(Y_Qyu_h, y.segment(idx, d), Qyu.block(idx, j, d, 1));
+            //         L_inv_times_vec(Sinv_Y_Qyu.block(idx, j, d, 1), s.segment(idx, d), Y_Qyu_h);
+            //     }
+            // }
             
             // Inplace Calculation
             ku_ = - (Qu + (Qyu.transpose() * Sinv_r)); // hat_Qu
@@ -829,6 +851,8 @@ void IPDDP::backwardPass() {
 
         // Inequality Constraint
         if (model->dim_c) {
+            Eigen::Ref<Eigen::VectorXd> s = S.col(t);
+            Eigen::Ref<Eigen::VectorXd> y = Y.col(t);
             Eigen::Ref<Eigen::VectorXd> c_v = C.col(t);
 
             Eigen::Ref<Eigen::MatrixXd> Qyx = cx_all.middleCols(t_dim_x, model->dim_rn);
@@ -840,10 +864,41 @@ void IPDDP::backwardPass() {
             Eigen::Ref<Eigen::MatrixXd> Ky_ = Ky.middleCols(t_dim_x, model->dim_rn);
 
             ks_ = - (rp + Qyu * ku_);
-            Ks_ = - (Qyx + Qyu * Ku_);
-    
+            Ks_ = - (Qyx + Qyu * Ku_);    
+
+            // more complex, but more fast
             ky_ = Sinv_r + (Sinv_Y_Qyu * ku_);
             Ky_ = Sinv_Y_Qyx + (Sinv_Y_Qyu * Ku_);
+
+            // less complex, but more slow
+            // Eigen::VectorXd rd_plus_Y_ds(model->dim_c);
+            // rd_plus_Y_ds.head(model->dim_g) = y.head(model->dim_g).cwiseProduct(ks_.head(model->dim_g));
+            // for (int i = 0; i < model->dim_hs.size(); ++i) {
+            //     const int d = model->dim_hs[i];
+            //     const int idx = dim_hs_top[i];
+            //     L_times_vec(rd_plus_Y_ds.segment(idx, d), y.segment(idx, d), ks_.segment(idx, d));
+            // }
+            // rd_plus_Y_ds += rd;
+
+            // ky_.head(model->dim_g) = rd_plus_Y_ds.head(model->dim_g).cwiseQuotient(s.head(model->dim_g));
+            // for (int i = 0; i < model->dim_hs.size(); ++i) {
+            //     const int d = model->dim_hs[i];
+            //     const int idx = dim_hs_top[i];
+            //     L_inv_times_vec(ky_.segment(idx, d), s.segment(idx, d), rd_plus_Y_ds.segment(idx, d));
+            // }
+            // ky_ = -ky_;
+
+            // Ky_.topRows(model->dim_g) = Ks_.topRows(model->dim_g).array().colwise() * (y.head(model->dim_g).array() / s.head(model->dim_g).array());
+            // Eigen::VectorXd Y_Ks_h(model->dim_c);
+            // for (int i = 0; i < model->dim_hs.size(); ++i) {
+            //     const int d = model->dim_hs[i];
+            //     const int idx = dim_hs_top[i];
+            //     for (int j = 0; j < model->dim_rn; ++j) {
+            //         L_times_vec(Y_Ks_h, y.segment(idx, d), Ks_.block(idx, j, d, 1));
+            //         L_inv_times_vec(Ky_.block(idx, j, d, 1), s.segment(idx, d), Y_Ks_h);
+            //     }
+            // }
+            // Ky_ = -Ky_;
 
             // CHECK: New Value Decrement
             // dV(0) += ky_.transpose() * c_v;
