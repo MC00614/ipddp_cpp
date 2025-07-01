@@ -893,7 +893,7 @@ void IPDDP::backwardPass() {
 
 void IPDDP::checkRegulate() {
     if (forward_failed || backward_failed) {++regulate;}
-    else if (step <= 3) {regulate = regulate;}
+    // else if (step <= 3) {regulate = regulate;}
     // else {--regulate;}
 
     if (regulate < 0) {regulate = 0;}
