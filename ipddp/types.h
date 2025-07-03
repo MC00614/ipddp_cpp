@@ -7,3 +7,8 @@ using Vector = Eigen::Matrix<Scalar, Eigen::Dynamic, 1>;
 
 template <typename Scalar>
 using Matrix = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>;
+
+enum class DiffMethod {
+    Custom,
+    Autodiff
+};
