@@ -3,6 +3,10 @@
 #include "automatic_differentiator.h"
 #include "types.h"
 
+// FutureWork: Implement calcDiff function to intergrate differentiation of fx and fu
+// This will be efficient for solver side, also for tape of Autodiff
+// Considering the current status of solver, we leave it.
+
 template <typename Derived, typename Scalar, DiffMethod diff_method = DiffMethod::Custom>
 class DiscreteDynamics {
 public:
@@ -13,10 +17,6 @@ public:
     Vector_Dyn f_(const Vector_Dyn& x, const Vector_Dyn& u) const {
         return static_cast<const Derived*>(this)->f(x, u);
     }
-
-    // FutureWork: Use calcDiff to intergrate differentiation of fx and fu
-    // This will be efficient for solver side, also for tape of Autodiff
-    // Considering the current status of solver, we leave it.
 
     Matrix<Scalar> fx_(const Vector<Scalar>& x, const Vector<Scalar>& u) const {
         if constexpr (diff_method == DiffMethod::Custom) {
