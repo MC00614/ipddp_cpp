@@ -1,4 +1,8 @@
 #include "optimal_control_problem.h"
+#include "solver.h"
+
+#include <cmath>
+#include <chrono>
 
 // Dynamics
 template <typename Scalar>
@@ -259,6 +263,8 @@ int main() {
     using Scalar = double;
 
     int N = 100;
+    OptimalControlProblem<Scalar> problem(N);
+
     Vector<Scalar> x0(6);
     x0(0) = 5.0;
     x0(1) = 5.0;
@@ -266,8 +272,7 @@ int main() {
     x0(3) = -0.2;
     x0(4) = -0.2;
     x0(5) = -0.3;
-    x0.setZero();
-    OptimalControlProblem<Scalar> problem(N, x0);
+    problem.setInitialState(0, x0);
 
     for (int i = 0; i < N; ++i) {
         problem.setStageDynamics(i, std::make_shared<Dynamics<Scalar>>());
@@ -290,7 +295,29 @@ int main() {
 
     problem.init();
 
-    
+    Param param;
+
+    clock_t start = clock();
+    ALIPDDP solver(problem);
+    solver.init(param);
+    solver.solve();
+
+    clock_t finish = clock();
+    double duration = (double)(finish - start) / CLOCKS_PER_SEC;
+    std::cout << "\nIn Total : " << duration << " Seconds" << std::endl;
+
+    // Parse Result
+    Eigen::MatrixXd X_init = Eigen::MatrixXd::Zero(model->dim_x, model->N+1);
+    Eigen::MatrixXd U_init = Eigen::MatrixXd::Zero(model->dim_u, model->N);
+    Eigen::MatrixXd X_result = solver.getResX();
+    Eigen::MatrixXd U_result = solver.getResU();
+    std::vector<double> all_cost = solver.getAllCost();
+
+    std::cout<<"X_result = \n"<<X_result.transpose()<<std::endl;
+    std::cout<<"U_result = \n"<<U_result.transpose()<<std::endl;
+
+    std::cout<<"X_last = \n"<<X_result.col(model->N).transpose()<<std::endl;
+    std::cout<<"U_last = \n"<<U_result.col(model->N-1).transpose()<<std::endl;
 
     return 0;
 }

@@ -45,7 +45,7 @@ endif()
 # endif()
 
 # Main Executable
-add_executable(${PROJECT_NAME} problem_examples/point_mass_3d/main.cpp)
+add_executable(${PROJECT_NAME} problem_examples/point_mass_3d/point_mass_3d_basic.cpp)
 target_include_directories(${PROJECT_NAME} PRIVATE ${INCLUDE_DIRS})
 target_compile_options(${PROJECT_NAME} PRIVATE -O3)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${Python3_LIBRARIES})

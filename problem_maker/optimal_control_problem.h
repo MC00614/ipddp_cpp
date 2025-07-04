@@ -2,11 +2,11 @@
 
 #include "types.h"
 
-#include "discrete_dynamics_base.h"
-#include "stage_cost_base.h"
-#include "terminal_cost_base.h"
-#include "stage_constraint_base.h"
-#include "terminal_constraint_base.h"
+#include "dynamics/discrete_dynamics_base.h"
+#include "cost/stage_cost_base.h"
+#include "cost/terminal_cost_base.h"
+#include "constraint/stage_constraint_base.h"
+#include "constraint/terminal_constraint_base.h"
 
 #include <memory>
 #include <vector>
@@ -18,7 +18,9 @@
 template <typename Scalar>
 class OptimalControlProblem {
 public:
-    OptimalControlProblem(int horizon_steps, const Vector<Scalar>& x0_in) : N(horizon_steps), x0(x0_in) {
+    OptimalControlProblem(int horizon_steps, const Vector<Scalar>& x0_in) : N(horizon_steps) {
+        X0.resize(N+1);
+        U0.resize(N);
         dynamics_seq.resize(N);
         cost_seq.resize(N);
         constraint_seq.resize(N);
@@ -28,6 +30,14 @@ public:
             }
             terminal_constraint[i] = std::vector<std::shared_ptr<TerminalConstraintBase<Scalar>>>();
         }
+    }
+
+    void setInitialState(int k, const Vector<Scalar>& x_init) {
+        X0[k] = x_init;
+    }
+
+    void setInitialControl(int k, const Vector<Scalar>& u_init) {
+        U0[k] = u_init;
     }
 
     void setStageDynamics(int k, std::shared_ptr<DiscreteDynamicsBase<Scalar>> dyn) {
@@ -70,14 +80,15 @@ public:
         initTerminalEquality();
     }
 
-private:
+// private:
     std::vector<std::shared_ptr<DiscreteDynamicsBase<Scalar>>> dynamics_seq;
     std::vector<std::shared_ptr<StageCostBase<Scalar>>> cost_seq;
     std::shared_ptr<TerminalCostBase<Scalar>> terminal_cost;
     std::vector<std::array<std::vector<std::shared_ptr<StageConstraintBase<Scalar>>>, 3>> constraint_seq;
     std::array<std::vector<std::shared_ptr<TerminalConstraintBase<Scalar>>>, 3> terminal_constraint;
 
-    Vector<Scalar> x0;
+    std::vector<Vector<Scalar>> X0;
+    std::vector<Vector<Scalar>> U0;
     double T{};
     int N{};
 
@@ -88,6 +99,9 @@ private:
     std::array<int, 2> dim_cT;
     std::vector<int> dim_ec;
     int dim_ecT;
+
+    // Add another Parser Class?
+    // Weird to containt these in here, as this class is implemeted only for storage
 
     std::vector<std::function<Vector<Scalar>(const Vector<Scalar>&, const Vector<Scalar>&)>> c;
     std::vector<std::function<Matrix<Scalar>(const Vector<Scalar>&, const Vector<Scalar>&)>> cx;
