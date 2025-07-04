@@ -37,7 +37,7 @@ public:
             return static_cast<const Derived*>(this)->qdd(x, u);
         }
         else if constexpr (diff_method == DiffMethod::Autodiff) {
-            return autodiff_utils::HessianXU(*this, x, u);
+            return autodiff_utils::hessianXU(*this, x, u);
         }
     }
 };

@@ -9,8 +9,8 @@ public:
     TerminalCostFunction() = default;
     ~TerminalCostFunction() = default;
 
-    template <typename Vector_Cost>
-    Vector_Cost p_(const Vector_Cost& x) const {
+    template <typename Vector_Cst, typename Vector_Dyn>
+    Vector_Cst p_(const Vector_Dyn& x) const {
         return static_cast<const Derived*>(this)->p(x);
     }
 

@@ -12,3 +12,9 @@ enum class DiffMethod {
     Custom,
     Autodiff
 };
+
+enum class ConstraintType {
+    NO = 0,
+    SOC = 1,
+    EQ = 2
+};
