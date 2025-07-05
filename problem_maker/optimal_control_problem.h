@@ -18,7 +18,7 @@
 template <typename Scalar>
 class OptimalControlProblem {
 public:
-    OptimalControlProblem(int horizon_steps, const Vector<Scalar>& x0_in) : N(horizon_steps) {
+    OptimalControlProblem(int horizon_steps) : N(horizon_steps) {
         X0.resize(N+1);
         U0.resize(N);
         dynamics_seq.resize(N);
@@ -30,14 +30,19 @@ public:
             }
             terminal_constraint[i] = std::vector<std::shared_ptr<TerminalConstraintBase<Scalar>>>();
         }
+
+        is_x_initialized.resize(N+1, false);
+        is_u_initialized.resize(N, false);
     }
 
     void setInitialState(int k, const Vector<Scalar>& x_init) {
-        X0[k] = x_init;
+        X0.at(k) = x_init;
+        is_x_initialized.at(k) = true;
     }
 
     void setInitialControl(int k, const Vector<Scalar>& u_init) {
-        U0[k] = u_init;
+        U0.at(k) = u_init;
+        is_u_initialized.at(k) = true;
     }
 
     void setStageDynamics(int k, std::shared_ptr<DiscreteDynamicsBase<Scalar>> dyn) {
@@ -89,6 +94,8 @@ public:
 
     std::vector<Vector<Scalar>> X0;
     std::vector<Vector<Scalar>> U0;
+    std::vector<bool> is_x_initialized;
+    std::vector<bool> is_u_initialized;
     double T{};
     int N{};
 
@@ -108,9 +115,11 @@ public:
     std::vector<std::function<Matrix<Scalar>(const Vector<Scalar>&, const Vector<Scalar>&)>> cu;
     std::function<Vector<Scalar>(const Vector<Scalar>&)> cT;
     std::function<Matrix<Scalar>(const Vector<Scalar>&)> cTx;
+    std::vector<std::vector<int>> dim_hs; // Connic Constraint Dimension Stack
     std::vector<std::vector<int>> dim_hs_top; // Connic Constraint Head Stack
-    std::vector<int> dim_hTs_top; // Connic Constraint Head Stack (Terminal)
     std::vector<int> dim_hs_max; // Maximum Dimension of Connic Constraint
+    std::vector<int> dim_hTs; // Connic Constraint Dimension Stack (Terminal)
+    std::vector<int> dim_hTs_top; // Connic Constraint Head Stack (Terminal)
     int dim_hTs_max; // Maximum Dimension of Connic Constraint (Terminal)
 
     std::vector<std::function<Vector<Scalar>(const Vector<Scalar>&, const Vector<Scalar>&)>> ec;
@@ -121,6 +130,7 @@ public:
 
     void initStageConic() {
         dim_c.resize(N, {0, 0});
+        dim_hs.resize(N);
         dim_hs_top.resize(N);
         dim_hs_max.resize(N);
         c.resize(N);
@@ -136,11 +146,14 @@ public:
     
             int dim_h_top = dim_c[k][static_cast<int>(ConstraintType::NO)];
             dim_hs_top[k].clear();
+            dim_hs[k].clear();
             for (const auto& constraint : constraint_seq[k][static_cast<int>(ConstraintType::SOC)]) {
+                const int dim_h = constraint->getDimC();
+                dim_hs[k].push_back(dim_h);
                 dim_hs_top[k].push_back(dim_h_top);
-                dim_h_top += constraint->getDimC();
-                if (constraint->getDimC() > dim_hs_max_) {
-                    dim_hs_max_ = constraint->getDimC();
+                dim_h_top += dim_h;
+                if (dim_h > dim_hs_max_) {
+                    dim_hs_max_ = dim_h;
                 }
             }
             dim_hs_max[k] = dim_hs_max_;
@@ -151,12 +164,14 @@ public:
                 Vector<Scalar> c_total(total_dim);
                 int offset = 0;
                 for (const auto& constraint : constraint_seq[k][static_cast<int>(ConstraintType::NO)]) {
-                    c_total.segment(offset, constraint->getDimC()) = constraint->c(x, u);
-                    offset += constraint->getDimC();
+                    const int dim_g = constraint->getDimC();
+                    c_total.segment(offset, dim_g) = constraint->c(x, u);
+                    offset += dim_g;
                 }
                 for (const auto& constraint : constraint_seq[k][1]) {
-                    c_total.segment(offset, constraint->getDimC()) = constraint->c(x, u);
-                    offset += constraint->getDimC();
+                    const int dim_h = constraint->getDimC();
+                    c_total.segment(offset, dim_h) = constraint->c(x, u);
+                    offset += dim_h;
                 }
                 return c_total;
             };
@@ -166,12 +181,14 @@ public:
                 Matrix<Scalar> J(total_dim, dim_x[k]);
                 int offset = 0;
                 for(const auto& constraint : constraint_seq[k][0]) {
-                    J.middleRows(offset, constraint->getDimC()) = constraint->cx(x,u);
-                    offset += constraint->getDimC();
+                    const int dim_g = constraint->getDimC();
+                    J.middleRows(offset, dim_g) = constraint->cx(x,u);
+                    offset += dim_g;
                 }
                 for(const auto& constraint : constraint_seq[k][1]) {
-                    J.middleRows(offset, constraint->getDimC()) = constraint->cx(x,u);
-                    offset += constraint->getDimC();
+                    const int dim_h = constraint->getDimC();
+                    J.middleRows(offset, dim_h) = constraint->cx(x,u);
+                    offset += dim_h;
                 }
                 return J;
             };
@@ -181,12 +198,14 @@ public:
                 Matrix<Scalar> J(total_dim, dim_u[k]);
                 int offset = 0;
                 for(const auto& constraint : constraint_seq[k][0]) {
-                    J.middleRows(offset, constraint->getDimC()) = constraint->cu(x,u);
+                    const int dim_g = constraint->getDimC();
+                    J.middleRows(offset, dim_g) = constraint->cu(x,u);
                     offset += constraint->getDimC();
                 }
                 for(const auto& constraint : constraint_seq[k][1]) {
-                    J.middleRows(offset, constraint->getDimC()) = constraint->cu(x,u);
-                    offset += constraint->getDimC();
+                    const int dim_h = constraint->getDimC();
+                    J.middleRows(offset, dim_h) = constraint->cu(x,u);
+                    offset += dim_h;
                 }
                 return J;
             };
@@ -196,6 +215,7 @@ public:
 
     void initTerminalConic() {
         dim_cT = {0, 0};
+        dim_hTs.clear();
         dim_hTs_top.clear();
         dim_hTs_max = 0;
 
@@ -207,10 +227,12 @@ public:
 
         int dim_hT_top = dim_cT[static_cast<int>(ConstraintType::NO)];
         for (const auto& constraint : terminal_constraint[static_cast<int>(ConstraintType::SOC)]) {
+            const int dim_hT = constraint->getDimCT();
+            dim_hTs.push_back(dim_hT);
             dim_hTs_top.push_back(dim_hT_top);
-            dim_hT_top += constraint->getDimCT();
-            if (constraint->getDimCT() > dim_hTs_max) {
-                dim_hTs_max = constraint->getDimCT();
+            dim_hT_top += dim_hT;
+            if (dim_hT > dim_hTs_max) {
+                dim_hTs_max = dim_hT;
             }
         }
 
@@ -219,12 +241,14 @@ public:
             Vector<Scalar> cT_total(total_dim);
             int offset = 0;
             for (const auto& constraint : terminal_constraint[0]) {
-                cT_total.segment(offset, constraint->getDimCT()) = constraint->cT(x);
-                offset += constraint->getDimCT();
+                const int dim_gT = constraint->getDimCT();
+                cT_total.segment(offset, dim_gT) = constraint->cT(x);
+                offset += dim_gT;
             }
             for (const auto& constraint : terminal_constraint[1]) {
-                cT_total.segment(offset, constraint->getDimCT()) = constraint->cT(x);
-                offset += constraint->getDimCT();
+                const int dim_hT = constraint->getDimCT();
+                cT_total.segment(offset, dim_hT) = constraint->cT(x);
+                offset += dim_hT;
             }
             return cT_total;
         };
@@ -235,12 +259,14 @@ public:
             int offset = 0;
 
             for(const auto& constraint : terminal_constraint[0]) {
-                J.middleRows(offset, constraint->getDimCT()) = constraint->cTx(x);
-                offset += constraint->getDimCT();
+                const int dim_gT = constraint->getDimCT();
+                J.middleRows(offset, dim_gT) = constraint->cTx(x);
+                offset += dim_gT;
             }
             for(const auto& constraint : terminal_constraint[1]) {
-                J.middleRows(offset, constraint->getDimCT()) = constraint->cTx(x);
-                offset += constraint->getDimCT();
+                const int dim_hT = constraint->getDimCT();
+                J.middleRows(offset, dim_hT) = constraint->cTx(x);
+                offset += dim_hT;
             }
             return J;
         };

@@ -1,5 +1,5 @@
 #include "optimal_control_problem.h"
-#include "solver.h"
+#include "ipddp.h"
 
 #include <cmath>
 #include <chrono>
@@ -274,6 +274,15 @@ int main() {
     x0(5) = -0.3;
     problem.setInitialState(0, x0);
 
+
+    Vector<Scalar> u0(3);
+    u0(0) = 0.0;
+    u0(1) = 0.0;
+    u0(2) = 9.81;
+    for (int i = 0; i < N; ++i) {
+        problem.setInitialControl(i, u0);
+    }
+
     for (int i = 0; i < N; ++i) {
         problem.setStageDynamics(i, std::make_shared<Dynamics<Scalar>>());
     }
@@ -298,7 +307,7 @@ int main() {
     Param param;
 
     clock_t start = clock();
-    ALIPDDP solver(problem);
+    ALIPDDP<Scalar> solver(problem);
     solver.init(param);
     solver.solve();
 
@@ -306,18 +315,18 @@ int main() {
     double duration = (double)(finish - start) / CLOCKS_PER_SEC;
     std::cout << "\nIn Total : " << duration << " Seconds" << std::endl;
 
-    // Parse Result
-    Eigen::MatrixXd X_init = Eigen::MatrixXd::Zero(model->dim_x, model->N+1);
-    Eigen::MatrixXd U_init = Eigen::MatrixXd::Zero(model->dim_u, model->N);
-    Eigen::MatrixXd X_result = solver.getResX();
-    Eigen::MatrixXd U_result = solver.getResU();
-    std::vector<double> all_cost = solver.getAllCost();
+    // // Parse Result
+    // Eigen::MatrixXd X_init = Eigen::MatrixXd::Zero(model->dim_x, model->N+1);
+    // Eigen::MatrixXd U_init = Eigen::MatrixXd::Zero(model->dim_u, model->N);
+    // Eigen::MatrixXd X_result = solver.getResX();
+    // Eigen::MatrixXd U_result = solver.getResU();
+    // std::vector<double> all_cost = solver.getAllCost();
 
-    std::cout<<"X_result = \n"<<X_result.transpose()<<std::endl;
-    std::cout<<"U_result = \n"<<U_result.transpose()<<std::endl;
+    // std::cout<<"X_result = \n"<<X_result.transpose()<<std::endl;
+    // std::cout<<"U_result = \n"<<U_result.transpose()<<std::endl;
 
-    std::cout<<"X_last = \n"<<X_result.col(model->N).transpose()<<std::endl;
-    std::cout<<"U_last = \n"<<U_result.col(model->N-1).transpose()<<std::endl;
+    // std::cout<<"X_last = \n"<<X_result.col(model->N).transpose()<<std::endl;
+    // std::cout<<"U_last = \n"<<U_result.col(model->N-1).transpose()<<std::endl;
 
     return 0;
 }
