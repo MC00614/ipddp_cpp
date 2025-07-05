@@ -318,9 +318,20 @@ int main() {
     // // Parse Result
     // Eigen::MatrixXd X_init = Eigen::MatrixXd::Zero(model->dim_x, model->N+1);
     // Eigen::MatrixXd U_init = Eigen::MatrixXd::Zero(model->dim_u, model->N);
-    // Eigen::MatrixXd X_result = solver.getResX();
-    // Eigen::MatrixXd U_result = solver.getResU();
-    // std::vector<double> all_cost = solver.getAllCost();
+    std::vector<Eigen::VectorXd> X_result = solver.getResX();
+    std::vector<Eigen::VectorXd> U_result = solver.getResU();
+    std::vector<double> all_cost = solver.getAllCost();
+
+    std::cout << "X_result = " << std::endl;
+    for (int k = 0; k < problem.N+1; ++k) {
+        std::cout << X_result[k].transpose() << std::endl;
+    }
+
+    std::cout << "U_result = " << std::endl;
+    for (int k = 0; k < problem.N; ++k) {
+        std::cout << U_result[k].transpose() << std::endl;
+    }
+
 
     // std::cout<<"X_result = \n"<<X_result.transpose()<<std::endl;
     // std::cout<<"U_result = \n"<<U_result.transpose()<<std::endl;

@@ -186,7 +186,6 @@ ALIPDDP<Scalar>::ALIPDDP(OptimalControlProblem<Scalar>& ocp_ref) : ocp(std::make
     //     bool term_ec;
     // };
 
-
     X.resize(ocp->N + 1);
     U.resize(ocp->N);
     Z.resize(ocp->N);
@@ -293,15 +292,18 @@ void ALIPDDP<Scalar>::init(Param param) {
     for (int k = 0; k < ocp->N; ++k) {
         ku[k] = Eigen::VectorXd::Zero(ocp->dim_u[k]);
         Ku[k] = Eigen::MatrixXd::Zero(ocp->dim_u[k], dim_rn[k]);
-        kr[k] = Eigen::VectorXd::Zero(ocp->dim_ec[k]);
-        kz[k] = Eigen::VectorXd::Zero(ocp->dim_ec[k]);
-        ks[k] = Eigen::VectorXd::Zero(ocp->dim_c[k][0] + ocp->dim_c[k][1]);
-        ky[k] = Eigen::VectorXd::Zero(ocp->dim_c[k][0] + ocp->dim_c[k][1]);
-    
-        Kr[k] = Eigen::MatrixXd::Zero(ocp->dim_ec[k], dim_rn[k]);
-        Kz[k] = Eigen::MatrixXd::Zero(ocp->dim_ec[k], dim_rn[k]);
-        Ks[k] = Eigen::MatrixXd::Zero(ocp->dim_c[k][0] + ocp->dim_c[k][1], dim_rn[k]);
-        Ky[k] = Eigen::MatrixXd::Zero(ocp->dim_c[k][0] + ocp->dim_c[k][1], dim_rn[k]);
+        if (is_c_active[k]) {
+            ks[k] = Eigen::VectorXd::Zero(ocp->dim_c[k][0] + ocp->dim_c[k][1]);
+            ky[k] = Eigen::VectorXd::Zero(ocp->dim_c[k][0] + ocp->dim_c[k][1]);
+            Ks[k] = Eigen::MatrixXd::Zero(ocp->dim_c[k][0] + ocp->dim_c[k][1], dim_rn[k]);
+            Ky[k] = Eigen::MatrixXd::Zero(ocp->dim_c[k][0] + ocp->dim_c[k][1], dim_rn[k]);
+        }
+        if (is_ec_active[k]) {
+            kr[k] = Eigen::VectorXd::Zero(ocp->dim_ec[k]);
+            kz[k] = Eigen::VectorXd::Zero(ocp->dim_ec[k]);
+            Kr[k] = Eigen::MatrixXd::Zero(ocp->dim_ec[k], dim_rn[k]);
+            Kz[k] = Eigen::MatrixXd::Zero(ocp->dim_ec[k], dim_rn[k]);
+        }
     }
 
     initialRoll();
@@ -757,6 +759,10 @@ void ALIPDDP<Scalar>::backwardPass() {
         Eigen::Ref<Eigen::VectorXd> ku_ = ku[k];
         Eigen::Ref<Eigen::MatrixXd> Ku_ = Ku[k];
 
+        ku_ = - Qu; // hat_Qu
+        Ku_ = - Qxu.transpose(); // hat_Qxu
+        hat_Quu = Quu;
+
         if (is_c_active[k]) {
             Eigen::Ref<Eigen::VectorXd> s = S[k];
             Eigen::Ref<Eigen::VectorXd> y = Y[k];
@@ -837,22 +843,22 @@ void ALIPDDP<Scalar>::backwardPass() {
             // }
             
             // Inplace Calculation
-            ku_ = - (Qu + (Qyu.transpose() * Sinv_r)); // hat_Qu
-            Ku_ = - (Qxu + (Qyx.transpose() * Sinv_Y_Qyu)).transpose(); // hat_Qxu
-            hat_Quu = Quu + (Qyu.transpose() * Sinv_Y_Qyu);
+            ku_ -= (Qyu.transpose() * Sinv_r); // hat_Qu
+            Ku_ -= (Qyx.transpose() * Sinv_Y_Qyu).transpose(); // hat_Qxu
+            hat_Quu += (Qyu.transpose() * Sinv_Y_Qyu);
         }
         
         // TODO
         // Equality Constraint
         // if (is_ec_active[k]) {
         // }
-
+        
         Quu_llt.compute(hat_Quu.selfadjointView<Eigen::Upper>());
         if (Quu_llt.info() == Eigen::NumericalIssue) {
             backward_failed = true;
             break;
         }
-
+        
         // ku_ = - Quu_llt.solve(hat_Qu);
         // Ku_ = - Quu_llt.solve(hat_Qxu.transpose());
 
@@ -1238,15 +1244,15 @@ void ALIPDDP<Scalar>::forwardPass() {
 
         for (int k = 0; k < ocp->N; ++k) {
             const int dim_g = ocp->dim_c[k][0];
-            if (dim_g > 0) {
+            if (dim_g) {
                 barriercost_new += S_new[k].head(dim_g).array().log().sum();
             }
             for (int i = 0; i < ocp->dim_hs[k].size(); ++i) {
                 const int d   = ocp->dim_hs[k][i];
                 const int idx = ocp->dim_hs_top[k][i];
-                const double head = S_new[k](idx);
-                const double tailnorm = S_new[k].segment(idx+1, d-1).squaredNorm();
-                barriercost_new += 0.5 * log(head * head - tailnorm);
+                const double s = S_new[k](idx);
+                const double v_2 = S_new[k].segment(idx+1, d-1).squaredNorm();
+                barriercost_new += 0.5 * log(s * s - v_2);
             }
         }
         if (ocp->dim_cT[0] > 0) {
@@ -1255,9 +1261,9 @@ void ALIPDDP<Scalar>::forwardPass() {
         for (int i = 0; i < ocp->dim_hTs.size(); ++i) {
             const int d   = ocp->dim_hTs[i];
             const int idx = ocp->dim_hTs_top[i];
-            const double head = ST_new(idx);
-            const double tailnorm = ST_new.segment(idx+1, d-1).squaredNorm();
-            barriercostT_new += 0.5 * log(head * head - tailnorm);
+            const double s = ST_new(idx);
+            const double v_2 = ST_new.segment(idx+1, d-1).squaredNorm();
+            barriercostT_new += 0.5 * log(s * s - v_2);
         }
         for (int k = 0; k < ocp->N; ++k) {
             if (is_ec_active[k]) {
