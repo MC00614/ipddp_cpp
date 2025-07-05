@@ -1129,7 +1129,7 @@ void ALIPDDP<Scalar>::forwardPass() {
         forward_failed = 0;
         const double step_size = step_list[step];
 
-        dV_exp = -(step_size * dV(0) + step_size * step_size * dV(1));
+        // dV_exp = -(step_size * dV(0) + step_size * step_size * dV(1));
         // CHECK: Using Expected Value Decrement -> For Early Termination
         if (param.forward_early_termination) {
             if (error <= param.tolerance && dV_exp > 0) {
@@ -1248,10 +1248,10 @@ void ALIPDDP<Scalar>::forwardPass() {
                 barriercost_new += S_new[k].head(dim_g).array().log().sum();
             }
             for (int i = 0; i < ocp->dim_hs[k].size(); ++i) {
-                const int d   = ocp->dim_hs[k][i];
+                const int d = ocp->dim_hs[k][i] - 1;
                 const int idx = ocp->dim_hs_top[k][i];
                 const double s = S_new[k](idx);
-                const double v_2 = S_new[k].segment(idx+1, d-1).squaredNorm();
+                const double v_2 = S_new[k].segment(idx + 1, d).squaredNorm();
                 barriercost_new += 0.5 * log(s * s - v_2);
             }
         }
@@ -1311,27 +1311,27 @@ void ALIPDDP<Scalar>::forwardPass() {
         cost = cost_new;
         logcost = logcost_new;
         error = error_new;
-        X = X_new;
-        U = U_new;
+        X = std::move(X_new);
+        U = std::move(U_new);
         if (is_c_active_all) {
-            S = S_new;
-            Y = Y_new;
-            C = C_new;
+            S = std::move(S_new);
+            Y = std::move(Y_new);
+            C = std::move(C_new);
         }
         if (is_ec_active_all) {
-            R = R_new;
-            Z = Z_new;
-            EC = EC_new;
+            R = std::move(R_new);
+            Z = std::move(Z_new);
+            EC = std::move(EC_new);
         }
         if (is_cT_active) {
-            ST = ST_new;
-            YT = YT_new;
-            CT = CT_new;
+            ST = std::move(ST_new);
+            YT = std::move(YT_new);
+            CT = std::move(CT_new);
         }
         if (is_ecT_active) {
-            RT = RT_new;
-            ZT = ZT_new;
-            ECT = ECT_new;
+            RT = std::move(RT_new);
+            ZT = std::move(ZT_new);
+            ECT = std::move(ECT_new);
         }
     }
     // else {std::cout<<"Forward Failed"<<std::endl;}
