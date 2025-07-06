@@ -1,6 +1,7 @@
 #pragma once
 
 #include "optimal_control_problem.h"
+#include "problem_parser.h"
 #include "param.h"
 // #include <Eigen/Dense>
 // #include <unsupported/Eigen/CXX11/Tensor>
@@ -30,14 +31,9 @@ public:
     std::vector<double> getAllCost();
 
 private:
-    std::shared_ptr<OptimalControlProblem<Scalar>> ocp;
+    ProblemParser ocp;
 
-    // // Constraint Stack
-    // std::vector<int> dim_hs_top; // Connic Constraint Head Stack
-    // std::vector<int> dim_hTs_top; // Connic Constraint Head Stack (Terminal)
-    // int dim_hs_max; // Maximum Dimension of Connic Constraint
-    // int dim_hTs_max; // Maximum Dimension of Connic Constraint (Terminal)
-
+    const int N;
     std::vector<Eigen::VectorXd> X; // State
     std::vector<Eigen::VectorXd> U; // Input
     
@@ -163,102 +159,100 @@ private:
 };
 
 template <typename Scalar>
-ALIPDDP<Scalar>::ALIPDDP(OptimalControlProblem<Scalar>& ocp_ref) : ocp(std::make_shared<OptimalControlProblem<Scalar>>(ocp_ref)) {
-    is_c_active.resize(ocp->N);
-    is_ec_active.resize(ocp->N);
+ALIPDDP<Scalar>::ALIPDDP(OptimalControlProblem<Scalar>& ocp_ref) : ocp(std::make_shared<OptimalControlProblem<Scalar>>(ocp_ref)), N(ocp_ref.getHorizon()) {
+    ocp.init();
+
+    is_c_active.resize(N);
+    is_ec_active.resize(N);
     is_c_active_all = false;
     is_ec_active_all = false;
-    for (int k = 0; k < ocp->N; ++k) {
-        is_c_active[k] = (ocp->dim_c[k][0] + ocp->dim_c[k][1] > 0);
-        is_ec_active[k] = (ocp->dim_ec[k] > 0);
-        is_c_active_all = (is_c_active_all || is_c_active[k]);
-        is_ec_active_all = (is_ec_active_all || is_ec_active[k]);
+    for (int k = 0; k < N; ++k) {
+        is_c_active[k] = (ocp.getDimC(k) > 0);
+        is_ec_active[k] = (ocp.getDimEC(k) > 0);
+        is_c_active_all |= is_c_active[k];
+        is_ec_active_all |= is_ec_active[k];
     }
-    is_cT_active = ((ocp->dim_cT[0] + ocp->dim_cT[1]) > 0);
-    is_ecT_active = (ocp->dim_ecT > 0);
+    is_cT_active = (ocp.getDimCT() > 0);
+    is_ecT_active = (ocp.getDimECT() > 0);
 
-    // struct ConstraintActiveFlag {
-    //     std::vector<bool> stage_c;
-    //     std::vector<bool> stage_ec;
-    //     bool stage_c_any;
-    //     bool stage_ec_any;
-    //     bool term_c;
-    //     bool term_ec;
-    // };
+    X.resize(N + 1);
+    U.resize(N);
+    Z.resize(N);
+    R.resize(N);
+    Y.resize(N);
+    S.resize(N);
+    C.resize(N);
+    EC.resize(N);
+    e.resize(N);
 
-    X.resize(ocp->N + 1);
-    U.resize(ocp->N);
-    Z.resize(ocp->N);
-    R.resize(ocp->N);
-    Y.resize(ocp->N);
-    S.resize(ocp->N);
-    C.resize(ocp->N);
-    EC.resize(ocp->N);
-    e.resize(ocp->N);
-    for(int k = 0; k < ocp->N; ++k) {
-        if (ocp->is_x_initialized[k]) {X[k] = ocp->X0[k];}
-        else {X[k].setZero(ocp->dim_x[k]);}
-        if (ocp->is_u_initialized[k]) {U[k] = ocp->U0[k];}
-        else {U[k].setZero(ocp->dim_u[k]);}
-        R[k].setZero(ocp->dim_ec[k]);
-        Z[k].setZero(ocp->dim_ec[k]);
-        S[k].setZero(ocp->dim_c[k][0] + ocp->dim_c[k][1]);
-        Y[k].setZero(ocp->dim_c[k][0] + ocp->dim_c[k][1]);
-        e[k].setZero(ocp->dim_c[k][0] + ocp->dim_c[k][1]);
-        if (ocp->dim_c[k][0]) {
-            S[k].head(ocp->dim_c[k][0]) = Eigen::VectorXd::Ones(ocp->dim_c[k][0]);
-            Y[k].head(ocp->dim_c[k][0]) = Eigen::VectorXd::Ones(ocp->dim_c[k][0]);
-            e[k].head(ocp->dim_c[k][0]) = Eigen::VectorXd::Ones(ocp->dim_c[k][0]);
+    for (int k = 0; k < N; ++k) {
+        if (ocp.isXinit(k)) X[k] = ocp.getXinit(k);
+        else X[k].setZero(ocp.getDimX(k));
+        
+        if (ocp.isUinit(k)) U[k] = ocp.getUinit(k);
+        else U[k].setZero(ocp.getDimU(k));
+    
+        R[k].setZero(ocp.getDimEC(k));
+        Z[k].setZero(ocp.getDimEC(k));
+        S[k].setZero(ocp.getDimC(k));
+        Y[k].setZero(ocp.getDimC(k));
+        e[k].setZero(ocp.getDimC(k));
+        
+        if (ocp.getDimG(k) > 0) {
+            S[k].head(ocp.getDimG(k)).setOnes();
+            Y[k].head(ocp.getDimG(k)).setOnes();
+            e[k].head(ocp.getDimG(k)).setOnes();
         }
-        for (auto dim_h_top : ocp->dim_hs_top[k]) {
+        for (auto dim_h_top : ocp.getDimHsTop(k)) {
             S[k](dim_h_top) = 1.0;
             Y[k](dim_h_top) = 1.0;
             e[k](dim_h_top) = 1.0;
         }
     }
-    if (ocp->is_x_initialized[ocp->N]) {X[ocp->N] = ocp->X0[ocp->N];}
+    if (ocp.isXinit(N)) X[N] = ocp.getXinit(N);
 
-    RT.setZero(ocp->dim_ecT);
-    ZT.setZero(ocp->dim_ecT);
-    ST.setZero(ocp->dim_cT[0] + ocp->dim_cT[1]);
-    YT.setZero(ocp->dim_cT[0] + ocp->dim_cT[1]);
-    eT.setZero(ocp->dim_cT[0] + ocp->dim_cT[1]);
-    if (ocp->dim_cT[0]) {
-        ST.head(ocp->dim_cT[0]) = Eigen::VectorXd::Ones(ocp->dim_cT[0]);
-        YT.head(ocp->dim_cT[0]) = Eigen::VectorXd::Ones(ocp->dim_cT[0]);
-        eT.head(ocp->dim_cT[0]) = Eigen::VectorXd::Ones(ocp->dim_cT[0]);
+
+    RT.setZero(ocp.getDimECT());
+    ZT.setZero(ocp.getDimECT());
+    ST.setZero(ocp.getDimCT());
+    YT.setZero(ocp.getDimCT());
+    eT.setZero(ocp.getDimCT());
+    if (ocp.getDimGT() > 0) {
+        ST.head(ocp.getDimGT()).setOnes();
+        YT.head(ocp.getDimGT()).setOnes();
+        eT.head(ocp.getDimGT()).setOnes();
     }
-    for (auto dim_h_top : ocp->dim_hTs_top) {
-        ST(dim_h_top) = 1.0;
-        YT(dim_h_top) = 1.0;
-        eT(dim_h_top) = 1.0;
+    for (auto dim_hT_top : ocp.getDimHTsTop()) {
+        ST(dim_hT_top) = 1.0;
+        YT(dim_hT_top) = 1.0;
+        eT(dim_hT_top) = 1.0;
     }
 
-    fx_all.resize(ocp->N);
-    fu_all.resize(ocp->N);
-    qx_all.resize(ocp->N);
-    qu_all.resize(ocp->N);
-    qxx_all.resize(ocp->N);
-    qxu_all.resize(ocp->N);
-    quu_all.resize(ocp->N);
-    // fxx_all.resize(ocp->N);
-    // fxu_all.resize(ocp->N);
-    // fuu_all.resize(ocp->N);
-    cx_all.resize(ocp->N);
-    cu_all.resize(ocp->N);
-    ecx_all.resize(ocp->N);
-    ecu_all.resize(ocp->N);
-
-    ku.resize(ocp->N);
-    kr.resize(ocp->N);
-    kz.resize(ocp->N);
-    ks.resize(ocp->N);
-    ky.resize(ocp->N);
-    Ku.resize(ocp->N);
-    Kr.resize(ocp->N);
-    Kz.resize(ocp->N);
-    Ks.resize(ocp->N);
-    Ky.resize(ocp->N);
+    fx_all.resize(N);
+    fu_all.resize(N);
+    // fxx_all.resize(N);
+    // fxu_all.resize(N);
+    // fuu_all.resize(N);
+    qx_all.resize(N);
+    qu_all.resize(N);
+    qxx_all.resize(N);
+    qxu_all.resize(N);
+    quu_all.resize(N);
+    cx_all.resize(N);
+    cu_all.resize(N);
+    ecx_all.resize(N);
+    ecu_all.resize(N);
+    
+    ku.resize(N);
+    kr.resize(N);
+    kz.resize(N);
+    ks.resize(N);
+    ky.resize(N);
+    Ku.resize(N);
+    Kr.resize(N);
+    Kz.resize(N);
+    Ks.resize(N);
+    Ky.resize(N);
 }
 
 template <typename Scalar>
@@ -270,52 +264,52 @@ void ALIPDDP<Scalar>::init(Param param) {
     this->param = param;
 
     // Only support same dynamics
-    dim_rn.resize(ocp->N);
+    dim_rn.resize(N);
     if (this->param.is_quaternion_in_state) {
         if (!this->param.quaternion_index) {
             throw std::runtime_error("ALIPDDP: quaternion_index must be initialized. (see is_quaternion_in_state)");
         }
         else {
-            for(int k = 0; k < ocp->N; ++k) {
-                dim_rn[k] = ocp->dim_x[k] - 1;
+            for(int k = 0; k < N; ++k) {
+                dim_rn[k] = ocp->getDimX(k) - 1;
             }
-            dim_rnT = ocp->dim_xT - 1;
+            dim_rnT = ocp->getDimXT() - 1;
         }
     }
     else {
-        for(int k = 0; k < ocp->N; ++k) {
-            dim_rn[k] = ocp->dim_x[k];
+        for(int k = 0; k < N; ++k) {
+            dim_rn[k] = ocp->getDimX(k);
         }
-        dim_rnT = ocp->dim_xT;
+        dim_rnT = ocp->getDimXT();
     }
 
-    for (int k = 0; k < ocp->N; ++k) {
-        ku[k] = Eigen::VectorXd::Zero(ocp->dim_u[k]);
-        Ku[k] = Eigen::MatrixXd::Zero(ocp->dim_u[k], dim_rn[k]);
-        if (is_c_active[k]) {
-            ks[k] = Eigen::VectorXd::Zero(ocp->dim_c[k][0] + ocp->dim_c[k][1]);
-            ky[k] = Eigen::VectorXd::Zero(ocp->dim_c[k][0] + ocp->dim_c[k][1]);
-            Ks[k] = Eigen::MatrixXd::Zero(ocp->dim_c[k][0] + ocp->dim_c[k][1], dim_rn[k]);
-            Ky[k] = Eigen::MatrixXd::Zero(ocp->dim_c[k][0] + ocp->dim_c[k][1], dim_rn[k]);
+    for (int k = 0; k < N; ++k) {
+        ku[k] = Eigen::VectorXd::Zero(ocp->getDimU(k));
+        Ku[k] = Eigen::MatrixXd::Zero(ocp->getDimU(k), dim_rn[k]);
+        if (ocp->getDimC(k)) {
+            ks[k] = Eigen::VectorXd::Zero(ocp->getDimC(k));
+            ky[k] = Eigen::VectorXd::Zero(ocp->getDimC(k));
+            Ks[k] = Eigen::MatrixXd::Zero(ocp->getDimC(k), dim_rn[k]);
+            Ky[k] = Eigen::MatrixXd::Zero(ocp->getDimC(k), dim_rn[k]);
         }
-        if (is_ec_active[k]) {
-            kr[k] = Eigen::VectorXd::Zero(ocp->dim_ec[k]);
-            kz[k] = Eigen::VectorXd::Zero(ocp->dim_ec[k]);
-            Kr[k] = Eigen::MatrixXd::Zero(ocp->dim_ec[k], dim_rn[k]);
-            Kz[k] = Eigen::MatrixXd::Zero(ocp->dim_ec[k], dim_rn[k]);
+        if (ocp->getDimEC(k)) {
+            kr[k] = Eigen::VectorXd::Zero(ocp->getDimEC(k));
+            kz[k] = Eigen::VectorXd::Zero(ocp->getDimEC(k));
+            Kr[k] = Eigen::MatrixXd::Zero(ocp->getDimEC(k), dim_rn[k]);
+            Kz[k] = Eigen::MatrixXd::Zero(ocp->getDimEC(k), dim_rn[k]);
         }
     }
 
     initialRoll();
     
     // check dim_c
-    // if (this->param.mu == 0) {this->param.mu = cost / ocp->N / dim_c;} // Auto Select
+    // if (this->param.mu == 0) {this->param.mu = cost / N / dim_c;} // Auto Select
 
-    lambda.resize(ocp->N);
-    for(int k = 0; k < ocp->N; ++k) {
-        if (ocp->dim_ec[k]) {lambda[k].setZero(ocp->dim_ec[k]);}
+    lambda.resize(N);
+    for(int k = 0; k < N; ++k) {
+        if (ocp->getDimEC(k)) {lambda[k].setZero(ocp->getDimEC(k));}
     }
-    lambdaT.setZero(ocp->dim_ecT);
+    lambdaT.setZero(ocp->getDimECT());
 
     resetFilter();
     resetRegulation();
@@ -327,15 +321,15 @@ void ALIPDDP<Scalar>::init(Param param) {
 
 template <typename Scalar>
 void ALIPDDP<Scalar>::initialRoll() {
-    for (int k = 0; k < ocp->N; ++k) {
+    for (int k = 0; k < N; ++k) {
         const Eigen::VectorXd& xk = X[k];
         const Eigen::VectorXd& uk = U[k];
-        if (ocp->dim_c[k][0] || ocp->dim_c[k][1]) {C[k] = ocp->c[k](xk, uk);}
-        if (ocp->dim_ec[k]) {EC[k] = ocp->ec[k](xk, uk);}
-        X[k + 1] = ocp->dynamics_seq[k]->f(xk, uk);
+        if (ocp->getDimC(k)) {C[k] = ocp->c(k, xk, uk);}
+        if (ocp->getDimEC(k)) {EC[k] = ocp->ec(k, xk, uk);}
+        X[k + 1] = ocp->f(k, xk, uk);
     }
-    if (ocp->dim_cT[0] || ocp->dim_cT[1]) {CT = ocp->cT(X[ocp->N]);}
-    if (ocp->dim_ecT) {ECT = ocp->ecT(X[ocp->N]);}
+    if (ocp->getDimCT()) {CT = ocp->cT(X[N]);}
+    if (ocp->getDimECT()) {ECT = ocp->ecT(X[N]);}
     
     cost = calculateTotalCost(X, U);
 }
@@ -350,10 +344,27 @@ void ALIPDDP<Scalar>::resetFilter() {
     // CHECK: Possible to use GEMM if we use same dynamics & constraints across all timestep
     // Implement 2 way method?
     
-    for (int k = 0; k < ocp->N; ++k) {
-        if (ocp->dim_c[k][0]) {
-            barriercost += S[k].head(ocp->dim_c[k][0]).array().log().sum();
+    for (int k = 0; k < N; ++k) {
+        if (ocp.getDimC(k)) {
+            barriercost += S[k].head(ocp.getDimC(k)).array().log().sum();
         }
+        // TODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODO
+        // TODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODO
+        // TODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODO
+        // TODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODO
+        // TODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODO
+        // TODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODO
+        // TODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODO
+        // TODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODO
+        // TODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODO
+        // TODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODO
+        // TODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODO
+        // TODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODO
+        // TODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODO
+        // TODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODO
+        // TODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODO
+        // TODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODO
+        // TODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODOTODOODOTOODODOTOODOTOODO
         for (int i = 0; i < ocp->dim_hs[k].size(); ++i) {
             const int d = ocp->dim_hs[k][i];
             const int idx = ocp->dim_hs_top[k][i];
@@ -372,8 +383,8 @@ void ALIPDDP<Scalar>::resetFilter() {
         const double v = ST.segment(idx + 1, d - 1).squaredNorm();
         barriercostT += 0.5 * log(s*s - v);
     }
-    for (int k = 0; k < ocp->N; ++k) {
-        if (ocp->dim_ec[k]) {
+    for (int k = 0; k < N; ++k) {
+        if (ocp->getDimEC(k)) {
             alcost += (lambda[k].transpose() * R[k]).sum() + (0.5 * param.rho * R[k].squaredNorm());
         }
     }
@@ -383,9 +394,9 @@ void ALIPDDP<Scalar>::resetFilter() {
     logcost = cost - (param.mu * barriercost + param.muT * barriercostT) + (alcost + alcostT);
 
     error = 0.0;
-    for (int k = 0; k < ocp->N; ++k) {
-        if (ocp->dim_ec[k]) { error += (EC[k] + R[k]).array().abs().sum(); }
-        if (ocp->dim_c[k][0] || ocp->dim_c[k][1]) { error += (C[k] + S[k]).array().abs().sum(); }
+    for (int k = 0; k < N; ++k) {
+        if (ocp->getDimEC(k)) { error += (EC[k] + R[k]).array().abs().sum(); }
+        if (ocp.getDimC(k)) { error += (C[k] + S[k]).array().abs().sum(); }
     }
     if (ocp->dim_ecT) { error += (ECT + RT).array().abs().sum(); }
     if (ocp->dim_cT[0] || ocp->dim_cT[1]) { error += (CT + ST).array().abs().sum(); }
@@ -404,10 +415,10 @@ void ALIPDDP<Scalar>::resetRegulation() {
 template <typename Scalar>
 double ALIPDDP<Scalar>::calculateTotalCost(const std::vector<Eigen::VectorXd>& X, const std::vector<Eigen::VectorXd>& U) {
     double cost = 0.0;
-    for (int k = 0; k < ocp->N; ++k) {
+    for (int k = 0; k < N; ++k) {
         cost += ocp->cost_seq[k]->q(X[k], U[k]);
     }
-    cost += ocp->terminal_cost->p(X[ocp->N]);
+    cost += ocp->terminal_cost->p(X[N]);
     return cost;
 }
 
@@ -545,7 +556,7 @@ void ALIPDDP<Scalar>::calculateAllDiff() {
     // CHECK 2: Move to Model to make solver only consider Eigen (not autodiff::dual)
 
     // #pragma omp parallel for
-    for (int k = 0; k < ocp->N; ++k) {
+    for (int k = 0; k < N; ++k) {
         Eigen::VectorXd x = X[k];
         Eigen::VectorXd u = U[k];
 
@@ -565,7 +576,7 @@ void ALIPDDP<Scalar>::calculateAllDiff() {
             ecu_all[k] = ocp->ecu[k](x, u);
         }
     }
-    Eigen::VectorXd xT = X[ocp->N];
+    Eigen::VectorXd xT = X[N];
 
     px_all = ocp->terminal_cost->px(xT);
     pxx_all = ocp->terminal_cost->pxx(xT);
@@ -725,7 +736,7 @@ void ALIPDDP<Scalar>::backwardPass() {
 
     backward_failed = false;
 
-    for (int k = ocp->N - 1; k >= 0; --k) {
+    for (int k = N - 1; k >= 0; --k) {
         Eigen::Ref<const Eigen::MatrixXd> fx = fx_all[k];
         Eigen::Ref<const Eigen::MatrixXd> fu = fu_all[k];
 
@@ -771,8 +782,8 @@ void ALIPDDP<Scalar>::backwardPass() {
             Eigen::Ref<Eigen::MatrixXd> Qyx = cx_all[k];
             Eigen::Ref<Eigen::MatrixXd> Qyu = cu_all[k];
             
-            const int dim_c = ocp->dim_c[k][0] + ocp->dim_c[k][1];
-            const int dim_g = ocp->dim_c[k][0];
+            const int dim_c = ocp->getDimC(k);
+            const int dim_g = ocp.getDimC(k);
 
             Qx += Qyx.transpose() * y;
             Qu += Qyu.transpose() * y;
@@ -886,8 +897,8 @@ void ALIPDDP<Scalar>::backwardPass() {
             Eigen::Ref<Eigen::MatrixXd> Qyx = cx_all[k];
             Eigen::Ref<Eigen::MatrixXd> Qyu = cu_all[k];
         
-            // const int dim_g = ocp->dim_c[k][0];
-            // const int dim_c = ocp->dim_c[k][0] + ocp->dim_c[k][1];
+            // const int dim_g = ocp.getDimC(k);
+            // const int dim_c = ocp->getDimC(k);
         
             Eigen::Ref<Eigen::VectorXd> ks_ = ks[k];
             Eigen::Ref<Eigen::MatrixXd> Ks_ = Ks[k];
@@ -1092,14 +1103,14 @@ Eigen::VectorXd ALIPDDP<Scalar>::perturb(const Eigen::VectorXd& xn, const Eigen:
 template <typename Scalar>
 void ALIPDDP<Scalar>::forwardPass() {
     Eigen::VectorXd dx;
-    std::vector<Eigen::VectorXd> X_new(ocp->N+1);
-    std::vector<Eigen::VectorXd> U_new(ocp->N);
-    std::vector<Eigen::VectorXd> S_new(ocp->N);
-    std::vector<Eigen::VectorXd> Y_new(ocp->N);
-    std::vector<Eigen::VectorXd> C_new(ocp->N);
-    std::vector<Eigen::VectorXd> R_new(ocp->N);
-    std::vector<Eigen::VectorXd> Z_new(ocp->N);
-    std::vector<Eigen::VectorXd> EC_new(ocp->N);
+    std::vector<Eigen::VectorXd> X_new(N+1);
+    std::vector<Eigen::VectorXd> U_new(N);
+    std::vector<Eigen::VectorXd> S_new(N);
+    std::vector<Eigen::VectorXd> Y_new(N);
+    std::vector<Eigen::VectorXd> C_new(N);
+    std::vector<Eigen::VectorXd> R_new(N);
+    std::vector<Eigen::VectorXd> Z_new(N);
+    std::vector<Eigen::VectorXd> EC_new(N);
 
     Eigen::VectorXd dxT;
     Eigen::VectorXd ST_new;
@@ -1138,12 +1149,12 @@ void ALIPDDP<Scalar>::forwardPass() {
         }
 
         X_new[0] = X[0];
-        for (int k = 0; k < ocp->N; ++k) {
+        for (int k = 0; k < N; ++k) {
             dx = perturb(X_new[k], X[k]);
             U_new[k] = U[k] + (step_size * ku[k]) + Ku[k] * dx;
             X_new[k+1] = ocp->dynamics_seq[k]->f(X_new[k], U_new[k]);
             if (is_c_active[k]) {
-                const int dim_g = ocp->dim_c[k][0];
+                const int dim_g = ocp.getDimC(k);
                 S_new[k] = S[k] + (step_size * ks[k]) + Ks[k] * dx;
                 Y_new[k] = Y[k] + (step_size * ky[k]) + Ky[k] * dx;
                 if (dim_g) {
@@ -1180,7 +1191,7 @@ void ALIPDDP<Scalar>::forwardPass() {
         }
         if (forward_failed) {continue;}
         
-        dxT = perturb(X_new[ocp->N], X[ocp->N]);
+        dxT = perturb(X_new[N], X[N]);
         if (is_cT_active) {
             ST_new = ST + (step_size * ksT) + KsT * dxT;
             YT_new = YT + (step_size * kyT) + KyT * dxT;
@@ -1208,18 +1219,18 @@ void ALIPDDP<Scalar>::forwardPass() {
             }
             if (forward_failed) {continue;}
 
-            CT_new = ocp->cT(X_new[ocp->N]);
+            CT_new = ocp->cT(X_new[N]);
         }
 
         if (is_ecT_active) {
             RT_new = RT + (step_size * krT) + KrT * dxT;
             ZT_new = ZT + (step_size * kzT) + KzT * dxT;
 
-            ECT_new = ocp->ecT(X_new[ocp->N]);
+            ECT_new = ocp->ecT(X_new[N]);
         }
         
         error_new = 0.0;
-        for (int k = 0; k < ocp->N; ++k) {
+        for (int k = 0; k < N; ++k) {
             if (is_c_active[k]) {
                 error_new += (C_new[k] + S_new[k]).array().abs().sum();
             }
@@ -1242,8 +1253,8 @@ void ALIPDDP<Scalar>::forwardPass() {
         alcostT_new = 0.0;
         cost_new = calculateTotalCost(X_new, U_new);
 
-        for (int k = 0; k < ocp->N; ++k) {
-            const int dim_g = ocp->dim_c[k][0];
+        for (int k = 0; k < N; ++k) {
+            const int dim_g = ocp.getDimC(k);
             if (dim_g) {
                 barriercost_new += S_new[k].head(dim_g).array().log().sum();
             }
@@ -1265,7 +1276,7 @@ void ALIPDDP<Scalar>::forwardPass() {
             const double v_2 = ST_new.segment(idx+1, d-1).squaredNorm();
             barriercostT_new += 0.5 * log(s * s - v_2);
         }
-        for (int k = 0; k < ocp->N; ++k) {
+        for (int k = 0; k < N; ++k) {
             if (is_ec_active[k]) {
                 alcost_new += lambda[k].transpose() * R_new[k] + 0.5 * param.rho * R_new[k].squaredNorm();
             }

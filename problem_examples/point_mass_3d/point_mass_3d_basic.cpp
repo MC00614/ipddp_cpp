@@ -274,7 +274,6 @@ int main() {
     x0(5) = -0.3;
     problem.setInitialState(0, x0);
 
-
     Vector<Scalar> u0(3);
     u0(0) = 0.0;
     u0(1) = 0.0;
@@ -301,9 +300,6 @@ int main() {
     }
 
     problem.addTerminalConstraint(std::make_shared<TerminalEqualityConstraint<Scalar>>());
-
-    problem.init();
-
     Param param;
 
     clock_t start = clock();
@@ -322,22 +318,18 @@ int main() {
     std::vector<Eigen::VectorXd> U_result = solver.getResU();
     std::vector<double> all_cost = solver.getAllCost();
 
-    std::cout << "X_result = " << std::endl;
-    for (int k = 0; k < problem.N+1; ++k) {
-        std::cout << X_result[k].transpose() << std::endl;
-    }
+    // std::cout << "X_result = " << std::endl;
+    // for (int k = 0; k < problem.N+1; ++k) {
+    //     std::cout << X_result[k].transpose() << std::endl;
+    // }
 
-    std::cout << "U_result = " << std::endl;
-    for (int k = 0; k < problem.N; ++k) {
-        std::cout << U_result[k].transpose() << std::endl;
-    }
+    // std::cout << "U_result = " << std::endl;
+    // for (int k = 0; k < problem.N; ++k) {
+    //     std::cout << U_result[k].transpose() << std::endl;
+    // }
 
-
-    // std::cout<<"X_result = \n"<<X_result.transpose()<<std::endl;
-    // std::cout<<"U_result = \n"<<U_result.transpose()<<std::endl;
-
-    // std::cout<<"X_last = \n"<<X_result.col(model->N).transpose()<<std::endl;
-    // std::cout<<"U_last = \n"<<U_result.col(model->N-1).transpose()<<std::endl;
+    std::cout<<"X_last = \n"<<X_result[problem.N].transpose()<<std::endl;
+    std::cout<<"U_last = \n"<<U_result[problem.N - 1].transpose()<<std::endl;
 
     return 0;
 }
