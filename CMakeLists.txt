@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.12)
 project(ipddp)
 
 find_package(Python3 COMPONENTS Development REQUIRED)
-find_package(Eigen3 REQUIRED NO_MODULE)
 # find_package(OpenMP REQUIRED)
 
 # autodiff requires a c++17 enabled compiler
