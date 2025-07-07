@@ -1,6 +1,6 @@
 #pragma once
 
-#include "problem_maker/optimal_control_problem.h"
+#include "optimal_control_problem.h"
 
 #include <numeric>
 
@@ -42,11 +42,10 @@ public:
     }
 
     void init() {
-        // x_initialized.resize(N+1, false);
-        // u_initialized.resize(N, false);
+        const int N = ocp->getHorizon();
 
-        dim_x.resize(ocp->N);
-        dim_u.resize(ocp->N);
+        dim_x.resize(N);
+        dim_u.resize(N);
 
         for (int k = 0; k < N; ++k) {
             auto dynamics = ocp->getDynamics(k);
@@ -154,7 +153,7 @@ public:
         dim_ecTs_top.clear();
         int dim_ecT_top = 0;
         for (const auto& constraint : ocp->getTerminalConstraints(ConstraintType::EQ)) {
-            const int dim_ = constraint->getDimC();
+            const int dim_ = constraint->getDimCT();
             dim_ecTs.push_back(dim_);
             dim_ecTs_top.push_back(dim_ecT_top);
             dim_ecT_top += dim_;
@@ -163,17 +162,24 @@ public:
     }
 
     int getHorizon() const {return ocp->getHorizon();}
+
     bool isXinit(int k) const {return ocp->getInitialState(k).size()>0;}
     bool isUinit(int k) const {return ocp->getInitialControl(k).size()>0;}
     const Vector<Scalar>& getXinit(int k) const {return ocp->getInitialState(k);}
     const Vector<Scalar>& getUinit(int k) const {return ocp->getInitialControl(k);}
+
     int getDimX(const int& k) const {return dim_x[k];}
-    int getDimXT(const int& k) const {return dim_xT;}
     int getDimU(const int& k) const {return dim_u[k];}
     int getDimG(const int& k) const {return dim_g[k];}
     int getDimH(const int& k) const {return dim_h[k];}
     int getDimC(const int& k) const {return dim_c[k];}
     int getDimEC(const int& k) const {return dim_ec[k];}
+
+    int getDimXT() const {return dim_xT;}
+    int getDimGT() const {return dim_gT;}
+    int getDimHT() const {return dim_hT;}
+    int getDimCT() const {return dim_cT;}
+    int getDimECT() const {return dim_ecT;}
 
     const std::vector<int>& getDimGs(int k) const {return dim_gs[k];}
     const std::vector<int>& getDimGsTop(int k) const {return dim_gs_top[k];}
@@ -223,7 +229,7 @@ public:
     Vector<Scalar> px(const Vector<Scalar>& x) const {
         return ocp->getTerminalCost()->px(x);
     }
-    Vector<Scalar> pxx(const Vector<Scalar>& x) const {
+    Matrix<Scalar> pxx(const Vector<Scalar>& x) const {
         return ocp->getTerminalCost()->pxx(x);
     }
 

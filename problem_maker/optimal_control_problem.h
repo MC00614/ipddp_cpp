@@ -33,19 +33,39 @@ public:
     }
 
     void setInitialState(int k, const Vector<Scalar>& x_init) {
-        X0.at(k) = x_init;
+        X0[k] = x_init;
+    }
+    void setInitialState(const Vector<Scalar>& x_init) {
+        for (int i = 0; i < N; ++i) {
+            setInitialState(i, x_init);
+        }
     }
 
     void setInitialControl(int k, const Vector<Scalar>& u_init) {
-        U0.at(k) = u_init;
+        U0[k] = u_init;
+    }
+    void setInitialControl(const Vector<Scalar>& u_init) {
+        for (int i = 0; i < N; ++i) {
+            setInitialControl(i, u_init);
+        }
     }
 
     void setStageDynamics(int k, std::shared_ptr<DiscreteDynamicsBase<Scalar>> dyn) {
-        dynamics_seq.at(k) = dyn;
+        dynamics_seq[k] = dyn;
+    }
+    void setStageDynamics(std::shared_ptr<DiscreteDynamicsBase<Scalar>> dyn) {
+        for (int i = 0; i < N; ++i) {
+            setStageDynamics(i, dyn);
+        }
     }
 
     void setStageCost(int k, std::shared_ptr<StageCostBase<Scalar>> cost) {
-        cost_seq.at(k) = cost;
+        cost_seq[k] = cost;
+    }
+    void setStageCost(std::shared_ptr<StageCostBase<Scalar>> cost) {
+        for (int i = 0; i < N; ++i) {
+            setStageCost(i, cost);
+        }
     }
     
     void setTerminalCost(std::shared_ptr<TerminalCostBase<Scalar>> cost) {
@@ -54,6 +74,11 @@ public:
 
     void addStageConstraint(int k, std::shared_ptr<StageConstraintBase<Scalar>> constraint) {
         constraint_seq[k][static_cast<int>(constraint->getConstraintType())].push_back(constraint);
+    }
+    void addStageConstraint(std::shared_ptr<StageConstraintBase<Scalar>> constraint) {
+        for (int i = 0; i < N; ++i) {
+            addStageConstraint(i, constraint);
+        }
     }
 
     void addTerminalConstraint(std::shared_ptr<TerminalConstraintBase<Scalar>> constraint) {

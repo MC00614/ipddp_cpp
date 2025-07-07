@@ -114,7 +114,7 @@ public:
         c_n(0) = (x.head(3) - obs_cent_zip.col(0)).norm() - obs_rad_zip(0);
         c_n(1) = (x.head(3) - obs_cent_zip.col(1)).norm() - obs_rad_zip(1);
         c_n(2) = (x.head(3) - obs_cent_zip.col(2)).norm() - obs_rad_zip(2);
-        return c_n;
+        return -c_n;
     }
 
     Matrix<Scalar> cx(const Vector<Scalar>& x, const Vector<Scalar>& u) const override {
@@ -122,7 +122,7 @@ public:
         for (int i=0; i<3; i++) {
             J.block(i,0,1,3) = (x.head(3) - obs_cent_zip.col(i)).transpose() / ( (x.head(3) - obs_cent_zip.col(i)).norm() );
         }
-        return J;
+        return -J;
     }
 
     Matrix<Scalar> cu(const Vector<Scalar>& x, const Vector<Scalar>& u) const override {
@@ -138,6 +138,9 @@ private:
 
 template <typename Scalar>
 class MaxInput : public StageConstraintBase<Scalar> {
+private:
+    double umax;
+
 public:
     MaxInput() {
         this->constraint_type = ConstraintType::NO;
@@ -150,7 +153,7 @@ public:
     Vector<Scalar> c(const Vector<Scalar>& x, const Vector<Scalar>& u) const override {
         Vector<Scalar> c_n(1);
         c_n(0) = umax - u.norm();
-        return c_n;
+        return -c_n;
     }
 
     Matrix<Scalar> cx(const Vector<Scalar>& x, const Vector<Scalar>& u) const override {
@@ -160,15 +163,15 @@ public:
     Matrix<Scalar> cu(const Vector<Scalar>& x, const Vector<Scalar>& u) const override {
         Matrix<Scalar> J = Matrix<Scalar>::Zero(1, u.size());
         J.row(0) = -u.transpose() / u.norm();
-        return J;
+        return -J;
     }
-
-private:
-    double umax;
 };
 
 template <typename Scalar>
 class InputConeConstraint : public StageConstraintBase<Scalar> {
+private:
+    const double input_angmax = std::tan(20.0 * M_PI / 180.0);
+
 public:
     InputConeConstraint() {
         this->constraint_type = ConstraintType::SOC;
@@ -176,7 +179,6 @@ public:
     }
 
     Vector<Scalar> c(const Vector<Scalar>& x, const Vector<Scalar>& u) const override {
-        const double input_angmax = std::tan(20.0 * M_PI / 180.0);
         Vector<Scalar> c_n(3);
         c_n(0) = input_angmax * u(2);
         c_n(1) = u(0);
@@ -190,7 +192,6 @@ public:
 
     Matrix<Scalar> cu(const Vector<Scalar>& x, const Vector<Scalar>& u) const override {
         Matrix<Scalar> J = Matrix<Scalar>::Zero(3, u.size());
-        const double input_angmax = std::tan(20.0 * M_PI / 180.0);
         J(0,2) = input_angmax;
         J(1,0) = 1.0;
         J(2,1) = 1.0;
@@ -200,6 +201,9 @@ public:
 
 template <typename Scalar>
 class GlideSlopeConeConstraint : public StageConstraintBase<Scalar> {
+private:
+    const double glideslope_angmax = std::tan(45.0 * M_PI / 180.0);
+
 public:
     GlideSlopeConeConstraint() {
         this->constraint_type = ConstraintType::SOC;
@@ -207,7 +211,6 @@ public:
     }
 
     Vector<Scalar> c(const Vector<Scalar>& x, const Vector<Scalar>& u) const override {
-        const double glideslope_angmax = std::tan(45.0 * M_PI / 180.0);
         Vector<Scalar> c_n(3);
         c_n(0) = glideslope_angmax * x(2);
         c_n(1) = x(0);
@@ -217,10 +220,10 @@ public:
 
     Matrix<Scalar> cx(const Vector<Scalar>& x, const Vector<Scalar>& u) const override {
         Matrix<Scalar> J = Matrix<Scalar>::Zero(3, x.size());
-        J(0, 2) = -std::tan(45.0 * M_PI / 180.0);
-        J(1, 0) = -1.0;
-        J(2, 1) = -1.0;
-        return J;
+        J(0, 2) = glideslope_angmax;
+        J(1, 0) = 1.0;
+        J(2, 1) = 1.0;
+        return -J;
     }
 
     Matrix<Scalar> cu(const Vector<Scalar>& x, const Vector<Scalar>& u) const override {
@@ -311,9 +314,7 @@ int main() {
     double duration = (double)(finish - start) / CLOCKS_PER_SEC;
     std::cout << "\nIn Total : " << duration << " Seconds" << std::endl;
 
-    // // Parse Result
-    // Eigen::MatrixXd X_init = Eigen::MatrixXd::Zero(model->dim_x, model->N+1);
-    // Eigen::MatrixXd U_init = Eigen::MatrixXd::Zero(model->dim_u, model->N);
+    // Parse Result
     std::vector<Eigen::VectorXd> X_result = solver.getResX();
     std::vector<Eigen::VectorXd> U_result = solver.getResU();
     std::vector<double> all_cost = solver.getAllCost();
@@ -328,8 +329,8 @@ int main() {
     //     std::cout << U_result[k].transpose() << std::endl;
     // }
 
-    std::cout<<"X_last = \n"<<X_result[problem.N].transpose()<<std::endl;
-    std::cout<<"U_last = \n"<<U_result[problem.N - 1].transpose()<<std::endl;
+    std::cout<<"X_last = \n"<<X_result[problem.getHorizon()].transpose()<<std::endl;
+    std::cout<<"U_last = \n"<<U_result[problem.getHorizon() - 1].transpose()<<std::endl;
 
     return 0;
 }
