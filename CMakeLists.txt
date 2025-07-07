@@ -43,9 +43,10 @@ endif()
 #     endforeach()
 # endif()
 
-# Main Executable
-add_executable(${PROJECT_NAME} problem_examples/point_mass_3d/point_mass_3d_basic.cpp)
-target_include_directories(${PROJECT_NAME} PRIVATE ${INCLUDE_DIRS})
-target_compile_options(${PROJECT_NAME} PRIVATE -O3)
-target_link_libraries(${PROJECT_NAME} PRIVATE ${Python3_LIBRARIES})
-# target_link_libraries(${PROJECT_NAME} PRIVATE ${Python3_LIBRARIES} OpenMP::OpenMP_CXX)
+foreach(EXAMPLE point_mass_3d_basic
+                point_mass_3d_simple)
+    add_executable(${EXAMPLE} problem_examples/${EXAMPLE}.cpp)
+    target_include_directories(${EXAMPLE} PRIVATE ${INCLUDE_DIRS})
+    target_compile_options(${EXAMPLE} PRIVATE -O3)
+    target_link_libraries(${EXAMPLE} PRIVATE ${Python3_LIBRARIES})
+endforeach()

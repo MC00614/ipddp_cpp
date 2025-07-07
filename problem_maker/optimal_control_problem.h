@@ -2,6 +2,12 @@
 
 #include "types.h"
 
+#include "dynamics/linear_discrete_dynamics.h"
+#include "cost/quadratic_stage_cost.h"
+#include "cost/quadratic_terminal_cost.h"
+#include "constraint/linear_stage_constraint.h"
+#include "constraint/linear_terminal_constraint.h"
+
 #include "dynamics/discrete_dynamics_base.h"
 #include "cost/stage_cost_base.h"
 #include "cost/terminal_cost_base.h"

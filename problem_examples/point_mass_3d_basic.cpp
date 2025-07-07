@@ -295,12 +295,12 @@ int main() {
 
     problem.setTerminalCost(std::make_shared<TerminalCost<Scalar>>());
 
-    for (int i = 0; i < N; ++i) {
-        problem.addStageConstraint(i, std::make_shared<Obstacle<Scalar>>());
-        problem.addStageConstraint(i, std::make_shared<MaxInput<Scalar>>());
-        problem.addStageConstraint(i, std::make_shared<InputConeConstraint<Scalar>>());
-        problem.addStageConstraint(i, std::make_shared<GlideSlopeConeConstraint<Scalar>>());
-    }
+    // for (int i = 0; i < N; ++i) {
+    //     problem.addStageConstraint(i, std::make_shared<Obstacle<Scalar>>());
+    //     problem.addStageConstraint(i, std::make_shared<MaxInput<Scalar>>());
+    //     problem.addStageConstraint(i, std::make_shared<InputConeConstraint<Scalar>>());
+    //     problem.addStageConstraint(i, std::make_shared<GlideSlopeConeConstraint<Scalar>>());
+    // }
 
     problem.addTerminalConstraint(std::make_shared<TerminalEqualityConstraint<Scalar>>());
     Param param;
