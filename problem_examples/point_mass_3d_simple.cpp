@@ -1,5 +1,5 @@
 #include "optimal_control_problem.h"
-#include "ipddp.h"
+#include "alipddp.h"
 
 #include <cmath>
 #include <chrono>
@@ -160,7 +160,7 @@ int main() {
 
 
     Param param;
-    
+
     clock_t start = clock();
     ALIPDDP<Scalar> solver(problem);
     solver.init(param);

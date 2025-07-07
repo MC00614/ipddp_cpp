@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
-project(ipddp)
+project(alipddp)
 
 find_package(Python3 COMPONENTS Development REQUIRED)
 # find_package(OpenMP REQUIRED)
@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(INCLUDE_DIRS
-    ${CMAKE_SOURCE_DIR}/ipddp/
+    ${CMAKE_SOURCE_DIR}/alipddp/
     ${CMAKE_SOURCE_DIR}/eigen/
     ${CMAKE_SOURCE_DIR}/matplotlib-cpp/
     ${CMAKE_SOURCE_DIR}/autodiff/
