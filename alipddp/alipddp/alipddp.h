@@ -143,11 +143,11 @@ private:
     std::vector<double> all_cost;
 
     // Algorithm
-    void calculateAllDiff();
+    void calcAllDiff();
     void backwardPass();
     void checkRegulate();
     void forwardPass();
-    double calculateTotalCost(const std::vector<Eigen::VectorXd>& X, const std::vector<Eigen::VectorXd>& U);
+    double calcTotalCost(const std::vector<Eigen::VectorXd>& X, const std::vector<Eigen::VectorXd>& U);
     void logPrint();
 };
 

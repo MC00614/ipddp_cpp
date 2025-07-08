@@ -369,41 +369,90 @@ void ALIPDDP<Scalar>::solve() {
 
 template <typename Scalar>
 void ALIPDDP<Scalar>::calcAllDiff() {
-    // CHECK: Multithreading (TODO: with CUDA)
-    // CHECK 1: Making branch in for loop is fine for parallelization?
-    // CHECK 2: Move to Model to make solver only consider Eigen (not autodiff::dual)
-
-    // #pragma omp parallel for
     for (int k = 0; k < N; ++k) {
         const Eigen::VectorXd& x = X[k];
         const Eigen::VectorXd& u = U[k];
 
-        fx_all[k] = ocp.fx(k, x, u);
+        // No Differentiation for u
         fu_all[k] = ocp.fu(k, x, u);
-        qx_all[k] = ocp.qx(k, x, u);
         qu_all[k] = ocp.qu(k, x, u);
-        qxx_all[k] = ocp.qxx(k, x, u);
         quu_all[k] = ocp.quu(k, x, u);
-        qxu_all[k] = ocp.qxu(k, x, u);
-        if (ocp.getDimC(k)) {
-            cx_all[k] = ocp.cx(k, x, u);
+
+        if (is_c_active[k]) {
             cu_all[k] = ocp.cu(k, x, u);
         }
-        if (ocp.getDimEC(k)) {
-            ecx_all[k] = ocp.ecx(k, x, u);
+        if (is_ec_active[k]) {
             ecu_all[k] = ocp.ecu(k, x, u);
+        }
+
+        if (!param.is_quaternion_in_state) {
+            fx_all[k] = ocp.fx(k, x, u);
+            qx_all[k] = ocp.qx(k, x, u);
+            qxx_all[k] = ocp.qxx(k, x, u);
+            qxu_all[k] = ocp.qxu(k, x, u);
+            if (is_c_active[k]) {
+                cx_all[k] = ocp.cx(k, x, u);
+            }
+            if (is_ec_active[k]) {
+                ecx_all[k] = ocp.ecx(k, x, u);
+            }
+        }
+        else {
+            Eigen::MatrixXd E;
+            quaternion_helper::calcE(E, x, param.quaternion_idx);
+
+            Eigen::MatrixXd EE;
+            const Eigen::VectorXd xn = X[k+1];
+            quaternion_helper::calcEE(EE, xn, param.quaternion_idx);
+
+            Eigen::MatrixXd Id;
+            Eigen::VectorXd qx = ocp.qx(k, x, u);
+            double qx_q = qx.segment(param.quaternion_idx, 4).transpose() * x.segment(param.quaternion_idx, 4);
+            quaternion_helper::Id(Id, param.quaternion_idx, dim_rn[k], qx_q);
+
+            fx_all[k] = EE.transpose() * ocp.fx(k, x, u) * E;
+
+            qx_all[k] = E.transpose() * qx;
+            qxx_all[k] = E.transpose() * ocp.qxx(k, x, u) * E - Id;
+            qxu_all[k] = E.transpose() * ocp.qxu(k, x, u);
+
+            if (is_c_active[k]) {
+                cx_all[k] = ocp.cx(k, x, u) * E;
+            }
+            if (is_ec_active[k]) {
+                ecx_all[k] = ocp.ecx(k, x, u) * E;
+            }
         }
     }
     const Eigen::VectorXd& xT = X[N];
 
-    px_all = ocp.px(xT);
-    pxx_all = ocp.pxx(xT);
-
-    if (ocp.getDimCT()) {
-        cTx_all = ocp.cTx(xT);
+    if (!param.is_quaternion_in_state) {
+        px_all = ocp.px(xT);
+        pxx_all = ocp.pxx(xT);
+        if (ocp.getDimCT()) {
+            cTx_all = ocp.cTx(xT);
+        }
+        if (ocp.getDimECT()) {
+            ecTx_all = ocp.ecTx(xT);
+        }
     }
-    if (ocp.getDimECT()) {
-        ecTx_all = ocp.ecTx(xT);
+    else {
+        Eigen::MatrixXd E;
+        quaternion_helper::calcE(E, xT, param.quaternion_idx);
+        Eigen::MatrixXd EE;
+        quaternion_helper::calcEE(EE, xT, param.quaternion_idx);
+        Eigen::MatrixXd Id;
+        Eigen::VectorXd px = ocp.px(xT);
+        double px_q = px.segment(param.quaternion_idx, 4).transpose() * xT.segment(param.quaternion_idx, 4);
+        quaternion_helper::Id(Id, param.quaternion_idx, dim_rnT, px_q);
+        px_all = E.transpose() * px;
+        pxx_all = E.transpose() * ocp.pxx(xT) * E - Id;
+        if (ocp.getDimCT()) {
+            cTx_all = ocp.cTx(xT) * E;
+        }
+        if (ocp.getDimECT()) {
+            ecTx_all = ocp.ecTx(xT) * E;
+        }
     }
 }
 
@@ -834,19 +883,19 @@ void ALIPDDP<Scalar>::checkRegulate() {
 template <typename Scalar>
 Eigen::VectorXd ALIPDDP<Scalar>::perturb(const int& k, const Eigen::VectorXd& xn, const Eigen::VectorXd& x) {
     if (this->param.is_quaternion_in_state) {
-        Eigen::VectorXd dx;
-        // Eigen::VectorXd dx(dim_rn[k]);
-        if (k == N) {dx.resize(dim_rnT);}
-        else {dx.resize(dim_rn[k]);}
+        int dim_;
+        if (k == N) {dim_ = dim_rnT;}
+        else {dim_ = dim_rn[k];}
+        Eigen::VectorXd dx(dim_);
 
-        const Eigen::Vector4d& q = x.segment(param.quaternion_idx, param.quaternion_dim);
-        const Eigen::Vector4d& qn = xn.segment(param.quaternion_idx, param.quaternion_dim);
+        const Eigen::Vector4d& q = x.segment(param.quaternion_idx, 4);
+        const Eigen::Vector4d& qn = xn.segment(param.quaternion_idx, 4);
     
         Eigen::Vector4d q_rel = quaternion_helper::Lq(q).transpose() * qn;
 
         dx.head(param.quaternion_idx) = xn.head(param.quaternion_idx) - x.head(param.quaternion_idx);
         dx.segment(param.quaternion_idx, 3) = q_rel.segment(1,3) / q_rel(0);
-        const int tail_len = dim_rn[k] - (param.quaternion_idx + param.quaternion_dim);
+        const int tail_len = dim_ - (param.quaternion_idx + 3);
         dx.tail(tail_len) = xn.tail(tail_len) - x.tail(tail_len);
         
         return dx;

@@ -32,20 +32,19 @@ inline Eigen::Matrix4d Lq(const Eigen::Vector4d& q) {
     return lq;
 }
 
-inline void calcE(int q_idx, const Eigen::VectorXd& x, Eigen::MatrixXd& E) {
+inline void calcE(Eigen::MatrixXd& E, const Eigen::VectorXd& x, int q_idx) {
     E.setIdentity(x.size(), x.size());
     E.block(q_idx, q_idx, 4, 3) = Lq(x.segment(q_idx,4)) * getH();
 }
 
-inline void calcEE(int q_idx, const Eigen::VectorXd& fv, Eigen::MatrixXd& EE) {
-    EE.setIdentity(fv.size(), fv.size());
-    EE.block(q_idx, q_idx, 4, 3) = Lq(fv.segment(q_idx,4)) * getH();
+inline void calcEE(Eigen::MatrixXd& EE, const Eigen::VectorXd& x_n, int q_idx) {
+    EE.setIdentity(x_n.size(), x_n.size());
+    EE.block(q_idx, q_idx, 4, 3) = Lq(x_n.segment(q_idx,4)) * getH();
 }
 
-inline Eigen::MatrixXd Id(int q_idx, int dim_rn, double q_q) {
-    Eigen::MatrixXd id = Eigen::MatrixXd::Zero(dim_rn, dim_rn);
+inline void Id(Eigen::MatrixXd id, int q_idx, int dim_rn, double q_q) {
+    id = Eigen::MatrixXd::Zero(dim_rn, dim_rn);
     id.block(q_idx, q_idx, 3, 3) = q_q * Eigen::Matrix3d::Identity();
-    return id;
 }
 
 } // namespace quaternion_helper
