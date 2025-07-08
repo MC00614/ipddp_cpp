@@ -38,7 +38,8 @@ foreach(EXAMPLE
     add_executable(${EXAMPLE} problem_examples/${EXAMPLE}.cpp)
     target_include_directories(${EXAMPLE} PRIVATE ${INCLUDE_DIRS})
     target_compile_options(${EXAMPLE} PRIVATE -O3)
-    target_link_libraries(${EXAMPLE} PRIVATE ${Python3_LIBRARIES} alipddp_library)
+    target_link_libraries(${EXAMPLE} PRIVATE alipddp_library)
+    # target_link_libraries(${EXAMPLE} PRIVATE ${Python3_LIBRARIES} alipddp_library)
 endforeach()
 endif()
 

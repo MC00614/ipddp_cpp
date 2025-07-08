@@ -28,7 +28,8 @@ class Obstacle(alipddp.StageConstraintBase):
         for i in range(3):
             delta = x[:3] - self.obs_cent[i]
             norm = np.linalg.norm(delta)
-        return - J
+            J[i, :3] = - (delta / norm)
+        return J
 
     def cu(self, x, u):
         return np.zeros((3, len(u)))
@@ -86,7 +87,6 @@ def point_mass_3d():
     glideslope_cx[2, 1] = -1.0
     glideslope_cu = np.zeros((3, 3))
     glide_c0 = np.zeros(3)
-    
     glide_constraint = alipddp.LinearStageConstraint(glideslope_cx, glideslope_cu, glide_c0, alipddp.ConstraintType.SOC)
     problem.addStageConstraint(glide_constraint)
 
@@ -102,7 +102,7 @@ def point_mass_3d():
     maxinput_constraint = MaxInput()
     problem.addStageConstraint(maxinput_constraint)
     obstacle_constraint = Obstacle()
-    # problem.addStageConstraint(obstacle_constraint)
+    problem.addStageConstraint(obstacle_constraint)
 
     CT = np.eye(6)
     c0T = np.zeros(6)
