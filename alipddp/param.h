@@ -32,5 +32,6 @@ struct Param {
 
     // Only support same dynamics across step (Testing)
     bool is_quaternion_in_state = false;
-    int quaternion_index;
+    int quaternion_idx;
+    int quaternion_dim;
 };

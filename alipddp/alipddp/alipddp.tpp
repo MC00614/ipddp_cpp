@@ -107,8 +107,8 @@ void ALIPDDP<Scalar>::init(Param param) {
     // Only support same dynamics
     dim_rn.resize(N);
     if (this->param.is_quaternion_in_state) {
-        if (!this->param.quaternion_index) {
-            throw std::runtime_error("ALIPDDP: quaternion_index must be initialized. (see is_quaternion_in_state)");
+        if (!this->param.quaternion_idx) {
+            throw std::runtime_error("ALIPDDP: quaternion_idx must be initialized. (see is_quaternion_in_state)");
         }
         else {
             for(int k = 0; k < N; ++k) {
@@ -172,7 +172,7 @@ void ALIPDDP<Scalar>::initialRoll() {
     if (ocp.getDimCT()) {CT = ocp.cT(X[N]);}
     if (ocp.getDimECT()) {ECT = ocp.ecT(X[N]);}
     
-    cost = calculateTotalCost(X, U);
+    cost = calcTotalCost(X, U);
 }
 
 template <typename Scalar>
@@ -235,7 +235,7 @@ void ALIPDDP<Scalar>::resetRegulation() {
 }
 
 template <typename Scalar>
-double ALIPDDP<Scalar>::calculateTotalCost(const std::vector<Eigen::VectorXd>& X, const std::vector<Eigen::VectorXd>& U) {
+double ALIPDDP<Scalar>::calcTotalCost(const std::vector<Eigen::VectorXd>& X, const std::vector<Eigen::VectorXd>& U) {
     double cost = 0.0;
     for (int k = 0; k < N; ++k) {
         cost += ocp.q(k, X[k], U[k]);
@@ -271,7 +271,7 @@ void ALIPDDP<Scalar>::solve() {
             if (param.max_iter < ++iter) {break;}
 
             if (!is_diff_calculated) {
-                this->calculateAllDiff();
+                this->calcAllDiff();
                 is_diff_calculated = true;
             }
 
@@ -368,7 +368,7 @@ void ALIPDDP<Scalar>::solve() {
 }
 
 template <typename Scalar>
-void ALIPDDP<Scalar>::calculateAllDiff() {
+void ALIPDDP<Scalar>::calcAllDiff() {
     // CHECK: Multithreading (TODO: with CUDA)
     // CHECK 1: Making branch in for loop is fine for parallelization?
     // CHECK 2: Move to Model to make solver only consider Eigen (not autodiff::dual)
@@ -832,18 +832,28 @@ void ALIPDDP<Scalar>::checkRegulate() {
 }
 
 template <typename Scalar>
-Eigen::VectorXd ALIPDDP<Scalar>::perturb(const Eigen::VectorXd& xn, const Eigen::VectorXd& x) {
-    // if (this->param.is_quaternion_in_state) {
-    //     // Eigen::VectorXd dx(dim_rn);
-    //     // Eigen::VectorXd q_qn = Lq(x.segment(q_idx, q_dim)).cast<double>().transpose() * xn.segment(q_idx, q_dim);
-    //     // dx << xn.segment(0,q_idx) - x.segment(0,q_idx),
-    //     //     q_qn.segment(1,3)/q_qn(0);
-    //     // return dx;
-    // }
-    // else {
-    //     return xn - x;
-    // } 
-    return xn - x;
+Eigen::VectorXd ALIPDDP<Scalar>::perturb(const int& k, const Eigen::VectorXd& xn, const Eigen::VectorXd& x) {
+    if (this->param.is_quaternion_in_state) {
+        Eigen::VectorXd dx;
+        // Eigen::VectorXd dx(dim_rn[k]);
+        if (k == N) {dx.resize(dim_rnT);}
+        else {dx.resize(dim_rn[k]);}
+
+        const Eigen::Vector4d& q = x.segment(param.quaternion_idx, param.quaternion_dim);
+        const Eigen::Vector4d& qn = xn.segment(param.quaternion_idx, param.quaternion_dim);
+    
+        Eigen::Vector4d q_rel = quaternion_helper::Lq(q).transpose() * qn;
+
+        dx.head(param.quaternion_idx) = xn.head(param.quaternion_idx) - x.head(param.quaternion_idx);
+        dx.segment(param.quaternion_idx, 3) = q_rel.segment(1,3) / q_rel(0);
+        const int tail_len = dim_rn[k] - (param.quaternion_idx + param.quaternion_dim);
+        dx.tail(tail_len) = xn.tail(tail_len) - x.tail(tail_len);
+        
+        return dx;
+    }
+    else {
+        return xn - x;
+    }
 }
 
 template <typename Scalar>
@@ -896,7 +906,7 @@ void ALIPDDP<Scalar>::forwardPass() {
 
         X_new[0] = X[0];
         for (int k = 0; k < N; ++k) {
-            dx = perturb(X_new[k], X[k]);
+            dx = perturb(k, X_new[k], X[k]);
             U_new[k] = U[k] + (step_size * ku[k]) + Ku[k] * dx;
             X_new[k+1] = ocp.f(k, X_new[k], U_new[k]);
             if (is_c_active[k]) {
@@ -929,7 +939,7 @@ void ALIPDDP<Scalar>::forwardPass() {
         }
         if (forward_failed) {continue;}
         
-        dxT = perturb(X_new[N], X[N]);
+        dxT = perturb(N, X_new[N], X[N]);
         if (is_cT_active) {
             ST_new = ST + (step_size * ksT) + KsT * dxT;
             YT_new = YT + (step_size * kyT) + KyT * dxT;
@@ -981,7 +991,7 @@ void ALIPDDP<Scalar>::forwardPass() {
         barriercostT_new = 0.0;
         alcost_new = 0.0;
         alcostT_new = 0.0;
-        cost_new = calculateTotalCost(X_new, U_new);
+        cost_new = calcTotalCost(X_new, U_new);
 
         for (int k = 0; k < N; ++k) {
             const int dim_g = ocp.getDimG(k);

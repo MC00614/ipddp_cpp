@@ -66,7 +66,7 @@ private:
     Eigen::VectorXd lambdaT;
     std::vector<int> dim_rn;
     int dim_rnT;
-    Eigen::VectorXd perturb(const Eigen::VectorXd& xn, const Eigen::VectorXd& x);
+    Eigen::VectorXd perturb(const int& k, const Eigen::VectorXd& xn, const Eigen::VectorXd& x);
     
     double cost;
     Param param;
