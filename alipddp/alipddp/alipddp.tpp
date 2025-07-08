@@ -440,8 +440,6 @@ void ALIPDDP<Scalar>::calcAllDiff() {
     else {
         Eigen::MatrixXd E;
         quaternion_helper::calcE(E, xT, param.quaternion_idx, dim_rnT);
-        Eigen::MatrixXd EE;
-        quaternion_helper::calcEE(EE, xT, param.quaternion_idx, dim_rnT);
         Eigen::MatrixXd Id;
         Eigen::VectorXd px = ocp.px(xT);
         double px_q = px.segment(param.quaternion_idx, 4).transpose() * xT.segment(param.quaternion_idx, 4);
