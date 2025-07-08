@@ -1,5 +1,5 @@
 #include "optimal_control_problem.h"
-#include "alipddp.h"
+#include "alipddp/alipddp.h"
 
 #include <cmath>
 #include <chrono>

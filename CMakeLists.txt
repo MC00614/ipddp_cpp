@@ -10,12 +10,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(INCLUDE_DIRS
     ${CMAKE_SOURCE_DIR}/alipddp/
+    ${CMAKE_SOURCE_DIR}/problem_maker/
     ${CMAKE_SOURCE_DIR}/eigen/
     ${CMAKE_SOURCE_DIR}/matplotlib-cpp/
-    ${CMAKE_SOURCE_DIR}/autodiff/
     ${Python3_INCLUDE_DIRS}
-    ${CMAKE_SOURCE_DIR}/example/model/
-    ${CMAKE_SOURCE_DIR}/problem_maker/
 )
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -26,28 +24,18 @@ else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 endif()
 
-# # Main Executable
-# add_executable(${PROJECT_NAME} example/main.cpp)
-# target_include_directories(${PROJECT_NAME} PRIVATE ${INCLUDE_DIRS})
-# target_compile_options(${PROJECT_NAME} PRIVATE -O3)
-# target_link_libraries(${PROJECT_NAME} PRIVATE ${Python3_LIBRARIES})
-# # target_link_libraries(${PROJECT_NAME} PRIVATE ${Python3_LIBRARIES} OpenMP::OpenMP_CXX)
+
+add_library(alipddp STATIC alipddp/alipddp/alipddp.cpp)
+target_include_directories(alipddp PRIVATE ${INCLUDE_DIRS})
 
 # # Examples
 # if (BUILD_EXAMPLE)
-#     foreach(EXAMPLE rocket2d rocket3d point3d drone3d rpo)
-#         add_executable(${EXAMPLE} example/${EXAMPLE}.cpp)
-#         target_include_directories(${EXAMPLE} PRIVATE ${INCLUDE_DIRS})
-#         target_compile_options(${EXAMPLE} PRIVATE -O3)
-#         target_link_libraries(${EXAMPLE} PRIVATE ${Python3_LIBRARIES})
-#     endforeach()
-# endif()
-
 foreach(EXAMPLE rocket_2d
                 point_mass_3d_basic
                 point_mass_3d_simple)
     add_executable(${EXAMPLE} problem_examples/${EXAMPLE}.cpp)
     target_include_directories(${EXAMPLE} PRIVATE ${INCLUDE_DIRS})
     target_compile_options(${EXAMPLE} PRIVATE -O3)
-    target_link_libraries(${EXAMPLE} PRIVATE ${Python3_LIBRARIES})
+    target_link_libraries(${EXAMPLE} PRIVATE ${Python3_LIBRARIES} alipddp)
 endforeach()
+# endif()
