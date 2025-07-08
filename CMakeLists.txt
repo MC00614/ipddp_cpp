@@ -24,8 +24,8 @@ else()
 endif()
 
 
-add_library(alipddp STATIC alipddp/alipddp/alipddp.cpp)
-target_include_directories(alipddp PRIVATE ${INCLUDE_DIRS})
+add_library(alipddp_library STATIC alipddp/alipddp/alipddp.cpp)
+target_include_directories(alipddp_library PRIVATE ${INCLUDE_DIRS})
 
 # # Examples
 # if (BUILD_EXAMPLE)
@@ -39,6 +39,16 @@ foreach(EXAMPLE
     add_executable(${EXAMPLE} problem_examples/${EXAMPLE}.cpp)
     target_include_directories(${EXAMPLE} PRIVATE ${INCLUDE_DIRS})
     target_compile_options(${EXAMPLE} PRIVATE -O3)
-    target_link_libraries(${EXAMPLE} PRIVATE ${Python3_LIBRARIES} alipddp)
+    target_link_libraries(${EXAMPLE} PRIVATE ${Python3_LIBRARIES} alipddp_library)
 endforeach()
 # endif()
+
+option(BUILD_PYTHON_BINDINGS "Build Python bindings using pybind11" ON)
+if(BUILD_PYTHON_BINDINGS)
+    find_package(pybind11 QUIET)
+    if (pybind11_FOUND)
+        add_subdirectory(bindings)
+    else()
+        message(STATUS "pybind11 not found, skipping Python bindings.")
+    endif()
+endif()
