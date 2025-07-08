@@ -4,14 +4,16 @@
 #include <cmath>
 #include <chrono>
 
+#define m_scale 30000.0
+#define r_scale 559.016994375
+
 // Dynamics
 template <typename Scalar>
-class Rocket3D : public DiscreteDynamicsBase<Scalar> {
+class ScaledRocket3D : public DiscreteDynamicsBase<Scalar> {
 public:
-    Scalar r = 0.4;
-    Scalar l = 1.4;
-    Scalar dt = 0.1;
-    Scalar mass = 10.0;
+    Scalar m_wet = m_scale;
+    Scalar m_dry = 22000.0;
+    Scalar alpha_m = 1.0 / (282.0 * 9.81);
     Eigen::Vector3d gravity;
     Eigen::Matrix3d J_B;
     Eigen::Matrix3d J_B_inv;
@@ -19,22 +21,19 @@ public:
     Eigen::Matrix<Scalar, 3, 3> skew_L;
     Eigen::Matrix4d dL_dq[4];
     
-    Rocket3D() {
-        this->dim_x = 13;
+    ScaledRocket3D() {
+        this->dim_x = 14;
         this->dim_u = 3;
-        this->dt = dt;
+        this->dt = 0.1;
 
         gravity << 0.0, 0.0, -9.81;
 
-        J_B << (1.0/12.0) * mass * (3 * r * r + l * l), 0, 0,
-               0, (1.0/12.0) * mass * (3 * r * r + l * l), 0,
-               0, 0, 0.5 * mass * r * r;
-        J_B_inv = J_B.inverse();
-
-        L_thrust << 0, 0, -l / 2;
-
-        skew_L = skewSymmetric(L_thrust);
-
+        J_B << 4000000., 0, 0,
+                0, 4000000.0, 0,
+                0, 0, 100000.0;
+                
+        L_thrust << 0, 0, -14.0;
+                
         dL_dq[0] << 1, 0, 0, 0,
                     0, 1, 0, 0,
                     0, 0, 1, 0,
@@ -55,6 +54,16 @@ public:
                     0, -1, 0, 0,
                     1, 0, 0, 0;
 
+        alpha_m *= r_scale;
+        L_thrust /= r_scale;
+        gravity /= r_scale;
+        J_B /= (m_scale * (r_scale * r_scale));
+        J_B_inv = J_B.inverse();
+        m_wet /= m_scale;
+        m_dry /= m_scale;
+
+        J_B_inv = J_B.inverse();
+        skew_L = skewSymmetric(L_thrust);
     }
 
     static inline Eigen::Matrix<Scalar, 4, 1> Phi(const Eigen::Matrix<Scalar, 3, 1>& w_dt) {
@@ -92,10 +101,11 @@ public:
     Vector<Scalar> f(const Vector<Scalar>& x, const Vector<Scalar>& u) const override {
         Vector<Scalar> x_n(this->dim_x);
 
-        Eigen::Vector3d r = x.segment(0, 3);
-        Eigen::Vector3d v = x.segment(3, 3);
-        Eigen::Vector3d w = x.segment(6, 3);
-        Eigen::Vector4d q = x.segment(9, 4);
+        Scalar m = x(0);
+        Eigen::Vector3d r = x.segment(1, 3);
+        Eigen::Vector3d v = x.segment(4, 3);
+        Eigen::Vector3d w = x.segment(7, 3);
+        Eigen::Vector4d q = x.segment(10, 4);
 
         Eigen::Vector3d u_ = u;
 
@@ -107,15 +117,16 @@ public:
                   w(1), -w(2),  0,     w(0),
                   w(2),  w(1), -w(0),  0;
 
-        x_n.segment(0, 3) = r + this->dt * v;
-        x_n.segment(3, 3) = v + this->dt * (gravity + (C * u) / mass);
-        x_n.segment(6, 3) = w + this->dt * (J_B_inv * (L_thrust.cross(u_) - w.cross(J_B * w)));
+        x_n(0) = m + this->dt * (- alpha_m * u.norm());
+        x_n.segment(1, 3) = r + this->dt * v;
+        x_n.segment(4, 3) = v + this->dt * (gravity + (C * u) / m);
+        x_n.segment(7, 3) = w + this->dt * (J_B_inv * (L_thrust.cross(u_) - w.cross(J_B * w)));
 
         Eigen::Matrix<Scalar, 4, 4> L = calcL(q);
 
         Eigen::Matrix<Scalar, 4, 1> q_next = L * Phi(w * this->dt / 2.0);
         q_next.normalize();
-        x_n.segment(9, 4) = q_next;
+        x_n.segment(10, 4) = q_next;
 
         return x_n;
     }
@@ -123,17 +134,18 @@ public:
     Matrix<Scalar> fx(const Vector<Scalar>& x, const Vector<Scalar>& u) const override {
         Matrix<Scalar> Fx = Matrix<Scalar>::Identity(this->dim_x, this->dim_x);
 
-        Eigen::Vector3d r = x.segment(0, 3);
-        Eigen::Vector3d v = x.segment(3, 3);
-        Eigen::Vector3d w = x.segment(6, 3);
-        Eigen::Vector4d q = x.segment(9, 4);
+        Scalar m = x(0);
+        Eigen::Vector3d r = x.segment(1, 3);
+        Eigen::Vector3d v = x.segment(4, 3);
+        Eigen::Vector3d w = x.segment(7, 3);
+        Eigen::Vector4d q = x.segment(10, 4);
 
-        Fx.block(0, 3, 3, 3).setIdentity();
-        Fx.block(0, 3, 3, 3) *= this->dt;
+        Fx.block(1, 4, 3, 3).setIdentity();
+        Fx.block(1, 4, 3, 3) *= this->dt;
 
         Eigen::Matrix<Scalar, 3, 3> Jw_cross = skewSymmetric(J_B * w);
         Eigen::Matrix<Scalar, 3, 3> w_cross = skewSymmetric(w);
-        Fx.block(6, 6, 3, 3) += this->dt * J_B_inv * (Jw_cross - w_cross * J_B);
+        Fx.block(7, 7, 3, 3) += this->dt * J_B_inv * (Jw_cross - w_cross * J_B);
 
         Eigen::Matrix<Scalar, 3, 3> dCdq0, dCdq1, dCdq2, dCdq3;
         dCdq0 << 0, -2 * q(3),  2 * q(2),
@@ -148,11 +160,13 @@ public:
         dCdq3 << -4 * q(3), -2 * q(0), 2 * q(1),
                 2 * q(0), -4 * q(3), 2 * q(2),
                 2 * q(1), 2 * q(2), 0;
-        Fx.block(3, 9, 3, 1) = this->dt * dCdq0 * u / mass;
-        Fx.block(3, 10, 3, 1) = this->dt * dCdq1 * u / mass;
-        Fx.block(3, 11, 3, 1) = this->dt * dCdq2 * u / mass;
-        Fx.block(3, 12, 3, 1) = this->dt * dCdq3 * u / mass;
+        Fx.block(4, 10, 3, 1) = this->dt * dCdq0 * u / m;
+        Fx.block(4, 11, 3, 1) = this->dt * dCdq1 * u / m;
+        Fx.block(4, 12, 3, 1) = this->dt * dCdq2 * u / m;
+        Fx.block(4, 13, 3, 1) = this->dt * dCdq3 * u / m;
 
+        Eigen::Matrix<Scalar, 3, 3> C = calcC(q);
+        Fx.block(4, 0, 3, 1) = - this->dt * (C * u) / (m * m);
 
         Eigen::Matrix<Scalar,3,3> I = Eigen::Matrix<Scalar,3,3>::Identity();
         Scalar w2 = w.squaredNorm();
@@ -164,11 +178,11 @@ public:
         dphi_dw.block(1,0,3,3) = dphi_dt_w;
 
         Eigen::Matrix<Scalar,4,4> L = calcL(q);
-        Fx.block(9,6,4,3) = L * dphi_dw;
+        Fx.block(10,7,4,3) = L * dphi_dw;
 
         Eigen::Matrix<Scalar, 4, 1> phi = Phi(w * this->dt / 2.0);
         for (int i = 0; i < 4; ++i) {
-            Fx.block(9, 9 + i, 4, 1) = dL_dq[i] * phi;
+            Fx.block(10, 10 + i, 4, 1) = dL_dq[i] * phi;
         }
 
         return Fx;
@@ -177,13 +191,16 @@ public:
     Matrix<Scalar> fu(const Vector<Scalar>& x, const Vector<Scalar>& u) const override {
         Matrix<Scalar> Fu = Matrix<Scalar>::Zero(this->dim_x, this->dim_u);
 
-        Eigen::Vector4d q = x.segment(9, 4);
+        Scalar m = x(0);
+        Eigen::Vector4d q = x.segment(10, 4);
+
+        Fu.block(0, 0, 1, 3) = - this->dt * alpha_m * u.transpose() / u.norm();
 
         Eigen::Matrix<Scalar, 3, 3> C = calcC(q);
 
-        Fu.block(3, 0, 3, 3) = this->dt * C / mass;
+        Fu.block(4, 0, 3, 3) = this->dt * C / m;
 
-        Fu.block(6, 0, 3, 3) = this->dt * J_B_inv * skew_L;
+        Fu.block(7, 0, 3, 3) = this->dt * J_B_inv * skew_L;
 
         return Fu;
     }
@@ -228,22 +245,22 @@ public:
 int main() {
     using Scalar = double;
 
-    int N = 200;
+    int N = 30;
     OptimalControlProblem<Scalar> problem(N);
 
 
-    problem.setStageDynamics(std::make_shared<Rocket3D<Scalar>>());
+    problem.setStageDynamics(std::make_shared<ScaledRocket3D<Scalar>>());
 
     Scalar Q = 0.0;
-    Scalar R = 1e-3;
+    Scalar R = 1e-6;
     problem.setStageCost(std::make_shared<ScalarQuadraticStageCost<Scalar>>(Q, R));
     Scalar QT = 0.0;
     problem.setTerminalCost(std::make_shared<ScalarQuadraticTerminalCost<Scalar>>(QT));
 
 
-    Matrix<Scalar> inputcone_cx = Matrix<Scalar>::Zero(3, 13);
+    Matrix<Scalar> inputcone_cx = Matrix<Scalar>::Zero(3, 14);
     Matrix<Scalar> inputcone_cu = Matrix<Scalar>::Zero(3, 3);
-    inputcone_cu(0, 2) = - std::tan(20.0 * M_PI / 180.0);
+    inputcone_cu(0, 2) = - std::tan(7.0 * M_PI / 180.0);
     inputcone_cu(1, 0) = - 1.0;
     inputcone_cu(2, 1) = - 1.0;
     auto inputcone_c0 = Vector<Scalar>::Zero(3);
@@ -251,45 +268,53 @@ int main() {
         inputcone_cx, inputcone_cu, inputcone_c0, ConstraintType::SOC));
 
     
-    Matrix<Scalar> glideslope_cx = Matrix<Scalar>::Zero(3, 13);
-    glideslope_cx(0, 2) = - std::tan(45.0 * M_PI / 180.0);
-    glideslope_cx(1, 0) = - 1.0;
-    glideslope_cx(2, 1) = - 1.0;
+    Matrix<Scalar> glideslope_cx = Matrix<Scalar>::Zero(3, 14);
+    glideslope_cx(0, 3) = - std::tan(60.0 * M_PI / 180.0);
+    glideslope_cx(1, 1) = - 1.0;
+    glideslope_cx(2, 2) = - 1.0;
     Matrix<Scalar> glideslope_cu = Matrix<Scalar>::Zero(3, 3);
     auto glideslope_c0 = Vector<Scalar>::Zero(3);
     problem.addStageConstraint(std::make_shared<LinearStageConstraint<Scalar>>(
         glideslope_cx, glideslope_cu, glideslope_c0, ConstraintType::SOC));
 
 
-    problem.addStageConstraint(std::make_shared<MinMaxInput<Scalar>>());
+    // problem.addStageConstraint(std::make_shared<MinMaxInput<Scalar>>());
 
 
-    Matrix<Scalar> CT = Matrix<Scalar>::Identity(13,13);
-    Vector<Scalar> c0T = Vector<Scalar>::Zero(13);
-    c0T(2) = - 1.0;
-    c0T(9) = - 1.0;
-    problem.addTerminalConstraint(std::make_shared<LinearTerminalConstraint<Scalar>>(
-        CT, c0T, ConstraintType::EQ));
+    // Matrix<Scalar> CT = Matrix<Scalar>::Zero(13, 14);
+    // CT.block(0, 1, 13, 13).setIdentity();
+    // Vector<Scalar> c0T = Vector<Scalar>::Zero(13);
+    // c0T(2) = - 1.0;
+    // c0T(9) = - 1.0;
+    // c0T.segment(0, 6) /= r_scale;
+    // problem.addTerminalConstraint(std::make_shared<LinearTerminalConstraint<Scalar>>(
+    //     CT, c0T, ConstraintType::EQ));
 
 
-    Vector<Scalar> x0 = Vector<Scalar>::Zero(13);
-    x0(0) = 4.0;
-    x0(1) = 6.0;
-    x0(2) = 8.0;
+    Vector<Scalar> x0 = Vector<Scalar>::Zero(14);
+    x0(0) = 30000.0;
+    x0(1) = 150.0;
+    x0(2) = 200.0;
+    x0(3) = 500.0;
     // x0(3) = -2.0;
     // x0(4) = -2.5;
     // x0(5) = 3.0;
-    x0(9) = 1.0; // Quaternion
+    x0(10) = 1.0; // Quaternion
+    x0(0) /= m_scale;
+    x0.segment(1, 6) /= r_scale;
     problem.setInitialState(0, x0);
 
     Vector<Scalar> u0 = Vector<Scalar>::Zero(3);
-    u0(2) = 9.81 * 10.0;
+    u0(2) = 800000.0 * 0.7 / 2.0;
+    u0 /= (m_scale * r_scale);
     problem.setInitialControl(u0);
-
 
     Param param;
     param.is_quaternion_in_state = true;
-    param.quaternion_idx = 9; // Quaternion starts at index 9
+    param.quaternion_idx = 10; // Quaternion starts at index 10
+
+    param.rho_max = 1e8;
+    param.mu_min = 1e-8;
 
     clock_t start = clock();
     ALIPDDP<Scalar> solver(problem);
@@ -305,15 +330,24 @@ int main() {
     std::vector<Eigen::VectorXd> U_result = solver.getResU();
     std::vector<double> all_cost = solver.getAllCost();
 
-    std::cout << "X_result = " << std::endl;
     for (int k = 0; k < problem.getHorizon() + 1; ++k) {
-        std::cout << X_result[k].transpose() << std::endl;
+        X_result[k](0) *= m_scale;
+        X_result[k].segment(1, 6) *= r_scale;
     }
 
-    std::cout << "U_result = " << std::endl;
     for (int k = 0; k < problem.getHorizon(); ++k) {
-        std::cout << U_result[k].transpose() << std::endl;
+        U_result[k] *= (m_scale * r_scale);
     }
+
+    // std::cout << "X_result = " << std::endl;
+    // for (int k = 0; k < problem.getHorizon() + 1; ++k) {
+    //     std::cout << X_result[k].transpose() << std::endl;
+    // }
+
+    // std::cout << "U_result = " << std::endl;
+    // for (int k = 0; k < problem.getHorizon(); ++k) {
+    //     std::cout << U_result[k].transpose() << std::endl;
+    // }
 
     std::cout<<"X_last = \n"<<X_result[problem.getHorizon()].transpose()<<std::endl;
     std::cout<<"U_last = \n"<<U_result[problem.getHorizon() - 1].transpose()<<std::endl;
