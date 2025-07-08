@@ -139,14 +139,14 @@ private:
 template <typename Scalar>
 class MaxInput : public StageConstraintBase<Scalar> {
 private:
-    double umax;
+    Scalar umax;
 
 public:
     MaxInput() {
         this->constraint_type = ConstraintType::NO;
         this->dim_c = 1;
 
-        double gravity = 9.81;
+        Scalar gravity = 9.81;
         umax = gravity * 1.5;
     }
 
@@ -170,7 +170,7 @@ public:
 template <typename Scalar>
 class InputConeConstraint : public StageConstraintBase<Scalar> {
 private:
-    const double input_angmax = std::tan(20.0 * M_PI / 180.0);
+    const Scalar input_angmax = std::tan(20.0 * M_PI / 180.0);
 
 public:
     InputConeConstraint() {
@@ -202,7 +202,7 @@ public:
 template <typename Scalar>
 class GlideSlopeConeConstraint : public StageConstraintBase<Scalar> {
 private:
-    const double glideslope_angmax = std::tan(45.0 * M_PI / 180.0);
+    const Scalar glideslope_angmax = std::tan(45.0 * M_PI / 180.0);
 
 public:
     GlideSlopeConeConstraint() {

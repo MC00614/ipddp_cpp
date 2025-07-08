@@ -57,14 +57,14 @@ private:
 template <typename Scalar>
 class MaxInput : public StageConstraintBase<Scalar> {
 private:
-    double umax;
+    Scalar umax;
 
 public:
     MaxInput() {
         this->constraint_type = ConstraintType::NO;
         this->dim_c = 1;
 
-        double gravity = 9.81;
+        Scalar gravity = 9.81;
         umax = gravity * 1.5;
     }
 
@@ -94,7 +94,7 @@ int main() {
 
     Matrix<Scalar> A = Matrix<Scalar>::Zero(6,6);
     Matrix<Scalar> B = Matrix<Scalar>::Zero(6,3);
-    double dt = 0.1;
+    Scalar dt = 0.1;
     A.block(0,0,3,3) = Matrix<Scalar>::Identity(3,3);
     A.block(0,3,3,3) = dt * Matrix<Scalar>::Identity(3,3);
     A.block(3,3,3,3) = Matrix<Scalar>::Identity(3,3);
@@ -117,25 +117,25 @@ int main() {
     problem.setTerminalCost(terminal_cost);
 
 
-    Matrix<double> glideslope_cx = Matrix<double>::Zero(3, 6);
+    Matrix<Scalar> glideslope_cx = Matrix<Scalar>::Zero(3, 6);
     glideslope_cx(0, 2) = - std::tan(45.0 * M_PI / 180.0);
     glideslope_cx(1, 0) = - 1.0;
     glideslope_cx(2, 1) = - 1.0;
-    Matrix<double> glideslope_cu = Matrix<double>::Zero(3, 3);
-    auto glideslope_c0 = Vector<double>::Zero(3);
-    auto glide_slope_constraint = std::make_shared<LinearStageConstraint<double>>(
+    Matrix<Scalar> glideslope_cu = Matrix<Scalar>::Zero(3, 3);
+    auto glideslope_c0 = Vector<Scalar>::Zero(3);
+    auto glide_slope_constraint = std::make_shared<LinearStageConstraint<Scalar>>(
         glideslope_cx, glideslope_cu, glideslope_c0, ConstraintType::SOC
     );
     problem.addStageConstraint(glide_slope_constraint);
 
 
-    Matrix<double> inputcone_cx = Matrix<double>::Zero(3, 6);
-    Matrix<double> inputcone_cu = Matrix<double>::Zero(3, 3);
+    Matrix<Scalar> inputcone_cx = Matrix<Scalar>::Zero(3, 6);
+    Matrix<Scalar> inputcone_cu = Matrix<Scalar>::Zero(3, 3);
     inputcone_cu(0, 2) = - std::tan(20.0 * M_PI / 180.0);
     inputcone_cu(1, 0) = - 1.0;
     inputcone_cu(2, 1) = - 1.0;
-    auto inputcone_c0 = Vector<double>::Zero(3);
-    auto input_cone_constraint = std::make_shared<LinearStageConstraint<double>>(
+    auto inputcone_c0 = Vector<Scalar>::Zero(3);
+    auto input_cone_constraint = std::make_shared<LinearStageConstraint<Scalar>>(
         inputcone_cx, inputcone_cu, inputcone_c0, ConstraintType::SOC
     );
     problem.addStageConstraint(input_cone_constraint);
