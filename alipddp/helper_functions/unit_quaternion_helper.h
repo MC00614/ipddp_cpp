@@ -2,8 +2,6 @@
 
 #include <Eigen/Dense>
 
-
-
 namespace quaternion_helper
 {
 
@@ -21,7 +19,6 @@ inline const Eigen::Matrix<double, 4, 3>& getH() {
 inline Eigen::Vector4d Phi(Eigen::Vector3d w) {
     Eigen::Vector4d phi;
     phi << 1, w;
-    // phi.normalize();
     phi /= sqrt(1 + w.squaredNorm());
     return phi;
 }
