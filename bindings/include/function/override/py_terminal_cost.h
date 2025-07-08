@@ -1,6 +1,9 @@
 #pragma once
 
+#include "cost/scalar_quadratic_terminal_cost.h"
+#include "cost/quadratic_terminal_cost.h"
 #include "cost/terminal_cost_base.h"
+
 #include <pybind11/pybind11.h>
 
 class PyTerminalCost : public TerminalCostBase<double> {

@@ -1,6 +1,6 @@
-#include <pybind11/pybind11.h>
-#include "param.h"
 #include "solver/bind_param.h"
+
+#include <pybind11/pybind11.h>
 
 namespace py = pybind11;
 

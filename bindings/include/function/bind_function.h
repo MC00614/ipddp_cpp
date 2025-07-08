@@ -1,5 +1,8 @@
 #pragma once
 
+#include <pybind11/eigen.h>
+#include <pybind11/stl.h>
+
 #include "function/override/py_dynamics.h"
 #include "function/override/py_stage_constraint.h"
 #include "function/override/py_stage_cost.h"

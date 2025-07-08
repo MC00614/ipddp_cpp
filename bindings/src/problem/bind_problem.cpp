@@ -1,8 +1,4 @@
 #include "problem/bind_problem.h"
-#include "optimal_control_problem.h"
-
-#include <pybind11/eigen.h>
-#include <pybind11/stl.h>
 
 void bindProblem(py::module& m) {
     py::class_<OptimalControlProblem<double>>(m, "OptimalControlProblem")

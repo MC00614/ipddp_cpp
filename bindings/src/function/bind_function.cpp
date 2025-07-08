@@ -1,9 +1,5 @@
 #include "function/bind_function.h"
-#include "optimal_control_problem.h"
 
-
-#include <pybind11/stl.h>
-#include <pybind11/eigen.h>
 
 void bindFunction(py::module& m) {
     // Dynamics

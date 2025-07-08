@@ -23,12 +23,11 @@ else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 endif()
 
-
 add_library(alipddp_library STATIC alipddp/alipddp/alipddp.cpp)
 target_include_directories(alipddp_library PRIVATE ${INCLUDE_DIRS})
 
-# # Examples
-# if (BUILD_EXAMPLE)
+option(BUILD_EXAMPLE "Build example binaries" OFF)
+if (BUILD_EXAMPLE)
 foreach(EXAMPLE
     rocket_3d
     rocket_2d
@@ -41,12 +40,17 @@ foreach(EXAMPLE
     target_compile_options(${EXAMPLE} PRIVATE -O3)
     target_link_libraries(${EXAMPLE} PRIVATE ${Python3_LIBRARIES} alipddp_library)
 endforeach()
-# endif()
+endif()
 
 option(BUILD_PYTHON_BINDINGS "Build Python bindings using pybind11" OFF)
 if(BUILD_PYTHON_BINDINGS)
     find_package(pybind11 QUIET)
     if (pybind11_FOUND)
+        message(STATUS "Found system pybind11: using installed version.")
+        add_subdirectory(bindings)
+    elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/pybind11/CMakeLists.txt")
+        message(STATUS "Using local pybind11 subdirectory.")
+        add_subdirectory(pybind11)
         add_subdirectory(bindings)
     else()
         message(STATUS "pybind11 not found, skipping Python bindings.")

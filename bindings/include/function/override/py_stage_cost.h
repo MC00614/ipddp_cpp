@@ -1,5 +1,9 @@
 #pragma once
+
+#include "cost/scalar_quadratic_stage_cost.h"
+#include "cost/quadratic_stage_cost.h"
 #include "cost/stage_cost_base.h"
+
 #include <pybind11/pybind11.h>
 
 class PyStageCost : public StageCostBase<double> {

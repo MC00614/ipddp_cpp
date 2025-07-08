@@ -7,3 +7,4 @@ autodiff/
 matplotlib-cpp/
 # matplotlibcpp/
 visual/
+pybind11/

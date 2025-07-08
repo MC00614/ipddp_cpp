@@ -1,6 +1,8 @@
 #pragma once
 
+#include "constraint/linear_terminal_constraint.h"
 #include "constraint/terminal_constraint_base.h"
+
 #include <pybind11/pybind11.h>
 
 class PyTerminalConstraint : public TerminalConstraintBase<double> {

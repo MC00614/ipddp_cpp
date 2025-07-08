@@ -1,6 +1,8 @@
 #pragma once
 
+#include "constraint/linear_stage_constraint.h"
 #include "constraint/stage_constraint_base.h"
+
 #include <pybind11/pybind11.h>
 
 class PyStageConstraint : public StageConstraintBase<double> {

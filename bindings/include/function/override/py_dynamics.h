@@ -1,5 +1,8 @@
 #pragma once
+
+#include "dynamics/linear_discrete_dynamics.h"
 #include "dynamics/discrete_dynamics_base.h"
+
 #include <pybind11/pybind11.h>
 
 template <typename Scalar>
