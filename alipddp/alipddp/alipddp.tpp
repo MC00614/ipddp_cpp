@@ -374,7 +374,6 @@ void ALIPDDP<Scalar>::calcAllDiff() {
         const Eigen::VectorXd& u = U[k];
 
         // No Differentiation for u
-        fu_all[k] = ocp.fu(k, x, u);
         qu_all[k] = ocp.qu(k, x, u);
         quu_all[k] = ocp.quu(k, x, u);
 
@@ -387,6 +386,7 @@ void ALIPDDP<Scalar>::calcAllDiff() {
 
         if (!param.is_quaternion_in_state) {
             fx_all[k] = ocp.fx(k, x, u);
+            fu_all[k] = ocp.fu(k, x, u);
             qx_all[k] = ocp.qx(k, x, u);
             qxx_all[k] = ocp.qxx(k, x, u);
             qxu_all[k] = ocp.qxu(k, x, u);
@@ -399,18 +399,19 @@ void ALIPDDP<Scalar>::calcAllDiff() {
         }
         else {
             Eigen::MatrixXd E;
-            quaternion_helper::calcE(E, x, param.quaternion_idx);
+            quaternion_helper::calcE(E, x, param.quaternion_idx, dim_rn[k]);
 
             Eigen::MatrixXd EE;
             const Eigen::VectorXd xn = X[k+1];
-            quaternion_helper::calcEE(EE, xn, param.quaternion_idx);
+            quaternion_helper::calcEE(EE, xn, param.quaternion_idx, dim_rn[k]);
 
             Eigen::MatrixXd Id;
             Eigen::VectorXd qx = ocp.qx(k, x, u);
             double qx_q = qx.segment(param.quaternion_idx, 4).transpose() * x.segment(param.quaternion_idx, 4);
-            quaternion_helper::Id(Id, param.quaternion_idx, dim_rn[k], qx_q);
+            quaternion_helper::Id(Id, qx_q, param.quaternion_idx, dim_rn[k]);
 
             fx_all[k] = EE.transpose() * ocp.fx(k, x, u) * E;
+            fu_all[k] = EE.transpose() * ocp.fu(k, x, u);
 
             qx_all[k] = E.transpose() * qx;
             qxx_all[k] = E.transpose() * ocp.qxx(k, x, u) * E - Id;
@@ -438,13 +439,13 @@ void ALIPDDP<Scalar>::calcAllDiff() {
     }
     else {
         Eigen::MatrixXd E;
-        quaternion_helper::calcE(E, xT, param.quaternion_idx);
+        quaternion_helper::calcE(E, xT, param.quaternion_idx, dim_rnT);
         Eigen::MatrixXd EE;
-        quaternion_helper::calcEE(EE, xT, param.quaternion_idx);
+        quaternion_helper::calcEE(EE, xT, param.quaternion_idx, dim_rnT);
         Eigen::MatrixXd Id;
         Eigen::VectorXd px = ocp.px(xT);
         double px_q = px.segment(param.quaternion_idx, 4).transpose() * xT.segment(param.quaternion_idx, 4);
-        quaternion_helper::Id(Id, param.quaternion_idx, dim_rnT, px_q);
+        quaternion_helper::Id(Id, px_q, param.quaternion_idx, dim_rnT);
         px_all = E.transpose() * px;
         pxx_all = E.transpose() * ocp.pxx(xT) * E - Id;
         if (ocp.getDimCT()) {

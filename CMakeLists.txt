@@ -30,9 +30,12 @@ target_include_directories(alipddp PRIVATE ${INCLUDE_DIRS})
 
 # # Examples
 # if (BUILD_EXAMPLE)
-foreach(EXAMPLE rocket_2d
-                point_mass_3d_basic
-                point_mass_3d_simple)
+foreach(EXAMPLE 
+    # rocket_3d
+    rocket_2d
+    point_mass_3d_basic
+    point_mass_3d_simple
+)
     add_executable(${EXAMPLE} problem_examples/${EXAMPLE}.cpp)
     target_include_directories(${EXAMPLE} PRIVATE ${INCLUDE_DIRS})
     target_compile_options(${EXAMPLE} PRIVATE -O3)
