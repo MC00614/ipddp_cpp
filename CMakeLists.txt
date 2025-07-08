@@ -43,7 +43,7 @@ foreach(EXAMPLE
 endforeach()
 # endif()
 
-option(BUILD_PYTHON_BINDINGS "Build Python bindings using pybind11" ON)
+option(BUILD_PYTHON_BINDINGS "Build Python bindings using pybind11" OFF)
 if(BUILD_PYTHON_BINDINGS)
     find_package(pybind11 QUIET)
     if (pybind11_FOUND)

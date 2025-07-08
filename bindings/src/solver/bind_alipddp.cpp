@@ -7,12 +7,16 @@
 
 namespace py = pybind11;
 
+
 void bindALIPDDP(py::module& m) {
-    py::class_<ALIPDDP<double>>(m, "ALIPDDP")
-        .def(py::init<OptimalControlProblem<double>&>(), py::arg("ocp"))
-        .def("init", &ALIPDDP<double>::init)
-        .def("solve", &ALIPDDP<double>::solve)
-        .def("getResX", &ALIPDDP<double>::getResX)
-        .def("getResU", &ALIPDDP<double>::getResU)
-        .def("getAllCost", &ALIPDDP<double>::getAllCost);
+    using Solver = ALIPDDP<double>;
+
+    py::class_<Solver>(m, "ALIPDDP")
+        .def(py::init<OptimalControlProblem<double>&>(), py::arg("ocp"), py::keep_alive<1, 2>())
+        // .def(py::init<std::shared_ptr<OCP>>(), py::arg("ocp"))
+        .def("init", &Solver::init)
+        .def("solve", &Solver::solve)
+        .def("getResX", &Solver::getResX, py::return_value_policy::reference_internal)
+        .def("getResU", &Solver::getResU, py::return_value_policy::reference_internal)
+        .def("getAllCost", &Solver::getAllCost);
 }
