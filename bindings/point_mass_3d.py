@@ -17,18 +17,15 @@ class Obstacle(alipddp.StageConstraintBase):
         self.obs_rad = np.array([3.0, 2.0, 3.0])
 
     def c(self, x, u):
-        c_n = []
-        for i in range(3):
-            dist = np.linalg.norm(x[:3] - self.obs_cent[i])
-            c_n.append(-(dist - self.obs_rad[i]))
-        return np.array(c_n)
+        deltas = x[:3] - self.obs_cent
+        norms = np.linalg.norm(deltas, axis=1)
+        return -(norms - self.obs_rad)
 
     def cx(self, x, u):
+        deltas = x[:3] - self.obs_cent
+        norms = np.linalg.norm(deltas, axis=1)
         J = np.zeros((3, len(x)))
-        for i in range(3):
-            delta = x[:3] - self.obs_cent[i]
-            norm = np.linalg.norm(delta)
-            J[i, :3] = - (delta / norm)
+        J[:, :3] = -deltas / norms[:, np.newaxis]
         return J
 
     def cu(self, x, u):
@@ -99,6 +96,8 @@ def point_mass_3d():
     inputcone_constraint = alipddp.LinearStageConstraint(inputcone_cx, inputcone_cu, inputcone_c0, alipddp.ConstraintType.SOC)
     problem.addStageConstraint(inputcone_constraint)
 
+    # This provide user-defined of functions
+    # But, note that this cause performance issue of Python binding
     maxinput_constraint = MaxInput()
     problem.addStageConstraint(maxinput_constraint)
     obstacle_constraint = Obstacle()
