@@ -106,11 +106,11 @@ private:
     Eigen::MatrixXd cTx_all;
     Eigen::MatrixXd ecTx_all;
 
-    std::vector<Eigen::VectorXd> ku; // Input Feedforward Gain 
-    std::vector<Eigen::VectorXd> kr; // Equality Slack Feedforward Gain
-    std::vector<Eigen::VectorXd> kz; // Equality Lagrangian Multiplier Feedforward Gain
-    std::vector<Eigen::VectorXd> ks; // Inequality Slack Feedforward Gain
-    std::vector<Eigen::VectorXd> ky; // Inequality Lagrangian Multiplier Feedforward Gain
+    std::vector<Eigen::VectorXd> du; // Input Feedforward Gain 
+    std::vector<Eigen::VectorXd> dr; // Equality Slack Feedforward Gain
+    std::vector<Eigen::VectorXd> dz; // Equality Lagrangian Multiplier Feedforward Gain
+    std::vector<Eigen::VectorXd> ds; // Inequality Slack Feedforward Gain
+    std::vector<Eigen::VectorXd> dy; // Inequality Lagrangian Multiplier Feedforward Gain
     
     std::vector<Eigen::MatrixXd> Ku; // Input Feedback Gain
     std::vector<Eigen::MatrixXd> Kr; // Equality Slack Feedback Gain
@@ -118,13 +118,13 @@ private:
     std::vector<Eigen::MatrixXd> Ks; // Inequality Slack Feedback Gain
     std::vector<Eigen::MatrixXd> Ky; // Inequality Lagrangian Multiplier Feedback Gain
 
-    Eigen::VectorXd krT; // Equality Slack Feedforward Gain (Terminal)
-    Eigen::VectorXd kzT; // Equality Lagrangian Multiplier Feedforward Gain (Terminal)
+    Eigen::VectorXd drT; // Equality Slack Feedforward Gain (Terminal)
+    Eigen::VectorXd dzT; // Equality Lagrangian Multiplier Feedforward Gain (Terminal)
+    Eigen::VectorXd dsT; // Inequality Slack Feedforward Gain (Terminal)
+    Eigen::VectorXd dyT; // Inequality Lagrangian Multiplier Feedforward Gain (Terminal)
+
     Eigen::MatrixXd KrT; // Equality Slack Feedback Gain (Terminal)
     Eigen::MatrixXd KzT; // Equality Lagrangian Multiplier Feedback Gain (Terminal)
-
-    Eigen::VectorXd ksT; // Inequality Slack Feedforward Gain (Terminal)
-    Eigen::VectorXd kyT; // Inequality Lagrangian Multiplier Feedforward Gain (Terminal)
     Eigen::MatrixXd KsT; // Inequality Slack Feedback Gain (Terminal)
     Eigen::MatrixXd KyT; // Inequality Lagrangian Multiplier Feedback Gain (Terminal)
 
@@ -136,6 +136,8 @@ private:
     double opterror_rdT_ec;
     double opterror_rpT_c;
     double opterror_rdT_c;
+    double opterror_rp_ec;
+    double opterror_rd_ec;
     double opterror_rp_c;
     double opterror_rd_c;
     Eigen::VectorXd dV; // Expected Value Change
