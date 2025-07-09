@@ -1,6 +1,9 @@
 import numpy as np
 import time
 
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parents[2] / "build" / "bindings"))
 import alipddp
 
 class Obstacle(alipddp.StageConstraintBase):
