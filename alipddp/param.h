@@ -11,6 +11,7 @@ struct Param {
     double mu_exp = 1.2; // exponent for mu update
     double mu_min = 1e-6; // minimum mu (normally set as tolerance / 10)
     double rho = 1.0; // initial rho
+    double rhoT = rho; // initial rho
     double rho_mul = 10.0; // multiplier for rho update
     double rho_max = 1e+6; // maximum rho
     int max_step_iter = 10; // maximum iteration for forward pass

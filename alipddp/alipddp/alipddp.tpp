@@ -211,7 +211,7 @@ void ALIPDDP<Scalar>::resetFilter() {
         }
     }
     if (ocp.getDimECT()) {
-        alcostT += (lambdaT.transpose() * RT) + (0.5 * param.rho * RT.squaredNorm());
+        alcostT += (lambdaT.transpose() * RT) + (0.5 * param.rhoT * RT.squaredNorm());
     }
     logcost = cost - (param.mu * barriercost + param.muT * barriercostT) + (alcost + alcostT);
 
@@ -308,7 +308,7 @@ void ALIPDDP<Scalar>::solve() {
             if ((opterror <= std::max(10.0 * param.mu, param.tolerance))) {
                 break;
             }
-
+            
             {
                 // Seperate time frame?
                 // If then, consider active marker to be vector (like switch condition)
@@ -321,10 +321,17 @@ void ALIPDDP<Scalar>::solve() {
                     if (param.muT > param.mu_min) {updated = true;}
                     param.muT = std::max(param.mu_min, std::min(param.mu_mul * param.muT, std::pow(param.muT, param.mu_exp)));
                 }
-                if (is_ecT_active && opterror_rpT_ec < param.tolerance && opterror_rdT_ec < param.tolerance) {
+                if (is_ec_active_all && opterror_rp_ec < param.tolerance && opterror_rd_ec < param.tolerance) {
                     if (param.rho < param.rho_max) {updated = true;}
                     param.rho = std::min(param.rho_max, param.rho_mul * param.rho);
-                    lambdaT = lambdaT + param.rho * RT;
+                    for (int k = 0; k < N; ++k) {
+                        lambda[k] = lambda[k] + param.rho * R[k];
+                    }
+                }
+                if (is_ecT_active && opterror_rpT_ec < param.tolerance && opterror_rdT_ec < param.tolerance) {
+                    if (param.rhoT < param.rho_max) {updated = true;}
+                    param.rhoT = std::min(param.rho_max, param.rho_mul * param.rhoT);
+                    lambdaT = lambdaT + param.rhoT * RT;
                 }
                 if (updated) {
                     resetFilter();
@@ -346,11 +353,12 @@ void ALIPDDP<Scalar>::solve() {
         bool mu_stop = (param.mu <= param.mu_min);
         bool muT_stop = (param.muT <= param.mu_min);
         bool rho_stop = (param.rho >= param.rho_max);
+        bool rhoT_stop = (param.rhoT >= param.rho_max);
 
         bool c_done   = (!is_c_active_all || mu_stop);
         bool ec_done   = (!is_ec_active_all || rho_stop);
         bool cT_done  = (!is_cT_active || muT_stop);
-        bool ecT_done = (!is_ecT_active || rho_stop);
+        bool ecT_done = (!is_ecT_active || rhoT_stop);
       
         if (c_done && cT_done && ec_done && ecT_done) {
             std::cout << "Outer Max/Min" << std::endl;
@@ -359,9 +367,17 @@ void ALIPDDP<Scalar>::solve() {
 
         // Update Outer Loop Parameters
         if (is_c_active_all) {param.mu = std::max(param.mu_min, std::min(param.mu_mul * param.mu, std::pow(param.mu, param.mu_exp)));}
-        if (is_ec_active_all || is_ecT_active) {param.rho = std::min(param.rho_max, param.rho_mul * param.rho);}
         if (is_cT_active) {param.muT = std::max(param.mu_min, std::min(param.mu_mul * param.muT, std::pow(param.muT, param.mu_exp)));}
-        if (is_ecT_active) {lambdaT = lambdaT + param.rho * RT;}
+        if (is_ec_active_all) {
+            param.rho = std::min(param.rho_max, param.rho_mul * param.rho);
+            for (int k = 0; k < N; ++k) {
+                lambda[k] = lambda[k] + param.rho * R[k];
+            }
+        }
+        if (is_ecT_active) {
+            param.rhoT = std::min(param.rho_max, param.rho_mul * param.rhoT);
+            lambdaT = lambdaT + param.rhoT * RT;
+        }
         resetFilter();
         resetRegulation();
     }
@@ -578,12 +594,12 @@ void ALIPDDP<Scalar>::backwardPass() {
         Eigen::Ref<const Eigen::MatrixXd> QzxT = ecTx_all;
 
         Eigen::VectorXd rp_ecT = ECT + RT;
-        Eigen::VectorXd rd_ecT = ZT + lambdaT + (param.rho * RT);
+        Eigen::VectorXd rd_ecT = ZT + lambdaT + (param.rhoT * RT);
         
         drT = - rp_ecT;
         KrT = - QzxT;
-        dzT = param.rho * rp_ecT - rd_ecT;
-        KzT = param.rho * QzxT;
+        dzT = param.rhoT * rp_ecT - rd_ecT;
+        KzT = param.rhoT * QzxT;
 
         // CHECK: New Value Decrement
         // dV(0) += dzT.transpose() * ECT;
@@ -1111,7 +1127,7 @@ void ALIPDDP<Scalar>::forwardPass() {
             }
         }
         if (is_ecT_active) {
-            alcostT_new += lambdaT.transpose() * RT_new + 0.5 * param.rho * RT_new.squaredNorm();
+            alcostT_new += lambdaT.transpose() * RT_new + 0.5 * param.rhoT * RT_new.squaredNorm();
         }
         logcost_new = cost_new - (param.mu * barriercost_new + param.muT * barriercostT_new) + (alcost_new + alcostT_new);
         if (std::isnan(logcost_new)) {forward_failed = 5; continue;}
