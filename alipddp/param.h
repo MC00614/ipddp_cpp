@@ -30,7 +30,7 @@ struct Param {
     // int max_inertia_correction = 0; // maximum inertia correction for backward pass (0 = LLT: no correction)
     
     int max_step_iter = 10; // maximum iteration for forward pass
-    bool forward_early_termination = false; // early termination for forward pass
+    // bool forward_early_termination = false; // early termination for forward pass
     int forward_filter = 1; // filter selection for forward pass (0 = standard, 1 = combined)
     int forward_cost_threshold = 0.1; // cost threshold for forward pass
 

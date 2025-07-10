@@ -1007,11 +1007,11 @@ void ALIPDDP<Scalar>::forwardPass() {
 
         // dV_exp = -(step_size * dV(0) + step_size * step_size * dV(1));
         // CHECK: Using Expected Value Decrement -> For Early Termination
-        if (param.forward_early_termination) {
-            if (error <= param.tolerance && dV_exp > 0) {
-                forward_failed = 3; continue;
-            }
-        }
+        // if (param.forward_early_termination) {
+        //     if (error <= param.tolerance && dV_exp > 0) {
+        //         forward_failed = 3; continue;
+        //     }
+        // }
 
         X_new[0] = X[0];
         for (int k = 0; k < N; ++k) {
@@ -1149,16 +1149,16 @@ void ALIPDDP<Scalar>::forwardPass() {
             }
         }
 
-        if (param.forward_early_termination) {
-            if (error <= param.tolerance){
-                // if (dV_act < 0.0) {forward_failed = 2; continue;}
-                // if (dV_exp <= 0.0) {forward_failed = 3; continue;}
+        // if (param.forward_early_termination) {
+        //     if (error <= param.tolerance){
+        //         // if (dV_act < 0.0) {forward_failed = 2; continue;}
+        //         // if (dV_exp <= 0.0) {forward_failed = 3; continue;}
     
-                if (dV_exp >= 0.0) {
-                    if (!(1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp)) {forward_failed = 4; continue;}
-                }
-            }
-        }
+        //         if (dV_exp >= 0.0) {
+        //             if (!(1e-4 * dV_exp < dV_act && dV_act < 10 * dV_exp)) {forward_failed = 4; continue;}
+        //         }
+        //     }
+        // }
         
         if (!forward_failed) {break;}
     }
