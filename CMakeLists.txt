@@ -34,7 +34,7 @@ foreach(EXAMPLE
     rocket_2d
     point_mass_3d_basic
     point_mass_3d_simple
-    rocket_3d_scaled
+    # rocket_3d_scaled
 )
     add_executable(${EXAMPLE} problem_examples/${EXAMPLE}.cpp)
     target_include_directories(${EXAMPLE} PRIVATE ${INCLUDE_DIRS})
