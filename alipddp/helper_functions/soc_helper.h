@@ -72,8 +72,8 @@ inline void LinvArrow(Eigen::Ref<Eigen::MatrixXd> out,
     out(0,0) = a * s + b.dot(v);
     out.block(0,1,1,n).noalias() = (a * v + s * b).transpose();
     out.block(1,0,n,1).noalias() = s * b;
-    out.block(1,0,n,1).noalias() += C * v;
-    out.block(1,1,n,n) = s * C; 
+    out.block(1,0,n,1) += C * v;
+    out.block(1,1,n,n).noalias() = s * C;
     out.block(1,1,n,n) += b * v.transpose();
 }
 
