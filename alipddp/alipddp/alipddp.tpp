@@ -245,12 +245,12 @@ void ALIPDDP<Scalar>::resetRegulation() {
 
 template <typename Scalar>
 double ALIPDDP<Scalar>::calcTotalCost(const std::vector<Eigen::VectorXd>& X, const std::vector<Eigen::VectorXd>& U) {
-    double cost = 0.0;
+    double cost_ = 0.0;
     for (int k = 0; k < N; ++k) {
-        cost += ocp.q(k, X[k], U[k]);
+        cost_ += ocp.q(k, X[k], U[k]);
     }
-    cost += ocp.p(X[N]);
-    return cost;
+    cost_ += ocp.p(X[N]);
+    return cost_;
 }
 
 template <typename Scalar>
@@ -266,6 +266,7 @@ void ALIPDDP<Scalar>::solve() {
     << std::setw(7) << "mu"
     << std::setw(16) << "rho"
     << std::setw(25) << "LogCost"
+    << std::setw(16) << "Cost"
     << std::setw(22) << "OptError"
     << std::setw(18) << "Error"
     << std::setw(4) << "Reg"
@@ -786,7 +787,7 @@ void ALIPDDP<Scalar>::backwardPass() {
             rho_Qzu = param.rho * Qzu;
 
             du_ -= (Qzu.transpose() * r_ec); // hat_Qu
-            Ku_ -= (Qzx.transpose() * rho_Qzx).transpose(); // hat_Qxu
+            Ku_ -= (Qzx.transpose() * rho_Qzu).transpose(); // hat_Qxu
             hat_Quu += (Qzu.transpose() * rho_Qzu);
         }
         
@@ -920,7 +921,7 @@ void ALIPDDP<Scalar>::backwardPass() {
             dr_ = - (rp_ec + Qzu * du_);
             Kr_ = - (Qzx + Qzu * Ku_);
 
-            dz_ = r_ec + rho_Qzu * dr_;
+            dz_ = r_ec + rho_Qzu * du_;
             Kz_ = rho_Qzx + (rho_Qzu * Ku_);
 
             Vx += (Kz_.transpose() * ec_v) + (Qzx.transpose() * dz_) + (Ku_.transpose() * Qzu.transpose() * dz_) + (Kz_.transpose() * Qzu * du_);
@@ -1214,6 +1215,7 @@ void ALIPDDP<Scalar>::logPrint() {
               << std::setw(7) << param.mu
               << std::setw(16) << param.rho
               << std::setw(25) << logcost
+              << std::setw(16) << cost
               << std::setw(22) << opterror
               << std::setw(18) << error
               << std::setw(4) << regulate

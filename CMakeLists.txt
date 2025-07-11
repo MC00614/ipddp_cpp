@@ -29,11 +29,12 @@ target_include_directories(alipddp_library PRIVATE ${INCLUDE_DIRS})
 option(BUILD_EXAMPLE "Build example binaries" OFF)
 if (BUILD_EXAMPLE)
 foreach(EXAMPLE
+    minwork_double_integrator
     rocket_3d
     rocket_2d
     point_mass_3d_basic
     point_mass_3d_simple
-    # rocket_3d_scaled
+    rocket_3d_scaled
 )
     add_executable(${EXAMPLE} problem_examples/${EXAMPLE}.cpp)
     target_include_directories(${EXAMPLE} PRIVATE ${INCLUDE_DIRS})

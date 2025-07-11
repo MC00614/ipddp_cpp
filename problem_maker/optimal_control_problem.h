@@ -3,7 +3,9 @@
 #include "types.h"
 
 #include "cost/scalar_quadratic_stage_cost.h"
+#include "cost/vector_stage_cost.h"
 #include "cost/scalar_quadratic_terminal_cost.h"
+#include "cost/error_quadratic_terminal_cost.h"
 
 #include "dynamics/linear_discrete_dynamics.h"
 #include "cost/quadratic_stage_cost.h"
