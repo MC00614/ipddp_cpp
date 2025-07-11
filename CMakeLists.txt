@@ -16,7 +16,7 @@ set(INCLUDE_DIRS
 )
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -Wall -Wextra -Wpedantic -DDEBUG -fno-omit-frame-pointer")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -Wall -Wextra -Wpedantic -DDEBUG -fno-inline -fno-omit-frame-pointer")
     # fsanitize=address is not compatible with shared pointer
     # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -Wall -Wextra -Wpedantic -DDEBUG -fsanitize=address -fno-omit-frame-pointer")
 else()

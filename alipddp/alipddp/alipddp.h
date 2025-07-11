@@ -142,6 +142,22 @@ private:
     double opterror_rd_c;
     Eigen::VectorXd dV; // Expected Value Change
 
+    std::vector<Eigen::VectorXd> X_new;
+    std::vector<Eigen::VectorXd> U_new;
+    std::vector<Eigen::VectorXd> S_new;
+    std::vector<Eigen::VectorXd> Y_new;
+    std::vector<Eigen::VectorXd> C_new;
+    std::vector<Eigen::VectorXd> R_new;
+    std::vector<Eigen::VectorXd> Z_new;
+    std::vector<Eigen::VectorXd> EC_new;
+
+    Eigen::VectorXd ST_new;
+    Eigen::VectorXd YT_new;
+    Eigen::VectorXd CT_new;
+    Eigen::VectorXd RT_new;
+    Eigen::VectorXd ZT_new;
+    Eigen::VectorXd ECT_new;
+
     std::vector<double> all_cost;
 
     // Algorithm

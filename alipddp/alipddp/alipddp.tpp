@@ -94,6 +94,15 @@ ALIPDDP<Scalar>::ALIPDDP(OptimalControlProblem<Scalar>& ocp_ref) : ocp(std::make
     Kz.resize(N);
     Ks.resize(N);
     Ky.resize(N);
+
+    X_new.resize(N + 1);
+    U_new.resize(N);
+    S_new.resize(N);
+    Y_new.resize(N);
+    C_new.resize(N);
+    R_new.resize(N);
+    Z_new.resize(N);
+    EC_new.resize(N);
 }
 
 template <typename Scalar>
@@ -347,7 +356,7 @@ void ALIPDDP<Scalar>::solve() {
         }
         if (param.max_iter < iter) {
             std::cout << "Max Iteration" << std::endl;
-            return;
+            break;
         }
 
         bool mu_stop = (param.mu <= param.mu_min);
@@ -362,7 +371,7 @@ void ALIPDDP<Scalar>::solve() {
       
         if (c_done && cT_done && ec_done && ecT_done) {
             std::cout << "Outer Max/Min" << std::endl;
-            return;
+            break;
         }
 
         // Update Outer Loop Parameters
@@ -390,27 +399,27 @@ void ALIPDDP<Scalar>::calcAllDiff() {
         const Eigen::VectorXd& u = U[k];
 
         // No Differentiation for u
-        qu_all[k] = ocp.qu(k, x, u);
-        quu_all[k] = ocp.quu(k, x, u);
+        qu_all[k].noalias() = ocp.qu(k, x, u);
+        quu_all[k].noalias() = ocp.quu(k, x, u);
 
         if (is_c_active[k]) {
-            cu_all[k] = ocp.cu(k, x, u);
+            cu_all[k].noalias() = ocp.cu(k, x, u);
         }
         if (is_ec_active[k]) {
-            ecu_all[k] = ocp.ecu(k, x, u);
+            ecu_all[k].noalias() = ocp.ecu(k, x, u);
         }
 
         if (!param.is_quaternion_in_state) {
-            fx_all[k] = ocp.fx(k, x, u);
-            fu_all[k] = ocp.fu(k, x, u);
-            qx_all[k] = ocp.qx(k, x, u);
-            qxx_all[k] = ocp.qxx(k, x, u);
-            qxu_all[k] = ocp.qxu(k, x, u);
+            fx_all[k].noalias() = ocp.fx(k, x, u);
+            fu_all[k].noalias() = ocp.fu(k, x, u);
+            qx_all[k].noalias() = ocp.qx(k, x, u);
+            qxx_all[k].noalias() = ocp.qxx(k, x, u);
+            qxu_all[k].noalias() = ocp.qxu(k, x, u);
             if (is_c_active[k]) {
-                cx_all[k] = ocp.cx(k, x, u);
+                cx_all[k].noalias() = ocp.cx(k, x, u);
             }
             if (is_ec_active[k]) {
-                ecx_all[k] = ocp.ecx(k, x, u);
+                ecx_all[k].noalias() = ocp.ecx(k, x, u);
             }
         }
         else {
@@ -426,31 +435,31 @@ void ALIPDDP<Scalar>::calcAllDiff() {
             double qx_q = qx.segment(param.quaternion_idx, 4).transpose() * x.segment(param.quaternion_idx, 4);
             quaternion_helper::Id(Id, qx_q, param.quaternion_idx, dim_rn[k]);
 
-            fx_all[k] = EE.transpose() * ocp.fx(k, x, u) * E;
-            fu_all[k] = EE.transpose() * ocp.fu(k, x, u);
+            fx_all[k].noalias() = EE.transpose() * ocp.fx(k, x, u) * E;
+            fu_all[k].noalias() = EE.transpose() * ocp.fu(k, x, u);
 
-            qx_all[k] = E.transpose() * qx;
-            qxx_all[k] = E.transpose() * ocp.qxx(k, x, u) * E - Id;
-            qxu_all[k] = E.transpose() * ocp.qxu(k, x, u);
+            qx_all[k].noalias() = E.transpose() * qx;
+            qxx_all[k].noalias() = E.transpose() * ocp.qxx(k, x, u) * E - Id;
+            qxu_all[k].noalias() = E.transpose() * ocp.qxu(k, x, u);
 
             if (is_c_active[k]) {
-                cx_all[k] = ocp.cx(k, x, u) * E;
+                cx_all[k].noalias() = ocp.cx(k, x, u) * E;
             }
             if (is_ec_active[k]) {
-                ecx_all[k] = ocp.ecx(k, x, u) * E;
+                ecx_all[k].noalias() = ocp.ecx(k, x, u) * E;
             }
         }
     }
     const Eigen::VectorXd& xT = X[N];
 
     if (!param.is_quaternion_in_state) {
-        px_all = ocp.px(xT);
-        pxx_all = ocp.pxx(xT);
+        px_all.noalias() = ocp.px(xT);
+        pxx_all.noalias() = ocp.pxx(xT);
         if (ocp.getDimCT()) {
-            cTx_all = ocp.cTx(xT);
+            cTx_all.noalias() = ocp.cTx(xT);
         }
         if (ocp.getDimECT()) {
-            ecTx_all = ocp.ecTx(xT);
+            ecTx_all.noalias() = ocp.ecTx(xT);
         }
     }
     else {
@@ -460,13 +469,13 @@ void ALIPDDP<Scalar>::calcAllDiff() {
         Eigen::VectorXd px = ocp.px(xT);
         double px_q = px.segment(param.quaternion_idx, 4).transpose() * xT.segment(param.quaternion_idx, 4);
         quaternion_helper::Id(Id, px_q, param.quaternion_idx, dim_rnT);
-        px_all = E.transpose() * px;
-        pxx_all = E.transpose() * ocp.pxx(xT) * E - Id;
+        px_all.noalias() = E.transpose() * px;
+        pxx_all.noalias() = E.transpose() * ocp.pxx(xT) * E - Id;
         if (ocp.getDimCT()) {
-            cTx_all = ocp.cTx(xT) * E;
+            cTx_all.noalias() = ocp.cTx(xT) * E;
         }
         if (ocp.getDimECT()) {
-            ecTx_all = ocp.ecTx(xT) * E;
+            ecTx_all.noalias() = ocp.ecTx(xT) * E;
         }
     }
 }
@@ -968,22 +977,8 @@ Eigen::VectorXd ALIPDDP<Scalar>::perturb(const int& k, const Eigen::VectorXd& xn
 template <typename Scalar>
 void ALIPDDP<Scalar>::forwardPass() {
     Eigen::VectorXd dx;
-    std::vector<Eigen::VectorXd> X_new(N+1);
-    std::vector<Eigen::VectorXd> U_new(N);
-    std::vector<Eigen::VectorXd> S_new(N);
-    std::vector<Eigen::VectorXd> Y_new(N);
-    std::vector<Eigen::VectorXd> C_new(N);
-    std::vector<Eigen::VectorXd> R_new(N);
-    std::vector<Eigen::VectorXd> Z_new(N);
-    std::vector<Eigen::VectorXd> EC_new(N);
 
     Eigen::VectorXd dxT;
-    Eigen::VectorXd ST_new;
-    Eigen::VectorXd YT_new;
-    Eigen::VectorXd CT_new;
-    Eigen::VectorXd RT_new;
-    Eigen::VectorXd ZT_new;
-    Eigen::VectorXd ECT_new;
 
     double tau = std::max(0.99, 1.0 - param.mu);
     // double tau = 0.9;
@@ -1016,13 +1011,13 @@ void ALIPDDP<Scalar>::forwardPass() {
         X_new[0] = X[0];
         for (int k = 0; k < N; ++k) {
             dx = perturb(k, X_new[k], X[k]);
-            U_new[k] = U[k] + (step_size * du[k]) + Ku[k] * dx;
-            X_new[k+1] = ocp.f(k, X_new[k], U_new[k]);
+            U_new[k].noalias() = U[k] + (step_size * du[k]) + Ku[k] * dx;
+            X_new[k+1].noalias() = ocp.f(k, X_new[k], U_new[k]);
             if (is_c_active[k]) {
                 const int dim_g = ocp.getDimG(k);
                 const int dim_h = ocp.getDimH(k);
-                S_new[k] = S[k] + (step_size * ds[k]) + Ks[k] * dx;
-                Y_new[k] = Y[k] + (step_size * dy[k]) + Ky[k] * dx;
+                S_new[k].noalias() = S[k] + (step_size * ds[k]) + Ks[k] * dx;
+                Y_new[k].noalias() = Y[k] + (step_size * dy[k]) + Ky[k] * dx;
                 if (dim_g) {
                     if (no_helper::isFractionToBoundary(S_new[k].head(dim_g), S[k].head(dim_g), one_tau)
                         || no_helper::isFractionToBoundary(Y_new[k].head(dim_g), Y[k].head(dim_g), one_tau)) {
@@ -1037,45 +1032,47 @@ void ALIPDDP<Scalar>::forwardPass() {
                 }
                 if (forward_failed) {break;}
                 
-                C_new[k] = ocp.c(k, X_new[k], U_new[k]);
+                C_new[k].noalias() = ocp.c(k, X_new[k], U_new[k]);
             }
             if (is_ec_active[k]) {
-                R_new[k] = R[k] + (step_size * dr[k]) + Kr[k] * dx;
-                Z_new[k] = Z[k] + (step_size * dz[k]) + Kz[k] * dx;
+                R_new[k].noalias() = R[k] + (step_size * dr[k]) + Kr[k] * dx;
+                Z_new[k].noalias() = Z[k] + (step_size * dz[k]) + Kz[k] * dx;
 
-                EC_new[k] = ocp.ec(k, X_new[k], U_new[k]);
+                EC_new[k].noalias() = ocp.ec(k, X_new[k], U_new[k]);
             }        
         }
         if (forward_failed) {continue;}
         
         dxT = perturb(N, X_new[N], X[N]);
         if (is_cT_active) {
-            ST_new = ST + (step_size * dsT) + KsT * dxT;
-            YT_new = YT + (step_size * dyT) + KyT * dxT;
+            ST_new.noalias() = ST + (step_size * dsT) + KsT * dxT;
+            YT_new.noalias() = YT + (step_size * dyT) + KyT * dxT;
             const int dim_gT = ocp.getDimGT();
             const int dim_hT = ocp.getDimHT();
             if (dim_gT) {
                 if (no_helper::isFractionToBoundary(ST_new.head(dim_gT), ST.head(dim_gT), one_tau)
                     || no_helper::isFractionToBoundary(YT_new.head(dim_gT), YT.head(dim_gT), one_tau)) {
-                    forward_failed = 21; continue;
+                    // forward_failed = 21; continue;
+                    forward_failed = 21;
                 }
             }
             if (dim_hT) {
                 if (soc_helper::isFractionToBoundary(ST_new, ST, one_tau, ocp.getDimHTs(), ocp.getDimHTsTop())
                     || soc_helper::isFractionToBoundary(YT_new, YT, one_tau, ocp.getDimHTs(), ocp.getDimHTsTop())) {
-                    forward_failed = 23; break;
+                    // forward_failed = 23; break;
+                    forward_failed = 23;
                 }
             }
             if (forward_failed) {continue;}
 
-            CT_new = ocp.cT(X_new[N]);
+            CT_new.noalias() = ocp.cT(X_new[N]);
         }
 
         if (is_ecT_active) {
-            RT_new = RT + (step_size * drT) + KrT * dxT;
-            ZT_new = ZT + (step_size * dzT) + KzT * dxT;
+            RT_new.noalias() = RT + (step_size * drT) + KrT * dxT;
+            ZT_new.noalias() = ZT + (step_size * dzT) + KzT * dxT;
 
-            ECT_new = ocp.ecT(X_new[N]);
+            ECT_new.noalias() = ocp.ecT(X_new[N]);
         }
         
         error_new = 0.0;
@@ -1167,30 +1164,28 @@ void ALIPDDP<Scalar>::forwardPass() {
         cost = cost_new;
         logcost = logcost_new;
         error = error_new;
-        X = std::move(X_new);
-        U = std::move(U_new);
+        std::swap(X, X_new);
+        std::swap(U, U_new);
         if (is_c_active_all) {
-            S = std::move(S_new);
-            Y = std::move(Y_new);
-            C = std::move(C_new);
+            std::swap(S, S_new);
+            std::swap(Y, Y_new);
+            std::swap(C, C_new);
         }
         if (is_ec_active_all) {
-            R = std::move(R_new);
-            Z = std::move(Z_new);
-            EC = std::move(EC_new);
+            std::swap(R, R_new);
+            std::swap(Z, Z_new);
+            std::swap(EC, EC_new);
         }
         if (is_cT_active) {
-            ST = std::move(ST_new);
-            YT = std::move(YT_new);
-            CT = std::move(CT_new);
-        }
+            std::swap(ST, ST_new);
+            std::swap(YT, YT_new);
+            std::swap(CT, CT_new);
         if (is_ecT_active) {
-            RT = std::move(RT_new);
-            ZT = std::move(ZT_new);
-            ECT = std::move(ECT_new);
+            std::swap(RT, RT_new);
+            std::swap(ZT, ZT_new);
+            std::swap(ECT, ECT_new);
         }
     }
-    // else {std::cout<<"Forward Failed"<<std::endl;}
 }
 
 template <typename Scalar>
