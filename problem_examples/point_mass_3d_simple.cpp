@@ -176,12 +176,12 @@ int main() {
     std::vector<double> all_cost = solver.getAllCost();
 
     // std::cout << "X_result = " << std::endl;
-    // for (int k = 0; k < problem.N+1; ++k) {
+    // for (int k = 0; k < problem.getHorizon()+1; ++k) {
     //     std::cout << X_result[k].transpose() << std::endl;
     // }
 
     // std::cout << "U_result = " << std::endl;
-    // for (int k = 0; k < problem.N; ++k) {
+    // for (int k = 0; k < problem.getHorizon(); ++k) {
     //     std::cout << U_result[k].transpose() << std::endl;
     // }
 
