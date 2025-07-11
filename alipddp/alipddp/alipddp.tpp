@@ -1180,6 +1180,7 @@ void ALIPDDP<Scalar>::forwardPass() {
             std::swap(ST, ST_new);
             std::swap(YT, YT_new);
             std::swap(CT, CT_new);
+        }
         if (is_ecT_active) {
             std::swap(RT, RT_new);
             std::swap(ZT, ZT_new);
