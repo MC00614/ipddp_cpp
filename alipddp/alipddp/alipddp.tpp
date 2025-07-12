@@ -95,6 +95,31 @@ ALIPDDP<Scalar>::ALIPDDP(OptimalControlProblem<Scalar>& ocp_ref) : ocp(std::make
     Ks.resize(N);
     Ky.resize(N);
 
+    Rp_c.resize(N);
+    Rd_c.resize(N);
+    R_c.resize(N);
+
+    Rp_ec.resize(N);
+    Rd_ec.resize(N);
+    R_ec.resize(N);
+
+    Sinv_r_all.resize(N);
+    Sinv_Y_Qyx_all.resize(N);
+    Sinv_Y_Qyu_all.resize(N);
+    Qx_ipm_all.resize(N);
+    Qu_ipm_all.resize(N);
+    hat_Qu_ipm_all.resize(N);
+    hat_Qux_ipm_all.resize(N);
+    hat_Quu_ipm_all.resize(N);
+
+    rho_Qzx_all.resize(N);
+    rho_Qzu_all.resize(N);
+    Qx_alm_all.resize(N);
+    Qu_alm_all.resize(N);
+    hat_Qu_alm_all.resize(N);
+    hat_Qux_alm_all.resize(N);
+    hat_Quu_alm_all.resize(N);
+    
     X_new.resize(N + 1);
     U_new.resize(N);
     S_new.resize(N);
@@ -104,8 +129,6 @@ ALIPDDP<Scalar>::ALIPDDP(OptimalControlProblem<Scalar>& ocp_ref) : ocp(std::make
     Z_new.resize(N);
     EC_new.resize(N);
 
-    Rp_c.resize(N);
-    Rp_ec.resize(N);
     Rp_c_new.resize(N);
     Rp_ec_new.resize(N);
 }
@@ -146,12 +169,39 @@ void ALIPDDP<Scalar>::init(Param param) {
             dy[k] = Eigen::VectorXd::Zero(ocp.getDimC(k));
             Ks[k] = Eigen::MatrixXd::Zero(ocp.getDimC(k), dim_rn[k]);
             Ky[k] = Eigen::MatrixXd::Zero(ocp.getDimC(k), dim_rn[k]);
+
+            Rp_c[k].resize(ocp.getDimC(k));
+            Rd_c[k].resize(ocp.getDimC(k));
+            R_c[k].resize(ocp.getDimC(k));
+
+            Sinv_r_all[k].resize(ocp.getDimC(k));
+            Sinv_Y_Qyx_all[k].resize(ocp.getDimC(k), dim_rn[k]);
+            Sinv_Y_Qyu_all[k].resize(ocp.getDimC(k), ocp.getDimU(k));
+
+            Qx_ipm_all[k].resize(dim_rn[k]);
+            Qu_ipm_all[k].resize(ocp.getDimU(k));
+            hat_Qu_ipm_all[k].resize(ocp.getDimU(k));
+            hat_Qux_ipm_all[k].resize(ocp.getDimU(k), dim_rn[k]);
+            hat_Quu_ipm_all[k].resize(ocp.getDimU(k), ocp.getDimU(k));
         }
         if (ocp.getDimEC(k)) {
             dr[k] = Eigen::VectorXd::Zero(ocp.getDimEC(k));
             dz[k] = Eigen::VectorXd::Zero(ocp.getDimEC(k));
             Kr[k] = Eigen::MatrixXd::Zero(ocp.getDimEC(k), dim_rn[k]);
             Kz[k] = Eigen::MatrixXd::Zero(ocp.getDimEC(k), dim_rn[k]);
+
+            Rp_ec[k].resize(ocp.getDimEC(k));
+            Rd_ec[k].resize(ocp.getDimEC(k));
+            R_ec[k].resize(ocp.getDimEC(k));
+
+            rho_Qzx_all[k].resize(ocp.getDimEC(k), dim_rn[k]);
+            rho_Qzu_all[k].resize(ocp.getDimEC(k), ocp.getDimU(k));
+
+            Qx_alm_all[k].resize(dim_rn[k]);
+            Qu_alm_all[k].resize(ocp.getDimU(k));
+            hat_Qu_alm_all[k].resize(ocp.getDimU(k));
+            hat_Qux_alm_all[k].resize(ocp.getDimU(k), dim_rn[k]);
+            hat_Quu_alm_all[k].resize(ocp.getDimU(k), ocp.getDimU(k));
         }
     }
 
@@ -275,7 +325,12 @@ template <typename Scalar>
 void ALIPDDP<Scalar>::solve() {
     update_counter = 0;
     iter = 0;
-    is_diff_calculated = false;
+    is_traj_moved = true;
+
+    is_alm_updated = true;
+    is_alm_updatedT = true;
+    is_ipm_updated = true;
+    is_ipm_updatedT = true;
     
     std::cout << std::setw(4) << "o_it"
     << std::setw(4) << "i_it"
@@ -298,11 +353,17 @@ void ALIPDDP<Scalar>::solve() {
         while (inner_iter < this->param.max_inner_iter) {
             if (param.max_iter < ++iter) {break;}
 
-            if (!is_diff_calculated) {
+            if (is_traj_moved) {
                 this->calcAllDiff();
-                is_diff_calculated = true;
-            }
+                is_traj_moved = false;
 
+                is_ipm_updatedT = true;
+                is_alm_updatedT = true;
+                is_ipm_updated = true;
+                is_alm_updated = true;
+            }
+            
+            this->calcResiduals();
             this->backwardPass();
 
             if (backward_failed) {
@@ -313,7 +374,7 @@ void ALIPDDP<Scalar>::solve() {
             
             this->forwardPass();
             if (!forward_failed) {
-                is_diff_calculated = false;
+                is_traj_moved = true;
                 inner_iter++;
                 update_counter++;
             }
@@ -342,22 +403,34 @@ void ALIPDDP<Scalar>::solve() {
                 // If then, consider active marker to be vector (like switch condition)
                 bool updated = false;
                 if (is_c_active_all && opterror_rp_c < param.tolerance && opterror_rd_c < param.tolerance) {
-                    if (param.mu > param.mu_min) {updated = true;}
+                    if (param.mu > param.mu_min) {
+                        updated = true;
+                        is_ipm_updated = true;
+                    }
                     param.mu = std::max(param.mu_min, std::min(param.mu_mul * param.mu, std::pow(param.mu, param.mu_exp)));
                 }
                 if (is_cT_active && opterror_rpT_c < param.tolerance && opterror_rdT_c < param.tolerance) {
-                    if (param.muT > param.mu_min) {updated = true;}
+                    if (param.muT > param.mu_min) {
+                        updated = true;
+                        is_ipm_updatedT = true;
+                    }
                     param.muT = std::max(param.mu_min, std::min(param.mu_mul * param.muT, std::pow(param.muT, param.mu_exp)));
                 }
                 if (is_ec_active_all && opterror_rp_ec < param.tolerance && opterror_rd_ec < param.tolerance) {
-                    if (param.rho < param.rho_max) {updated = true;}
+                    if (param.rho < param.rho_max) {
+                        updated = true;
+                    }
                     param.rho = std::min(param.rho_max, param.rho_mul * param.rho);
+                    is_alm_updated = true;
                     for (int k = 0; k < N; ++k) {
                         lambda[k] = lambda[k] + param.rho * R[k];
                     }
                 }
                 if (is_ecT_active && opterror_rpT_ec < param.tolerance && opterror_rdT_ec < param.tolerance) {
-                    if (param.rhoT < param.rho_max) {updated = true;}
+                    if (param.rhoT < param.rho_max) {
+                        updated = true;
+                    }
+                    is_alm_updatedT = true;
                     param.rhoT = std::min(param.rho_max, param.rho_mul * param.rhoT);
                     lambdaT = lambdaT + param.rhoT * RT;
                 }
@@ -394,17 +467,26 @@ void ALIPDDP<Scalar>::solve() {
         }
 
         // Update Outer Loop Parameters
-        if (is_c_active_all) {param.mu = std::max(param.mu_min, std::min(param.mu_mul * param.mu, std::pow(param.mu, param.mu_exp)));}
-        if (is_cT_active) {param.muT = std::max(param.mu_min, std::min(param.mu_mul * param.muT, std::pow(param.muT, param.mu_exp)));}
+        if (is_c_active_all) {
+            param.mu = std::max(param.mu_min, std::min(param.mu_mul * param.mu, std::pow(param.mu, param.mu_exp)));
+            // TODO: CHECK if the parameters are actually updated!!
+            is_ipm_updated = true;
+        }
+        if (is_cT_active) {
+            param.muT = std::max(param.mu_min, std::min(param.mu_mul * param.muT, std::pow(param.muT, param.mu_exp)));
+            is_ipm_updatedT = true;
+        }
         if (is_ec_active_all) {
             param.rho = std::min(param.rho_max, param.rho_mul * param.rho);
             for (int k = 0; k < N; ++k) {
                 lambda[k] = lambda[k] + param.rho * R[k];
             }
+            is_alm_updated = true;
         }
         if (is_ecT_active) {
             param.rhoT = std::min(param.rho_max, param.rho_mul * param.rhoT);
             lambdaT = lambdaT + param.rhoT * RT;
+            is_alm_updatedT = true;
         }
         resetCost();
         resetRegulation();
@@ -500,7 +582,233 @@ void ALIPDDP<Scalar>::calcAllDiff() {
 }
 
 template <typename Scalar>
-void ALIPDDP<Scalar>::backwardPass() {
+void ALIPDDP<Scalar>::calcResiduals() {
+    if (is_cT_active && is_ipm_updatedT) {calcCTres(); is_ipm_updatedT = false;}
+    if (is_ecT_active && is_alm_updatedT) {calcECTres(); is_alm_updatedT = false;}
+    
+    if (is_c_active_all && is_ipm_updated) {calcCres(); is_ipm_updated = false;}
+    if (is_ec_active_all && is_alm_updated) {calcECres(); is_alm_updated = false;}
+}
+
+template <typename Scalar>
+void ALIPDDP<Scalar>::calcCTres() {
+    const int dim_cT = ocp.getDimCT();
+    const int dim_gT = ocp.getDimGT();
+
+    const auto& dim_hTs     = ocp.getDimHTs();
+    const auto& dim_hTs_top = ocp.getDimHTsTop();
+    const int dim_hTs_max   = ocp.getDimHTsMax();
+
+    Eigen::Ref<const Eigen::MatrixXd> QyxT = cTx_all;
+    
+    Rd_cT.head(dim_gT).noalias() = ST.head(dim_gT).cwiseProduct(YT.head(dim_gT));
+    for (int i = 0; i < dim_hTs.size(); ++i) {
+        const int d   = dim_hTs[i];
+        const int idx = dim_hTs_top[i];
+        soc_helper::LtimesVec(Rd_cT.segment(idx, d), YT.segment(idx, d), ST.segment(idx, d));
+    }
+    Rd_cT -= param.muT * eT;
+
+    Eigen::VectorXd rT(dim_cT);
+    rT.head(dim_gT).noalias() = YT.head(dim_gT).cwiseProduct(Rp_cT.head(dim_gT));
+    for (int i = 0; i < dim_hTs.size(); ++i) {
+        const int d   = dim_hTs[i];
+        const int idx = dim_hTs_top[i];
+        soc_helper::LtimesVec(rT.segment(idx, d), YT.segment(idx, d), Rp_cT.segment(idx, d));
+    }
+    rT -= Rd_cT;
+
+    Eigen::VectorXd Sinv_rT(dim_cT);
+    Sinv_rT.head(dim_gT) = rT.head(dim_gT).cwiseQuotient(ST.head(dim_gT));
+    for (int i = 0; i < dim_hTs.size(); ++i) {
+        const int d   = dim_hTs[i];
+        const int idx = dim_hTs_top[i];
+        soc_helper::LinvTimesVec(Sinv_rT.segment(idx, d), ST.segment(idx, d), rT.segment(idx, d));
+    }
+
+    Eigen::MatrixXd Sinv_Y_QyxT(dim_cT, dim_rnT);
+    Sinv_Y_QyxT.topRows(dim_gT) = QyxT.topRows(dim_gT).array().colwise() * (YT.head(dim_gT).array() / ST.head(dim_gT).array());
+
+    Eigen::MatrixXd Sinv_Y_hT_max(dim_hTs_max, dim_hTs_max);
+    for (int i = 0; i < dim_hTs.size(); ++i) {
+        const int d   = dim_hTs[i];
+        const int idx = dim_hTs_top[i];
+        Eigen::Ref<Eigen::MatrixXd> Sinv_Y_hT = Sinv_Y_hT_max.topLeftCorner(d, d);
+        soc_helper::LinvTimesArrow(Sinv_Y_hT, ST.segment(idx, d), YT.segment(idx, d));
+        Sinv_Y_QyxT.middleRows(idx, d) = Sinv_Y_hT * QyxT.middleRows(idx, d);
+    }
+
+    dsT = - Rp_cT;
+    KsT = - QyxT;
+    
+    dyT = Sinv_rT;
+    KyT = Sinv_Y_QyxT;
+
+    Vx_ipm_T.noalias() = KyT.transpose() * CT + QyxT.transpose() * dyT;
+    Vxx_ipm_T.noalias() = QyxT.transpose() * KyT + KyT.transpose() * QyxT;
+
+    opterror_rpT_c = std::max({Rp_cT.lpNorm<Eigen::Infinity>()});
+    opterror_rdT_c = std::max({Rd_cT.lpNorm<Eigen::Infinity>()});
+}
+
+template <typename Scalar>
+void ALIPDDP<Scalar>::calcECTres() {
+    Eigen::Ref<const Eigen::MatrixXd> QzxT = ecTx_all;
+
+    Rd_ecT.noalias() = ZT + lambdaT + (param.rhoT * RT);
+
+    drT = - Rp_ecT;
+    KrT = - QzxT;
+    dzT.noalias() = param.rhoT * Rp_ecT - Rd_ecT;
+    KzT.noalias() = param.rhoT * QzxT;
+
+    Vx_alm_T.noalias() = KzT.transpose() * ECT + QzxT.transpose() * dzT;
+    Vxx_alm_T.noalias() = QzxT.transpose() * KzT + KzT.transpose() * QzxT;
+    
+    opterror_rpT_ec = std::max({Rp_ecT.lpNorm<Eigen::Infinity>()});
+    opterror_rdT_ec = std::max({Rd_ecT.lpNorm<Eigen::Infinity>()});
+}
+
+template <typename Scalar>
+void ALIPDDP<Scalar>::calcCres() {
+    opterror_rp_c = 0.0;
+    opterror_rd_c = 0.0;
+    for (int k = 0; k < N; ++k) {
+        if (is_c_active[k]) {
+            Eigen::Ref<Eigen::VectorXd> s = S[k];
+            Eigen::Ref<Eigen::VectorXd> y = Y[k];
+            Eigen::Ref<Eigen::VectorXd> c_v = C[k];
+            
+            Eigen::Ref<Eigen::MatrixXd> Qyx = cx_all[k];
+            Eigen::Ref<Eigen::MatrixXd> Qyu = cu_all[k];
+
+            Eigen::Ref<Eigen::VectorXd> rp_c = Rp_c[k];
+            Eigen::Ref<Eigen::VectorXd> rd_c = Rd_c[k];
+            Eigen::Ref<Eigen::VectorXd> r_c = R_c[k];
+
+            Eigen::Ref<Eigen::VectorXd> Sinv_r = Sinv_r_all[k];
+            Eigen::Ref<Eigen::MatrixXd> Sinv_Y_Qyx = Sinv_Y_Qyx_all[k];
+            Eigen::Ref<Eigen::MatrixXd> Sinv_Y_Qyu = Sinv_Y_Qyu_all[k];
+            
+            const int dim_c = ocp.getDimC(k);
+            const int dim_g = ocp.getDimG(k);
+
+            const auto& dim_hs     = ocp.getDimHs(k);
+            const auto& dim_hs_top = ocp.getDimHsTop(k);
+            const int dim_hs_max   = ocp.getDimHsMax(k);
+
+            // Qx += Qyx.transpose() * y;
+            // Qu += Qyu.transpose() * y;
+            
+            // rd_c.resize(dim_c);
+            rd_c.head(dim_g) = s.head(dim_g).cwiseProduct(y.head(dim_g));
+            for (int i = 0; i < dim_hs.size(); ++i) {
+                const int idx = dim_hs_top[i];
+                const int n   = dim_hs[i];
+                soc_helper::LtimesVec(rd_c.segment(idx, n), y.segment(idx, n), s.segment(idx, n));
+            }
+            rd_c -= param.mu * e[k];
+
+            // r_c.resize(dim_c);
+            r_c.head(dim_g) = y.head(dim_g).cwiseProduct(rp_c.head(dim_g));
+            for (int i = 0; i < dim_hs.size(); ++i) {
+                const int d   = dim_hs[i];
+                const int idx = dim_hs_top[i];
+                soc_helper::LtimesVec(r_c.segment(idx, d), y.segment(idx, d), rp_c.segment(idx, d));
+            }
+            r_c -= rd_c;
+
+            // Sinv_r.resize(dim_c);
+            Sinv_r.head(dim_g) = r_c.head(dim_g).cwiseQuotient(s.head(dim_g));
+            for (int i = 0; i < dim_hs.size(); ++i) {
+                const int d   = dim_hs[i];
+                const int idx = dim_hs_top[i];
+                soc_helper::LinvTimesVec(Sinv_r.segment(idx, d), s.segment(idx, d), r_c.segment(idx, d));
+            }
+        
+            // more complex, but more fast
+            // Sinv_Y_Qyx.resize(dim_c, dim_rn[k]);
+            // Sinv_Y_Qyu.resize(dim_c, ocp.getDimU(k));
+            Eigen::VectorXd Sinv_Y_g = y.head(dim_g).cwiseQuotient(s.head(dim_g));
+            Sinv_Y_Qyx.topRows(dim_g) = Qyx.topRows(dim_g).array().colwise() * Sinv_Y_g.array();
+            Sinv_Y_Qyu.topRows(dim_g) = Qyu.topRows(dim_g).array().colwise() * Sinv_Y_g.array();
+            Eigen::MatrixXd SYinv_h_max(dim_hs_max, dim_hs_max);
+            for (int i = 0; i < dim_hs.size(); ++i) {
+                const int d   = dim_hs[i];
+                const int idx = dim_hs_top[i];
+                Eigen::Ref<Eigen::MatrixXd> Sinv_Y_h = SYinv_h_max.topLeftCorner(d, d);
+                soc_helper::LinvTimesArrow(Sinv_Y_h, s.segment(idx, d), y.segment(idx, d));
+                Sinv_Y_Qyx.middleRows(idx, d) = Sinv_Y_h * Qyx.middleRows(idx, d);
+                Sinv_Y_Qyu.middleRows(idx, d) = Sinv_Y_h * Qyu.middleRows(idx, d);
+            }
+
+            Qx_ipm_all[k].noalias() = (Qyx.transpose() * y);
+            Qu_ipm_all[k].noalias() = (Qyu.transpose() * y);
+            
+            // Inplace Calculation
+            // du_ -= (Qyu.transpose() * Sinv_r); // hat_Qu
+            // Ku_ -= (Qyx.transpose() * Sinv_Y_Qyu).transpose(); // hat_Qxu
+            // hat_Quu += (Qyu.transpose() * Sinv_Y_Qyu);
+
+            hat_Qu_ipm_all[k].noalias() = Qyu.transpose() * Sinv_r; // hat_Qu
+            hat_Qux_ipm_all[k].noalias() = (Qyx.transpose() * Sinv_Y_Qyu).transpose(); // hat_Qxu
+            hat_Quu_ipm_all[k].noalias() = Qyu.transpose() * Sinv_Y_Qyu; // hat_Quu
+
+            opterror_rp_c = std::max({rp_c.lpNorm<Eigen::Infinity>(), opterror_rp_c});
+            opterror_rd_c = std::max({rd_c.lpNorm<Eigen::Infinity>(), opterror_rd_c});
+        }
+    }
+}
+
+template <typename Scalar>
+void ALIPDDP<Scalar>::calcECres() {
+    opterror_rp_ec = 0.0;
+    opterror_rd_ec = 0.0;
+    for (int k = 0; k < N; ++k) {
+        if (is_ec_active[k]) {
+            Eigen::Ref<Eigen::VectorXd> r = R[k];
+            Eigen::Ref<Eigen::VectorXd> z = Z[k];
+            Eigen::Ref<Eigen::VectorXd> ec_v = EC[k];
+
+            Eigen::Ref<Eigen::MatrixXd> Qzx = ecx_all[k];
+            Eigen::Ref<Eigen::MatrixXd> Qzu = ecu_all[k];
+            
+            Eigen::Ref<Eigen::VectorXd> rp_ec = Rp_ec[k];
+            Eigen::Ref<Eigen::VectorXd> rd_ec = Rd_ec[k];
+            Eigen::Ref<Eigen::VectorXd> r_ec = R_ec[k];
+
+            Eigen::Ref<Eigen::MatrixXd> rho_Qzx = rho_Qzx_all[k];
+            Eigen::Ref<Eigen::MatrixXd> rho_Qzu = rho_Qzu_all[k];
+
+            const int dim_ec = ocp.getDimEC(k);
+            
+            rd_ec.noalias() = z + lambda[k] + (param.rho * r);
+            r_ec.noalias() = param.rho * rp_ec - rd_ec;
+            
+            rho_Qzx.noalias() = param.rho * Qzx;
+            rho_Qzu.noalias() = param.rho * Qzu;
+            
+            // Qx += Qzx.transpose() * z;
+            // Qu += Qzu.transpose() * z;
+            Qx_alm_all[k].noalias() = (Qzx.transpose() * z);
+            Qu_alm_all[k].noalias() = (Qzu.transpose() * z);
+
+            // du_ -= (Qzu.transpose() * r_ec); // hat_Qu
+            // Ku_ -= (Qzx.transpose() * rho_Qzu).transpose(); // hat_Qxu
+            // hat_Quu += (Qzu.transpose() * rho_Qzu);
+            hat_Qu_alm_all[k].noalias() = Qzu.transpose() * r_ec; // hat_Qu
+            hat_Qux_alm_all[k].noalias() = (Qzx.transpose() * rho_Qzu).transpose(); // hat_Qxu
+            hat_Quu_alm_all[k].noalias() = Qzu.transpose() * rho_Qzu; // hat_Quu
+
+            opterror_rp_ec = std::max({rp_ec.lpNorm<Eigen::Infinity>(), opterror_rp_ec});
+            opterror_rd_ec = std::max({rd_ec.lpNorm<Eigen::Infinity>(), opterror_rd_ec});
+        }
+    }
+}
+
+
+template <typename Scalar>
+void ALIPDDP<Scalar>::backwardPass() {    
     Eigen::VectorXd Vx;
     Eigen::MatrixXd Vxx;
 
@@ -515,25 +823,17 @@ void ALIPDDP<Scalar>::backwardPass() {
     // Eigen::VectorXd rp_ec, rd_ec, r_ec;
     // Eigen::MatrixXd rho_Qzx, rho_Qzu;
     
-    Eigen::VectorXd rd_c, r_c;
-    Eigen::VectorXd Sinv_r;
-    Eigen::MatrixXd Sinv_Y_Qyx, Sinv_Y_Qyu;
-
-    Eigen::VectorXd rd_ec, r_ec;
-    Eigen::MatrixXd rho_Qzx, rho_Qzu;
-
+    // Eigen::VectorXd rd_c, r_c;
+    
+    // Eigen::VectorXd rd_ec, r_ec;
 
     Eigen::LLT<Eigen::MatrixXd> Quu_llt;
 
     opterror = 0.0;
-    opterror_rpT_ec = 0.0;
-    opterror_rdT_ec = 0.0;
-    opterror_rpT_c = 0.0;
-    opterror_rdT_c = 0.0;
-    opterror_rp_c = 0.0;
-    opterror_rd_c = 0.0;
-    opterror_rp_ec = 0.0;
-    opterror_rd_ec = 0.0;
+    // opterror_rp_c = 0.0;
+    // opterror_rd_c = 0.0;
+    // opterror_rp_ec = 0.0;
+    // opterror_rd_ec = 0.0;
 
     dV = Eigen::VectorXd::Zero(2);
 
@@ -541,94 +841,19 @@ void ALIPDDP<Scalar>::backwardPass() {
 
     double reg1_mu = param.reg1_min * (std::pow(param.reg1_exp, regulate));
     double reg2_mu = param.reg2_min * (std::pow(param.reg2_exp, regulate));
-
+    
     Vx = px_all;
     Vxx = pxx_all;
 
-    // Inequality Terminal Constraint
     if (is_cT_active) {
-        const int dim_cT = ocp.getDimCT();
-        const int dim_gT = ocp.getDimGT();
-    
-        const auto& dim_hTs     = ocp.getDimHTs();
-        const auto& dim_hTs_top = ocp.getDimHTsTop();
-        const int dim_hTs_max   = ocp.getDimHTsMax();
-
-        Eigen::Ref<const Eigen::MatrixXd> QyxT = cTx_all;
-
-        // Eigen::VectorXd rp_cT = CT + ST;
-        Eigen::VectorXd rd_cT(dim_cT);
-        rd_cT.head(dim_gT) = ST.head(dim_gT).cwiseProduct(YT.head(dim_gT));
-        for (int i = 0; i < dim_hTs.size(); ++i) {
-            const int d   = dim_hTs[i];
-            const int idx = dim_hTs_top[i];
-            soc_helper::LtimesVec(rd_cT.segment(idx, d), YT.segment(idx, d), ST.segment(idx, d));
-        }
-        rd_cT -= param.muT * eT;
-
-        Eigen::VectorXd rT(dim_cT);
-        rT.head(dim_gT) = YT.head(dim_gT).cwiseProduct(Rp_cT.head(dim_gT));
-        for (int i = 0; i < dim_hTs.size(); ++i) {
-            const int d   = dim_hTs[i];
-            const int idx = dim_hTs_top[i];
-            soc_helper::LtimesVec(rT.segment(idx, d), YT.segment(idx, d), Rp_cT.segment(idx, d));
-        }
-        rT -= rd_cT;
-
-        Eigen::VectorXd Sinv_rT(dim_cT);
-        Sinv_rT.head(dim_gT) = rT.head(dim_gT).cwiseQuotient(ST.head(dim_gT));
-        for (int i = 0; i < dim_hTs.size(); ++i) {
-            const int d   = dim_hTs[i];
-            const int idx = dim_hTs_top[i];
-            soc_helper::LinvTimesVec(Sinv_rT.segment(idx, d), ST.segment(idx, d), rT.segment(idx, d));
-        }
-
-        Eigen::MatrixXd Sinv_Y_QyxT(dim_cT, dim_rnT);
-        Sinv_Y_QyxT.topRows(dim_gT) = QyxT.topRows(dim_gT).array().colwise() * (YT.head(dim_gT).array() / ST.head(dim_gT).array());
-    
-        Eigen::MatrixXd Sinv_Y_hT_max(dim_hTs_max, dim_hTs_max);
-        for (int i = 0; i < dim_hTs.size(); ++i) {
-            const int d   = dim_hTs[i];
-            const int idx = dim_hTs_top[i];
-            Eigen::Ref<Eigen::MatrixXd> Sinv_Y_hT = Sinv_Y_hT_max.topLeftCorner(d, d);
-            soc_helper::LinvTimesArrow(Sinv_Y_hT, ST.segment(idx, d), YT.segment(idx, d));
-            Sinv_Y_QyxT.middleRows(idx, d) = Sinv_Y_hT * QyxT.middleRows(idx, d);
-        }
-
-        dsT = - Rp_cT;
-        KsT = - QyxT;
-        
-        dyT = Sinv_rT;
-        KyT = Sinv_Y_QyxT;
-
-        Vx += KyT.transpose() * CT + QyxT.transpose() * dyT;
-        Vxx += QyxT.transpose() * KyT + KyT.transpose() * QyxT;
-
-        opterror = std::max({Rp_cT.lpNorm<Eigen::Infinity>(), rd_cT.lpNorm<Eigen::Infinity>(), opterror});
-        opterror_rpT_c = std::max({Rp_cT.lpNorm<Eigen::Infinity>(), opterror_rpT_c});
-        opterror_rdT_c = std::max({rd_cT.lpNorm<Eigen::Infinity>(), opterror_rdT_c});
+        Vx += Vx_ipm_T;
+        Vxx += Vxx_ipm_T;
+        opterror = std::max({opterror, opterror_rpT_c, opterror_rdT_c});
     }
-
-    // Equality Terminal Constraint
     if (is_ecT_active) {
-        // const int dim_ecT = ocp.getDimECT();
-
-        Eigen::Ref<const Eigen::MatrixXd> QzxT = ecTx_all;
-
-        // Eigen::VectorXd rp_ecT = ECT + RT;
-        Eigen::VectorXd rd_ecT = ZT + lambdaT + (param.rhoT * RT);
-        
-        drT = - Rp_ecT;
-        KrT = - QzxT;
-        dzT = param.rhoT * Rp_ecT - rd_ecT;
-        KzT = param.rhoT * QzxT;
-
-        Vx += KzT.transpose() * ECT + QzxT.transpose() * dzT;
-        Vxx += QzxT.transpose() * KzT + KzT.transpose() * QzxT;
-        
-        opterror = std::max({Rp_ecT.lpNorm<Eigen::Infinity>(), rd_ecT.lpNorm<Eigen::Infinity>(), opterror});
-        opterror_rpT_ec = std::max({Rp_ecT.lpNorm<Eigen::Infinity>(), opterror_rpT_ec});
-        opterror_rdT_ec = std::max({rd_ecT.lpNorm<Eigen::Infinity>(), opterror_rdT_ec});
+        Vx += Vx_alm_T;
+        Vxx += Vxx_alm_T;
+        opterror = std::max({opterror, opterror_rpT_ec, opterror_rdT_ec});
     }
 
     backward_failed = false;
@@ -644,8 +869,8 @@ void ALIPDDP<Scalar>::backwardPass() {
         Eigen::Ref<const Eigen::MatrixXd> qxu = qxu_all[k];
         Eigen::Ref<const Eigen::MatrixXd> quu = quu_all[k];
 
-        Qx = qx + (fx.transpose() * Vx);
-        Qu = qu + (fu.transpose() * Vx);
+        Qx.noalias() = qx + (fx.transpose() * Vx);
+        Qu.noalias() = qu + (fu.transpose() * Vx);
         
         // DDP (TODO: Vector-Hessian Product)
         // Qxx = qxx + (fx.transpose() * Vxx * fx) + tensdot(Vx, fxx);
@@ -659,9 +884,9 @@ void ALIPDDP<Scalar>::backwardPass() {
 
         // Regularization
         Vxx.diagonal().array() += reg1_mu;
-        Qxx = qxx + (fx.transpose() * Vxx * fx);
-        Qxu = qxu + (fx.transpose() * Vxx * fu);
-        Quu = quu + (fu.transpose() * Vxx * fu);
+        Qxx.noalias() = qxx + (fx.transpose() * Vxx * fx);
+        Qxu.noalias() = qxu + (fx.transpose() * Vxx * fu);
+        Quu.noalias() = quu + (fu.transpose() * Vxx * fu);
         Quu.diagonal().array() += reg2_mu;
 
         Eigen::Ref<Eigen::VectorXd> du_ = du[k];
@@ -672,97 +897,33 @@ void ALIPDDP<Scalar>::backwardPass() {
         hat_Quu = Quu;
 
         if (is_c_active[k]) {
-            Eigen::Ref<Eigen::VectorXd> s = S[k];
-            Eigen::Ref<Eigen::VectorXd> y = Y[k];
-            Eigen::Ref<Eigen::VectorXd> c_v = C[k];
+            // Qx += Qyx.transpose() * y;
+            // Qu += Qyu.transpose() * y;
             
-            Eigen::Ref<Eigen::MatrixXd> Qyx = cx_all[k];
-            Eigen::Ref<Eigen::MatrixXd> Qyu = cu_all[k];
+            Qx += Qx_ipm_all[k];
+            Qu += Qu_ipm_all[k];
 
-            Eigen::Ref<Eigen::VectorXd> rp_c = Rp_c[k];
-            
-            const int dim_c = ocp.getDimC(k);
-            const int dim_g = ocp.getDimG(k);
-
-            const auto& dim_hs     = ocp.getDimHs(k);
-            const auto& dim_hs_top = ocp.getDimHsTop(k);
-            const int dim_hs_max   = ocp.getDimHsMax(k);
-
-            Qx += Qyx.transpose() * y;
-            Qu += Qyu.transpose() * y;
-            
-            rd_c.resize(dim_c);
-            rd_c.head(dim_g) = s.head(dim_g).cwiseProduct(y.head(dim_g));
-            for (int i = 0; i < dim_hs.size(); ++i) {
-                const int idx = dim_hs_top[i];
-                const int n   = dim_hs[i];
-                soc_helper::LtimesVec(rd_c.segment(idx, n), y.segment(idx, n), s.segment(idx, n));
-            }
-            rd_c -= param.mu * e[k];
-
-            r_c.resize(dim_c);
-            r_c.head(dim_g) = y.head(dim_g).cwiseProduct(rp_c.head(dim_g));
-            for (int i = 0; i < dim_hs.size(); ++i) {
-                const int d   = dim_hs[i];
-                const int idx = dim_hs_top[i];
-                soc_helper::LtimesVec(r_c.segment(idx, d), y.segment(idx, d), rp_c.segment(idx, d));
-            }
-            r_c -= rd_c;
-
-            Sinv_r.resize(dim_c);
-            Sinv_r.head(dim_g) = r_c.head(dim_g).cwiseQuotient(s.head(dim_g));
-            for (int i = 0; i < dim_hs.size(); ++i) {
-                const int d   = dim_hs[i];
-                const int idx = dim_hs_top[i];
-                soc_helper::LinvTimesVec(Sinv_r.segment(idx, d), s.segment(idx, d), r_c.segment(idx, d));
-            }
-        
-            // more complex, but more fast
-            Sinv_Y_Qyx.resize(dim_c, dim_rn[k]);
-            Sinv_Y_Qyu.resize(dim_c, ocp.getDimU(k));
-            Eigen::VectorXd Sinv_Y_g = y.head(dim_g).cwiseQuotient(s.head(dim_g));
-            Sinv_Y_Qyx.topRows(dim_g) = Qyx.topRows(dim_g).array().colwise() * Sinv_Y_g.array();
-            Sinv_Y_Qyu.topRows(dim_g) = Qyu.topRows(dim_g).array().colwise() * Sinv_Y_g.array();
-            Eigen::MatrixXd SYinv_h_max(dim_hs_max, dim_hs_max);
-            for (int i = 0; i < dim_hs.size(); ++i) {
-                const int d   = dim_hs[i];
-                const int idx = dim_hs_top[i];
-                Eigen::Ref<Eigen::MatrixXd> Sinv_Y_h = SYinv_h_max.topLeftCorner(d, d);
-                soc_helper::LinvTimesArrow(Sinv_Y_h, s.segment(idx, d), y.segment(idx, d));
-                Sinv_Y_Qyx.middleRows(idx, d) = Sinv_Y_h * Qyx.middleRows(idx, d);
-                Sinv_Y_Qyu.middleRows(idx, d) = Sinv_Y_h * Qyu.middleRows(idx, d);
-            }
-            
             // Inplace Calculation
-            du_ -= (Qyu.transpose() * Sinv_r); // hat_Qu
-            Ku_ -= (Qyx.transpose() * Sinv_Y_Qyu).transpose(); // hat_Qxu
-            hat_Quu += (Qyu.transpose() * Sinv_Y_Qyu);
+            // du_ -= (Qyu.transpose() * Sinv_r); // hat_Qu
+            // Ku_ -= (Qyx.transpose() * Sinv_Y_Qyu).transpose(); // hat_Qxu
+            // hat_Quu += (Qyu.transpose() * Sinv_Y_Qyu);
+
+            du_ -= hat_Qu_ipm_all[k]; // hat_Qu
+            Ku_ -= hat_Qux_ipm_all[k]; // hat_Qxu
+            hat_Quu += hat_Quu_ipm_all[k]; // hat_Quu
         }
         
         if (is_ec_active[k]) {
-            Eigen::Ref<Eigen::VectorXd> r = R[k];
-            Eigen::Ref<Eigen::VectorXd> z = Z[k];
-            Eigen::Ref<Eigen::VectorXd> ec_v = EC[k];
+            Qx += Qx_alm_all[k];
+            Qu += Qu_alm_all[k];
 
-            Eigen::Ref<Eigen::MatrixXd> Qzx = ecx_all[k];
-            Eigen::Ref<Eigen::MatrixXd> Qzu = ecu_all[k];
-            
-            Eigen::Ref<Eigen::VectorXd> rp_ec = Rp_ec[k];
+            // du_ -= (Qzu.transpose() * r_ec); // hat_Qu
+            // Ku_ -= (Qzx.transpose() * rho_Qzu).transpose(); // hat_Qxu
+            // hat_Quu += (Qzu.transpose() * rho_Qzu);
 
-            const int dim_ec = ocp.getDimEC(k);
-
-            Qx += Qzx.transpose() * z;
-            Qu += Qzu.transpose() * z;
-
-            rd_ec = z + lambda[k] + (param.rho * r);
-            r_ec = param.rho * rp_ec - rd_ec;
-
-            rho_Qzx = param.rho * Qzx;
-            rho_Qzu = param.rho * Qzu;
-
-            du_ -= (Qzu.transpose() * r_ec); // hat_Qu
-            Ku_ -= (Qzx.transpose() * rho_Qzu).transpose(); // hat_Qxu
-            hat_Quu += (Qzu.transpose() * rho_Qzu);
+            du_ -= hat_Qu_alm_all[k]; // hat_Qu
+            Ku_ -= hat_Qux_alm_all[k]; // hat_Qxu
+            hat_Quu += hat_Quu_alm_all[k]; // hat_Quu
         }
         
         Quu_llt.compute(hat_Quu.selfadjointView<Eigen::Upper>());
@@ -785,20 +946,23 @@ void ALIPDDP<Scalar>::backwardPass() {
         
         Vx = Qx + (Ku_.transpose() * Qu) + (Ku_.transpose() * Quu * du_) + (Qxu * du_);
         Vxx = Qxx + (Ku_.transpose() * Qxu.transpose()) + (Qxu * Ku_) + (Ku_.transpose() * Quu * Ku_);
-        
 
         opterror = std::max({Qu.lpNorm<Eigen::Infinity>(), opterror});
 
         // Inequality Constraint
         if (is_c_active[k]) {
-            Eigen::Ref<Eigen::VectorXd> s = S[k];
-            Eigen::Ref<Eigen::VectorXd> y = Y[k];
+            // Eigen::Ref<Eigen::VectorXd> s = S[k];
+            // Eigen::Ref<Eigen::VectorXd> y = Y[k];
             Eigen::Ref<Eigen::VectorXd> c_v = C[k];
         
             Eigen::Ref<Eigen::MatrixXd> Qyx = cx_all[k];
             Eigen::Ref<Eigen::MatrixXd> Qyu = cu_all[k];
 
             Eigen::Ref<Eigen::MatrixXd> rp_c = Rp_c[k];
+
+            Eigen::Ref<Eigen::MatrixXd> Sinv_r = Sinv_r_all[k];
+            Eigen::Ref<Eigen::MatrixXd> Sinv_Y_Qyx = Sinv_Y_Qyx_all[k];
+            Eigen::Ref<Eigen::MatrixXd> Sinv_Y_Qyu = Sinv_Y_Qyu_all[k];
         
             // const int dim_g = ocp.getDimG(k);
             // const int dim_c = ocp.getDimC(k);
@@ -817,21 +981,21 @@ void ALIPDDP<Scalar>::backwardPass() {
 
             Vx += (Ky_.transpose() * c_v) + (Qyx.transpose() * dy_) + (Ku_.transpose() * Qyu.transpose() * dy_) + (Ky_.transpose() * Qyu * du_);
             Vxx += (Qyx.transpose() * Ky_) + (Ky_.transpose() * Qyx) + (Ku_.transpose() * Qyu.transpose() * Ky_) + (Ky_.transpose() * Qyu * Ku_);
-
-            opterror = std::max({rp_c.lpNorm<Eigen::Infinity>(), rd_c.lpNorm<Eigen::Infinity>(), opterror});
-            opterror_rp_c = std::max({rp_c.lpNorm<Eigen::Infinity>(), opterror_rp_c});
-            opterror_rd_c = std::max({rd_c.lpNorm<Eigen::Infinity>(), opterror_rd_c});
         }
 
         if (is_ec_active[k]) {
-            Eigen::Ref<Eigen::VectorXd> r = R[k];
-            Eigen::Ref<Eigen::VectorXd> z = Z[k];
+            // Eigen::Ref<Eigen::VectorXd> r = R[k];
+            // Eigen::Ref<Eigen::VectorXd> z = Z[k];
             Eigen::Ref<Eigen::VectorXd> ec_v = EC[k];
 
             Eigen::Ref<Eigen::MatrixXd> Qzx = ecx_all[k];
             Eigen::Ref<Eigen::MatrixXd> Qzu = ecu_all[k];
 
             Eigen::Ref<Eigen::MatrixXd> rp_ec = Rp_ec[k];
+            Eigen::Ref<Eigen::MatrixXd> r_ec = R_ec[k];
+
+            Eigen::Ref<Eigen::MatrixXd> rho_Qzx = rho_Qzx_all[k];
+            Eigen::Ref<Eigen::MatrixXd> rho_Qzu = rho_Qzu_all[k];
 
             Eigen::Ref<Eigen::VectorXd> dr_ = dr[k];
             Eigen::Ref<Eigen::MatrixXd> Kr_ = Kr[k];
@@ -846,12 +1010,11 @@ void ALIPDDP<Scalar>::backwardPass() {
 
             Vx += (Kz_.transpose() * ec_v) + (Qzx.transpose() * dz_) + (Ku_.transpose() * Qzu.transpose() * dz_) + (Kz_.transpose() * Qzu * du_);
             Vxx += (Qzx.transpose() * Kz_) + (Kz_.transpose() * Qzx) + (Ku_.transpose() * Qzu.transpose() * Kz_) + (Kz_.transpose() * Qzu * Ku_);
-
-            opterror = std::max({rp_ec.lpNorm<Eigen::Infinity>(), rd_ec.lpNorm<Eigen::Infinity>(), opterror});
-            opterror_rp_ec = std::max({rp_ec.lpNorm<Eigen::Infinity>(), opterror_rp_ec});
-            opterror_rd_ec = std::max({rd_ec.lpNorm<Eigen::Infinity>(), opterror_rd_ec});
         }
     }
+
+    opterror = std::max({opterror, opterror_rp_c, opterror_rd_c, opterror_rp_ec, opterror_rd_ec});
+
     // std::cout << "opterror_rpT_ec = " << opterror_rpT_ec << std::endl;
     // std::cout << "opterror_rdT_ec = " << opterror_rdT_ec << std::endl;
     // std::cout << "opterror_rpT_c = " << opterror_rpT_c << std::endl;

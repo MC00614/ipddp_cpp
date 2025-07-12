@@ -79,7 +79,7 @@ private:
     std::vector<double> step_list; // Step Size List
     int step; // Step Size Index
     int forward_failed;
-    bool is_diff_calculated;
+    bool is_traj_moved;
 
     int update_counter;
     int iter;
@@ -132,10 +132,36 @@ private:
     std::vector<Eigen::VectorXd> e;
     Eigen::VectorXd eT;
 
-    std::vector<Eigen::VectorXd> Rp_c;
-    std::vector<Eigen::VectorXd> Rp_ec;
-    Eigen::VectorXd Rp_cT;
-    Eigen::VectorXd Rp_ecT;
+    bool is_alm_updated;
+    bool is_alm_updatedT;
+    bool is_ipm_updated;
+    bool is_ipm_updatedT;
+
+    Eigen::VectorXd Vx_ddp_T;
+    Eigen::VectorXd Vx_ipm_T;
+    Eigen::VectorXd Vx_alm_T;
+    Eigen::MatrixXd Vxx_ddp_T;
+    Eigen::MatrixXd Vxx_ipm_T;
+    Eigen::MatrixXd Vxx_alm_T;
+    std::vector<Eigen::VectorXd> Vx;
+    std::vector<Eigen::MatrixXd> Vxx;
+
+    std::vector<Eigen::VectorXd> Rp_c, Rd_c, R_c;
+    std::vector<Eigen::VectorXd> Rp_ec, Rd_ec, R_ec;
+    Eigen::VectorXd Rp_cT, Rd_cT;
+    Eigen::VectorXd Rp_ecT, Rd_ecT;
+
+    std::vector<Eigen::VectorXd> Sinv_r_all;
+    std::vector<Eigen::MatrixXd> Sinv_Y_Qyx_all, Sinv_Y_Qyu_all;
+    std::vector<Eigen::VectorXd> Qx_ipm_all, Qu_ipm_all, hat_Qu_ipm_all;
+    std::vector<Eigen::MatrixXd> hat_Qux_ipm_all, hat_Quu_ipm_all;
+    std::vector<Eigen::MatrixXd> rho_Qzx_all, rho_Qzu_all;
+    std::vector<Eigen::VectorXd> Qx_alm_all, Qu_alm_all, hat_Qu_alm_all;
+    std::vector<Eigen::MatrixXd> hat_Qux_alm_all, hat_Quu_alm_all;
+
+
+    // Eigen::VectorXd Vx;
+    // Eigen::MatrixXd Vxx;
 
     double opterror;
     double opterror_rpT_ec;
@@ -173,6 +199,11 @@ private:
 
     // Algorithm
     void calcAllDiff();
+    void calcResiduals();
+    void calcCres();
+    void calcCTres();
+    void calcECres();
+    void calcECTres();
     void backwardPass();
     void checkRegulate();
     void forwardPass();
