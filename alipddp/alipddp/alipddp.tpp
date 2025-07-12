@@ -161,7 +161,8 @@ void ALIPDDP<Scalar>::init(Param param) {
     }
     lambdaT.setZero(ocp.getDimECT());
 
-    resetFilter();
+    resetCost();
+    resetError();
     resetRegulation();
 
     for (int i = 0; i <= this->param.max_step_iter; ++i) {
@@ -185,15 +186,12 @@ void ALIPDDP<Scalar>::initialRoll() {
 }
 
 template <typename Scalar>
-void ALIPDDP<Scalar>::resetFilter() {
+void ALIPDDP<Scalar>::resetCost() {
     double barriercost = 0.0;
     double barriercostT = 0.0;
     double alcost = 0.0;
     double alcostT = 0.0;
     
-    // CHECK: Possible to use GEMM if we use same dynamics & constraints across all timestep
-    // Implement 2 way method?
-
     for (int k = 0; k < N; ++k) {
         const int dim_g = ocp.getDimG(k);
         const int dim_h = ocp.getDimH(k);
@@ -223,18 +221,22 @@ void ALIPDDP<Scalar>::resetFilter() {
         alcostT += (lambdaT.transpose() * RT) + (0.5 * param.rhoT * RT.squaredNorm());
     }
     logcost = cost - (param.mu * barriercost + param.muT * barriercostT) + (alcost + alcostT);
+}
 
+template <typename Scalar>
+void ALIPDDP<Scalar>::resetError() {
     error = 0.0;
     for (int k = 0; k < N; ++k) {
-        if (ocp.getDimEC(k)) {error += (EC[k] + R[k]).array().abs().sum();}
-        if (ocp.getDimC(k)) {error += (C[k] + S[k]).array().abs().sum();}
+        if (is_c_active[k]) {error += (C[k] + S[k]).array().abs().sum();}
+        if (is_ec_active[k]) {error += (EC[k] + R[k]).array().abs().sum();}
     }
-    if (ocp.getDimECT()) {error += (ECT + RT).array().abs().sum();}
     if (ocp.getDimCT()) {error += (CT + ST).array().abs().sum();}
+    if (ocp.getDimECT()) {error += (ECT + RT).array().abs().sum();}
     error = std::max(param.tolerance, error);
     
-    step = 0;
-    forward_failed = false;
+    // CHECK: Purpose?
+    // step = 0;
+    // forward_failed = false;
 }
 
 template <typename Scalar>
@@ -344,7 +346,7 @@ void ALIPDDP<Scalar>::solve() {
                     lambdaT = lambdaT + param.rhoT * RT;
                 }
                 if (updated) {
-                    resetFilter();
+                    resetCost();
                     inner_iter = 0;
                 }
                 // std::cout << "opterror_rp_c = " << opterror_rp_c << std::endl;
@@ -388,7 +390,7 @@ void ALIPDDP<Scalar>::solve() {
             param.rhoT = std::min(param.rho_max, param.rho_mul * param.rhoT);
             lambdaT = lambdaT + param.rhoT * RT;
         }
-        resetFilter();
+        resetCost();
         resetRegulation();
     }
 }
@@ -578,20 +580,6 @@ void ALIPDDP<Scalar>::backwardPass() {
         Vx += KyT.transpose() * CT + QyxT.transpose() * dyT;
         Vxx += QyxT.transpose() * KyT + KyT.transpose() * QyxT;
 
-        // with slack
-        // Eigen::VectorXd QsT = YTinv * rd_cT;
-        // Eigen::VectorXd QyT = rp_cT;
-        // Eigen::MatrixXd I_cT = Eigen::VectorXd::Ones(dim_cT).asDiagonal();
-        // dV(0) += QsT.transpose() * dsT;
-        // dV(0) += QyT.transpose() * dyT;
-        // dV(1) += dyT.transpose() * I_cT * dsT; 
-
-        // Vx += KyT.transpose() * QyT + QyxT.transpose() * dyT;
-        // Vx += KsT.transpose() * QsT + KyT.transpose() * I_cT * dsT + KsT.transpose() * I_cT * dyT;
-
-        // Vxx += QyxT.transpose() * KyT + KyT.transpose() * QyxT;
-        // Vxx += KyT.transpose() * I_cT * KsT + KsT.transpose() * I_cT * KyT;
-
         opterror = std::max({rp_cT.lpNorm<Eigen::Infinity>(), rd_cT.lpNorm<Eigen::Infinity>(), opterror});
         opterror_rpT_c = std::max({rp_cT.lpNorm<Eigen::Infinity>(), opterror_rpT_c});
         opterror_rdT_c = std::max({rd_cT.lpNorm<Eigen::Infinity>(), opterror_rdT_c});
@@ -611,25 +599,8 @@ void ALIPDDP<Scalar>::backwardPass() {
         dzT = param.rhoT * rp_ecT - rd_ecT;
         KzT = param.rhoT * QzxT;
 
-        // CHECK: New Value Decrement
-        // dV(0) += dzT.transpose() * ECT;
-
         Vx += KzT.transpose() * ECT + QzxT.transpose() * dzT;
         Vxx += QzxT.transpose() * KzT + KzT.transpose() * QzxT;
-
-        // with slack
-        // Eigen::VectorXd QrT = rd_ecT;
-        // Eigen::VectorXd QzT = rp_ecT;
-        // Eigen::MatrixXd I_ecT = Eigen::VectorXd::Ones(dim_ecT).asDiagonal();
-        // dV(0) += QrT.transpose() * drT;
-        // dV(0) += QzT.transpose() * dzT;
-        // dV(1) += dzT.transpose() * I_ecT * drT; // Qrr = 0
-        
-        // Vx += KzT.transpose() * QzT + QzxT.transpose() * dzT;
-        // Vx += KrT.transpose() * QrT + KzT.transpose() * I_ecT * drT + KrT.transpose() * I_ecT * dzT;
-        
-        // Vxx += QzxT.transpose() * KzT + KzT.transpose() * QzxT;
-        // Vxx += KzT.transpose() * I_ecT * KrT + KrT.transpose() * I_ecT * KzT;
         
         opterror = std::max({rp_ecT.lpNorm<Eigen::Infinity>(), rd_ecT.lpNorm<Eigen::Infinity>(), opterror});
         opterror_rpT_ec = std::max({rp_ecT.lpNorm<Eigen::Infinity>(), opterror_rpT_ec});
@@ -737,28 +708,6 @@ void ALIPDDP<Scalar>::backwardPass() {
                 Sinv_Y_Qyx.middleRows(idx, d) = Sinv_Y_h * Qyx.middleRows(idx, d);
                 Sinv_Y_Qyu.middleRows(idx, d) = Sinv_Y_h * Qyu.middleRows(idx, d);
             }
-
-            /* less complex, but more slow
-            Eigen::VectorXd Sinv_Y_g = y.head(dim_g).cwiseQuotient(s.head(dim_g));
-            Sinv_Y_Qyx.topRows(dim_g) = Qyx.topRows(dim_g).array().colwise() * Sinv_Y_g.array();
-            Sinv_Y_Qyu.topRows(dim_g) = Qyu.topRows(dim_g).array().colwise() * Sinv_Y_g.array();
-            Eigen::VectorXd Y_Qyx_h_max(ocp.getDimHsMax(k));
-            Eigen::VectorXd Y_Qyu_h_max(ocp.getDimHsMax(k));
-            for (int i = 0; i < dim_hs.size(); ++i) {
-                const int d   = dim_hs[i];
-                const int idx = dim_hs_top[i];
-                Eigen::Ref<Eigen::VectorXd> Y_Qyx_h = Y_Qyx_h_max.topRows(d);
-                for (int j = 0; j < dim_rn[k]; ++j) {
-                    soc_helper::LtimesVec(Y_Qyx_h, y.segment(idx, d), Qyx.block(idx, j, d, 1));
-                    soc_helper::LinvTimesVec(Sinv_Y_Qyx.block(idx, j, d, 1), s.segment(idx, d), Y_Qyx_h);
-                }
-                Eigen::Ref<Eigen::VectorXd> Y_Qyu_h = Y_Qyu_h_max.topRows(d);
-                for (int j = 0; j < ocp.getDimU(k); ++j) {
-                    soc_helper::LtimesVec(Y_Qyu_h, y.segment(idx, d), Qyu.block(idx, j, d, 1));
-                    soc_helper::LinvTimesVec(Sinv_Y_Qyu.block(idx, j, d, 1), s.segment(idx, d), Y_Qyu_h);
-                }
-            }
-            */
             
             // Inplace Calculation
             du_ -= (Qyu.transpose() * Sinv_r); // hat_Qu
@@ -833,72 +782,14 @@ void ALIPDDP<Scalar>::backwardPass() {
             Eigen::Ref<Eigen::MatrixXd> Ky_ = Ky[k];
 
             ds_ = - (rp_c + Qyu * du_);
-            Ks_ = - (Qyx + Qyu * Ku_);    
+            Ks_ = - (Qyx + Qyu * Ku_);
 
             // more complex, but more fast
             dy_ = Sinv_r + (Sinv_Y_Qyu * du_);
             Ky_ = Sinv_Y_Qyx + (Sinv_Y_Qyu * Ku_);
 
-            /* less complex, but more slow
-            Eigen::VectorXd rd_plus_Y_ds(dim_c);
-            rd_plus_Y_ds.head(dim_g) = y.head(dim_g).cwiseProduct(ds_.head(dim_g));
-            const auto& dim_hs     = ocp.getDimHs(k);
-            const auto& dim_hs_top  = ocp.getDimHsTop(k);
-
-            for (int i = 0; i < dim_hs.size(); ++i) {
-                const int d   = dim_hs[i];
-                const int idx = dim_hs_top[i];
-                soc_helper::LtimesVec(rd_plus_Y_ds.segment(idx, d), y.segment(idx, d), ds_.segment(idx, d));
-            }
-            rd_plus_Y_ds += rd_c;
-
-            dy_.head(dim_g) = rd_plus_Y_ds.head(dim_g).cwiseQuotient(s.head(dim_g));
-            for (int i = 0; i < dim_hs.size(); ++i) {
-                const int d   = dim_hs[i];
-                const int idx = dim_hs_top[i];
-                soc_helper::LinvTimesVec(dy_.segment(idx, d), s.segment(idx, d), rd_plus_Y_ds.segment(idx, d));
-            }
-            dy_ = -dy_;
-
-            Ky_.topRows(dim_g) = Ks_.topRows(dim_g).array().colwise() * (y.head(dim_g).array() / s.head(dim_g).array());
-            Eigen::VectorXd Y_Ks_h(ocp.getDimHsMax(k));
-            for (int i = 0; i < dim_hs.size(); ++i) {
-                const int d   = dim_hs[i];
-                const int idx = dim_hs_top[i];
-                for (int j = 0; j < ocp.getDimX(k); ++j) {
-                    soc_helper::LtimesVec(Y_Ks_h, y.segment(idx, d), Ks_.block(idx, j, d, 1));
-                    soc_helper::LinvTimesVec(Ky_.block(idx, j, d, 1), s.segment(idx, d), Y_Ks_h);
-                }
-            }
-            Ky_ = -Ky_;
-            */
-
-            // CHECK: New Value Decrement
-            // dV(0) += dy_.transpose() * c_v;
-            // dV(1) += du_.transpose() * Qyu.transpose() * dy_;
-
             Vx += (Ky_.transpose() * c_v) + (Qyx.transpose() * dy_) + (Ku_.transpose() * Qyu.transpose() * dy_) + (Ky_.transpose() * Qyu * du_);
             Vxx += (Qyx.transpose() * Ky_) + (Ky_.transpose() * Qyx) + (Ku_.transpose() * Qyu.transpose() * Ky_) + (Ky_.transpose() * Qyu * Ku_);
-
-            // with slack
-            // Eigen::VectorXd Qo = Sinv * rd_c;
-            // Eigen::VectorXd Qy = rp_c;
-            // Eigen::MatrixXd I_c = Eigen::VectorXd::Ones(dim_c).asDiagonal();
-            // dV(0) += Qo.transpose() * ds_;
-            // dV(0) += Qy.transpose() * dy_;
-            // dV(1) += dy_.transpose() * Qyu * du_;
-            // dV(1) += dy_.transpose() * I_c * ds_; // Qyy = 0
-
-            // Vx += Ky_.transpose() * Qy + Ku_.transpose() * Qyu.transpose() * dy_ + Ky_.transpose() * Qyu * du_ + Qyx.transpose() * dy_;
-            // Vx += Ks_.transpose() * Qo + Ky_.transpose() * I_c * ds_ + Ks_.transpose() * I_c * dy_;
-
-            // Vxx += Qyx.transpose() * Ky_ + Ky_.transpose() * Qyx + Ky_.transpose() * Qyu * Ku_ + Ku_.transpose() * Qyu.transpose() * Ky_;
-            // Vxx += Ky_.transpose() * I_c * Ks_ + Ks_.transpose() * I_c * Ky_;
-
-            // dy[k] = dy_;
-            // Ky[k] = Ky_;
-            // ds[k] = ds_;
-            // Ks[k] = Ks_;
 
             opterror = std::max({rp_c.lpNorm<Eigen::Infinity>(), rd_c.lpNorm<Eigen::Infinity>(), opterror});
             opterror_rp_c = std::max({rp_c.lpNorm<Eigen::Infinity>(), opterror_rp_c});

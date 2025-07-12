@@ -71,7 +71,8 @@ private:
     double cost;
     Param param;
     void initialRoll();
-    void resetFilter();
+    void resetCost();
+    void resetError();
     double logcost;
     double error;
     
