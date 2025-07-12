@@ -7,10 +7,12 @@ project(alipddp)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+find_package(Eigen3 REQUIRED)
+
 set(INCLUDE_DIRS
     ${CMAKE_SOURCE_DIR}/alipddp/
     ${CMAKE_SOURCE_DIR}/problem_maker/
-    ${CMAKE_SOURCE_DIR}/eigen/
+    ${EIGEN3_INCLUDE_DIR}
     # ${CMAKE_SOURCE_DIR}/matplotlib-cpp/
     # ${Python3_INCLUDE_DIRS}
 )
