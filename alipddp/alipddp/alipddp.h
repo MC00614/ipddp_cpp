@@ -132,6 +132,11 @@ private:
     std::vector<Eigen::VectorXd> e;
     Eigen::VectorXd eT;
 
+    std::vector<Eigen::VectorXd> Rp_c;
+    std::vector<Eigen::VectorXd> Rp_ec;
+    Eigen::VectorXd Rp_cT;
+    Eigen::VectorXd Rp_ecT;
+
     double opterror;
     double opterror_rpT_ec;
     double opterror_rdT_ec;
@@ -158,6 +163,11 @@ private:
     Eigen::VectorXd RT_new;
     Eigen::VectorXd ZT_new;
     Eigen::VectorXd ECT_new;
+
+    std::vector<Eigen::VectorXd> Rp_c_new;
+    std::vector<Eigen::VectorXd> Rp_ec_new;
+    Eigen::VectorXd Rp_cT_new;
+    Eigen::VectorXd Rp_ecT_new;
 
     std::vector<double> all_cost;
 
